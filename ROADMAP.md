@@ -45,6 +45,7 @@ Questo documento unifica tutte le fasi di sviluppo, passate e future, organizzat
 
 - [ ] **Regime Detection**: Classificazione Trend/Range, Volatilità.
 - [ ] **Parameter Lab**: Grid Search, Heatmaps, Sensitivity Analysis.
+    - *New Feature*: **Tensor Visualization**: Animazione interattiva per esplorare i risultati al variare dei parametri (slicing multidimensionale).
 - [ ] **Stress Testing**: Monte Carlo, Scenarios (Spread, Slippage).
 - [ ] **Setup Analysis**: Tagging manuale/automatico dei pattern (es. Breakout).
 
