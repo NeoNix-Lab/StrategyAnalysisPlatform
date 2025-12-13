@@ -3,11 +3,13 @@ from sqlalchemy.orm import Session
 import logging
 from datetime import datetime
 import uuid
+import hashlib
 
 from src.database.connection import get_db
 from src.database.models import (
     Strategy, StrategyInstance, StrategyRun, 
     Order, Execution, RunSeries, Bar,
+    MarketSeries, MarketBar, RunSubscription,
     Side, OrderType, OrderStatus, PositionImpactType, RunType, RunStatus
 )
 from src.api.schemas import (
@@ -189,39 +191,55 @@ async def on_execution(data: ExecutionCreate, db: Session = Depends(get_db)):
 @router.post("/event/bar")
 def on_bar(data: BarCreate, db: Session = Depends(get_db)):
     try:
-        # 1. Find or Create RunSeries
-        series = db.query(RunSeries).filter(
-            RunSeries.run_id == data.run_id,
-            RunSeries.symbol == data.symbol,
-            RunSeries.timeframe == data.timeframe
-        ).first()
+        # "Unified Market Data Layer" Logic
         
-        if not series:
-            series_id = str(uuid.uuid4())
-            series = RunSeries(
+        # 1. Calculate MarketSeries ID (Hash)
+        series_key = f"{data.symbol}_{data.timeframe}_{data.venue}_{data.provider}"
+        series_id = hashlib.md5(series_key.encode()).hexdigest()
+        
+        # 2. Ensure MarketSeries Exists
+        market_series = db.query(MarketSeries).filter(MarketSeries.series_id == series_id).first()
+        if not market_series:
+            market_series = MarketSeries(
                 series_id=series_id,
-                run_id=data.run_id,
                 symbol=data.symbol,
                 timeframe=data.timeframe,
+                venue=data.venue,
+                provider=data.provider,
                 created_utc=datetime.utcnow()
             )
-            db.add(series)
-            db.commit()
-            db.refresh(series)
+            db.add(market_series)
+            db.commit() # Commit needed to create ID for foreign keys
         
-        # 2. Insert Bar
-        existing_bar = db.query(Bar).filter(Bar.series_id == series.series_id, Bar.ts_utc == data.ts_utc).first()
-        if existing_bar:
-            # Update
-            existing_bar.open = data.open
-            existing_bar.high = data.high
-            existing_bar.low = data.low
-            existing_bar.close = data.close
-            existing_bar.volume = data.volume
-            existing_bar.volumetric_json = data.volumetric_json
+        # 3. Ensure Run Subscription (Run -> MarketSeries)
+        sub = db.query(RunSubscription).filter(
+            RunSubscription.run_id == data.run_id,
+            RunSubscription.series_id == series_id
+        ).first()
+        
+        if not sub:
+            sub = RunSubscription(run_id=data.run_id, series_id=series_id)
+            db.add(sub)
+            # We don't necessarily need to commit here immediately if we are batching, 
+            # but for safety let's assume one-by-one flow for now.
+        
+        # 4. Upsert Bar in MarketBar
+        existing = db.query(MarketBar).filter(
+            MarketBar.series_id == series_id,
+            MarketBar.ts_utc == data.ts_utc
+        ).first()
+        
+        if existing:
+            # Update (e.g. Volume might change on final close update?)
+            existing.open = data.open
+            existing.high = data.high
+            existing.low = data.low
+            existing.close = data.close
+            existing.volume = data.volume
+            existing.volumetric_json = data.volumetric_json
         else:
-            bar = Bar(
-                series_id=series.series_id,
+            new_bar = MarketBar(
+                series_id=series_id,
                 ts_utc=data.ts_utc,
                 open=data.open,
                 high=data.high,
@@ -230,7 +248,9 @@ def on_bar(data: BarCreate, db: Session = Depends(get_db)):
                 volume=data.volume,
                 volumetric_json=data.volumetric_json
             )
-            db.add(bar)
+            db.add(new_bar)
+            
+        db.commit()
         
         db.commit()
         return {"status": "ok"}

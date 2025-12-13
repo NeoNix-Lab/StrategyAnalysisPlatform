@@ -282,3 +282,48 @@ class IngestEvent(Base):
     __table_args__ = (
         Index('idx_ingest_run_time', 'run_id', 'event_utc'),
     )
+
+class MarketSeries(Base):
+    __tablename__ = 'market_series'
+    
+    series_id = Column(String, primary_key=True) # Hash(symbol, timeframe, venue)
+    
+    symbol = Column(String, nullable=False)
+    timeframe = Column(String, nullable=False)
+    venue = Column(String, nullable=True) # e.g. Binance
+    provider = Column(String, nullable=True) # e.g. Quantower
+    
+    created_utc = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    bars = relationship("MarketBar", back_populates="series")
+    # Mapping to runs
+    # runs = relationship("StrategyRun", secondary="run_subscriptions")
+
+    __table_args__ = (
+        UniqueConstraint('symbol', 'timeframe', 'venue', 'provider', name='uq_market_series_def'),
+    )
+
+class MarketBar(Base):
+    __tablename__ = 'market_bars'
+    
+    series_id = Column(String, ForeignKey('market_series.series_id'), primary_key=True)
+    ts_utc = Column(DateTime, primary_key=True)
+    
+    open = Column(Float, nullable=False)
+    high = Column(Float, nullable=False)
+    low = Column(Float, nullable=False)
+    close = Column(Float, nullable=False)
+    volume = Column(Float, default=0.0)
+    
+    volumetric_json = Column(JSON, nullable=True)
+    
+    series = relationship("MarketSeries", back_populates="bars")
+
+class RunSubscription(Base):
+    __tablename__ = 'run_subscriptions'
+    
+    run_id = Column(String, ForeignKey('strategy_runs.run_id'), primary_key=True)
+    series_id = Column(String, ForeignKey('market_series.series_id'), primary_key=True)
+    
+    created_utc = Column(DateTime, default=datetime.utcnow)

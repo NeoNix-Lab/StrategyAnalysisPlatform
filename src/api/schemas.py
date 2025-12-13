@@ -111,6 +111,8 @@ class BarCreate(BaseModel):
     run_id: str
     symbol: str
     timeframe: str
+    venue: Optional[str] = "Unknown"
+    provider: Optional[str] = "Unknown"
     ts_utc: datetime
     open: float
     high: float
