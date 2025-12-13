@@ -1,37 +1,40 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from src.database.connection import init_db
-from src.api.routers import trades, bars, experiments, stress, setups, ingest, strategies
+
+# Routers
+from src.api.routers import executions
+from src.api.routers import bars
+from src.api.routers import setups
+from src.api.routers import ingest
+from src.api.routers import strategies
+from src.api.routers import runs
 
 app = FastAPI(
     title="Strategy Analysis Platform API",
-    description="Backend API for Quant Lab",
-    version="1.0.0"
+    description="Backend API for Quant Lab (Event-First)",
+    version="2.0.0"
 )
 
-# Configurazione CORS per permettere al frontend (React) di comunicare
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:5174", "http://localhost:3000"], # Vite default ports
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Inizializzazione DB all'avvio
 @app.on_event("startup")
 def on_startup():
     init_db()
 
-# Registrazione Routers
-app.include_router(trades.router, prefix="/api/trades", tags=["trades"])
+app.include_router(executions.router, prefix="/api/executions", tags=["executions"])
 app.include_router(bars.router, prefix="/api/bars", tags=["bars"])
-app.include_router(experiments.router, prefix="/api/experiments", tags=["experiments"])
-app.include_router(stress.router, prefix="/api/stress", tags=["stress"])
 app.include_router(setups.router, prefix="/api/setups", tags=["setups"])
 app.include_router(ingest.router, prefix="/api/ingest", tags=["ingest"])
 app.include_router(strategies.router, prefix="/api/strategies", tags=["strategies"])
+app.include_router(runs.router, prefix="/api/runs", tags=["runs"])
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok", "system": "Strategy Analysis Platform"}
+    return {"status": "ok", "system": "Strategy Analysis Platform v2"}

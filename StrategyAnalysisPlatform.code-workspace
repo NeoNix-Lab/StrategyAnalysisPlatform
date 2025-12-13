@@ -4,7 +4,16 @@
 			"path": "."
 		},
 		{
-			"path": "../StackedImbalanceStrategyDue"
+			"path": "../StackedImbalanceStrategyDue/StrategyExporter"
+		},
+		{
+			"path": "../StrategyExporterTemplate"
+		},
+		{
+			"path": "../StrategyAnalysisDashboard"
+		},
+		{
+			"path": "../PlatformDocumentation"
 		}
 	],
 	"settings": {}
