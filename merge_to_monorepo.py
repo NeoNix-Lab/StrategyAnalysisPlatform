@@ -6,7 +6,8 @@ import glob
 DEST_ROOT = r"d:\Documents\Active\StrategyAnalysisPlatform"
 SOURCES = {
     "frontend": r"d:\Documents\Active\StrategyAnalysisDashboard",
-    "exporters/quantower": r"d:\Documents\Active\StrategyExporterTemplate"
+    "exporters/quantower_template": r"d:\Documents\Active\StrategyExporterTemplate",
+    "exporters/StrategyExporter": r"d:\Documents\Active\StackedImbalanceStrategyDue\StrategyExporter"
 }
 
 # Ignore Patterns (Simple Glob list)
