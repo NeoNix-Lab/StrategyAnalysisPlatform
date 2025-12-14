@@ -79,3 +79,42 @@
 .infinite-scroll-container:hover::-webkit-scrollbar-thumb {
     background-color: rgba(148, 163, 184, 0.5);
 }
+
+/* Metric Value Group (Split Cards) */
+.metric-value-group {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    margin-top: 0.5rem;
+}
+
+.metric-value-group>div {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+}
+
+.metric-value-group .value {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1.2;
+}
+
+.metric-value-group .sub-label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    margin-top: 0.25rem;
+}
+
+.metric-value-group .divider {
+    width: 1px;
+    height: 30px;
+    background: rgba(255, 255, 255, 0.1);
+    margin: 0 1rem;
+    flex: 0 0 auto;
+    /* Don't shrink */
+}

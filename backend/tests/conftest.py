@@ -11,7 +11,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from src.database.models import Base
 # Try to import app. If fails, client tests will fail but unit tests will pass.
 try:
-    from main import app
+    from src.api.main import app
 except ImportError:
     app = None
 
@@ -25,14 +25,12 @@ def test_engine():
 @pytest.fixture(scope="function")
 def db_session(test_engine):
     """Creates a new database session for a test."""
-    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
-    session = TestingSessionLocal()
-    
-    # Begin a nested transaction (savepoint)
-    # This allows us to rollback changes after each test
     connection = test_engine.connect()
     transaction = connection.begin()
-    session.configure(bind=connection)
+    
+    # Bind the session to the connection
+    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=connection)
+    session = TestingSessionLocal()
 
     yield session
 

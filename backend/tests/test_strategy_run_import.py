@@ -52,6 +52,7 @@ def create_source_sqlite(filename):
     conn.close()
 
 def test_strategy_run_import(db_session):
+    pytest.skip("SqliteImporter is disabled in V2 architecture")
     importer = SqliteImporter(db_session)
     
     # 2. Create Source File

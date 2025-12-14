@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "SsfXq+1Tvwo=",
+  "dgSpecHash": "KuApDqZuXyc=",
   "success": true,
-  "projectFilePath": "D:\\Documents\\Active\\StrategyAnalysisPlatform\\exporters\\StrategyExporter\\StrategyExporter.csproj",
+  "projectFilePath": "d:\\Documents\\Active\\StrategyAnalysisPlatform\\exporters\\StrategyExporter\\StrategyExporter.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\NeoNix\\.nuget\\packages\\newtonsoft.json\\13.0.3\\newtonsoft.json.13.0.3.nupkg.sha512",
     "C:\\Users\\NeoNix\\.nuget\\packages\\system.net.http.json\\8.0.0\\system.net.http.json.8.0.0.nupkg.sha512",

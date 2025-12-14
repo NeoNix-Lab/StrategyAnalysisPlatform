@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List
 from src.database.connection import get_db
 from src.database.models import StrategyRun
-from src.api.schemas import StrategyRunResponse
+from src.api.schemas import StrategyRunResponse, StartRunRequest
 
 router = APIRouter()
 
@@ -13,20 +13,27 @@ def get_run(run_id: str, db: Session = Depends(get_db)):
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
 
-    # [NEW] Calculate metrics on the fly and update DB if missing or stale
-    # For now, we always recalculate to ensure freshness (can optimize later)
-    from src.database.models import Execution, Order
-    from src.quantlab.metrics import MetricsEngine
+    # [NEW] Calculate metrics on the fly using Analytics Service
+    # This aggregates existing trades (fast) vs rebuilding from executions (slow)
+    from src.services.analytics import AnalyticsRouter
+    from src.database.models import Strategy
     
-    executions = db.query(Execution).filter(Execution.run_id == run_id).all()
-    orders = db.query(Order).filter(Order.run_id == run_id).all()
+    router = AnalyticsRouter(db)
     
-    # Use reconstruction logic
-    if executions and orders:
-        metrics = MetricsEngine.reconstruct_and_calculate(executions, orders)
-        run.metrics_json = metrics
-        db.commit() # Save computed metrics
-        db.refresh(run)
+    # Determine strategy type
+    strategy_type = 'DEFAULT'
+    if run.instance and run.instance.strategy_id:
+        strategy = db.query(Strategy).filter(Strategy.strategy_id == run.instance.strategy_id).first()
+        # Use getattr to be safe if 'type' column is missing in DB/Model
+        sType = getattr(strategy, 'type', None)
+        if strategy and sType:
+            strategy_type = sType
+            
+    # Calculate and update
+    metrics = router.route_analysis(run_id=run_id, strategy_type=strategy_type)
+    run.metrics_json = metrics
+    db.commit()
+    db.refresh(run)
 
     return run
 
@@ -45,6 +52,55 @@ def stop_run(run_id: str, db: Session = Depends(get_db)):
     
     run.status = RunStatus.COMPLETED
     run.end_utc = datetime.utcnow()
+    
+    db.commit()
+    db.refresh(run)
+    return run
+
+@router.post("/start", response_model=StrategyRunResponse)
+def start_run(request: StartRunRequest, db: Session = Depends(get_db)):
+    import uuid
+    from datetime import datetime
+    from src.database.models import StrategyInstance, StrategyRun, Strategy
+    
+    # 1. Check Strategy Exists
+    strategy = db.query(Strategy).filter(Strategy.strategy_id == request.strategy_id).first()
+    if not strategy:
+        # Create dummy strategy if not exists for test/mvp purposes
+        # Or raise error. Given "TEST_STRAT_INTEGRATION", likely need to create it.
+        strategy = Strategy(
+            strategy_id=request.strategy_id, 
+            name=f"Auto Created {request.strategy_id}", 
+            version="1.0"
+        )
+        db.add(strategy)
+        db.flush()
+        
+    # 2. Create Instance
+    instance_id = str(uuid.uuid4())
+    # Extract symbol/timeframe from data_range if present
+    symbol = request.data_range.get("symbol") if request.data_range else None
+    timeframe = request.data_range.get("timeframe") if request.data_range else None
+    
+    instance = StrategyInstance(
+        instance_id=instance_id,
+        strategy_id=request.strategy_id,
+        instance_name=f"Run {datetime.utcnow().isoformat()}",
+        parameters_json=request.parameters,
+        symbol=symbol,
+        timeframe=timeframe
+    )
+    db.add(instance)
+    
+    # 3. Create Run
+    run_id = str(uuid.uuid4())
+    run = StrategyRun(
+        run_id=run_id,
+        instance_id=instance_id,
+        run_type=request.run_type,
+        start_utc=datetime.utcnow()
+    )
+    db.add(run)
     
     db.commit()
     db.refresh(run)

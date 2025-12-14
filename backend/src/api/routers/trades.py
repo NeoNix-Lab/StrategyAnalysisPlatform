@@ -51,7 +51,10 @@ def read_trades(
     query = db.query(Trade)
     
     if strategy_id:
-        query = query.filter(Trade.strategy_id == strategy_id)
+        from src.database.models import StrategyRun, StrategyInstance
+        query = query.join(StrategyRun, Trade.run_id == StrategyRun.run_id)\
+                     .join(StrategyInstance, StrategyRun.instance_id == StrategyInstance.instance_id)\
+                     .filter(StrategyInstance.strategy_id == strategy_id)
     if run_id:
         query = query.filter(Trade.run_id == run_id)
     if symbol:
@@ -62,9 +65,20 @@ def read_trades(
 
 @router.get("/stats")
 def get_stats(strategy_id: str, run_id: Optional[str] = None, db: Session = Depends(get_db)):
-    from src.core.analytics import TradeAnalyzer
-    analyzer = TradeAnalyzer(db)
-    return analyzer.calculate_portfolio_metrics(strategy_id, run_id)
+    from src.services.analytics import AnalyticsRouter
+    from src.database.models import Strategy
+    
+    router = AnalyticsRouter(db)
+    
+    # Determine strategy type
+    strategy_type = 'DEFAULT'
+    if strategy_id:
+        strat = db.query(Strategy).filter(Strategy.strategy_id == strategy_id).first()
+        sType = getattr(strat, 'type', None)
+        if strat and sType:
+            strategy_type = sType
+            
+    return router.route_analysis(strategy_id=strategy_id, run_id=run_id, strategy_type=strategy_type)
 
 @router.get("/{trade_id}", response_model=TradeResponse)
 def read_trade(trade_id: str, db: Session = Depends(get_db)):

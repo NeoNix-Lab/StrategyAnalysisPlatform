@@ -63,6 +63,7 @@ class MetricsEngine:
                         "entry_price": entry_price,
                         "exit_price": exit_price,
                         "pnl_net": pnl,
+                        "pnl_gross": pnl,
                         "quantity": matched_qty,
                         "duration_seconds": (exc.exec_utc - top['time']).total_seconds()
                     })

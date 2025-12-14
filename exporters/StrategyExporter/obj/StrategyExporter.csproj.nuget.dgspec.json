@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "D:\\Documents\\Active\\StrategyAnalysisPlatform\\exporters\\StrategyExporter\\StrategyExporter.csproj": {}
+    "d:\\Documents\\Active\\StrategyAnalysisPlatform\\exporters\\StrategyExporter\\StrategyExporter.csproj": {}
   },
   "projects": {
-    "D:\\Documents\\Active\\StrategyAnalysisPlatform\\exporters\\StrategyExporter\\StrategyExporter.csproj": {
+    "d:\\Documents\\Active\\StrategyAnalysisPlatform\\exporters\\StrategyExporter\\StrategyExporter.csproj": {
       "version": "1.0.4",
       "restore": {
-        "projectUniqueName": "D:\\Documents\\Active\\StrategyAnalysisPlatform\\exporters\\StrategyExporter\\StrategyExporter.csproj",
+        "projectUniqueName": "d:\\Documents\\Active\\StrategyAnalysisPlatform\\exporters\\StrategyExporter\\StrategyExporter.csproj",
         "projectName": "StrategyExporter",
-        "projectPath": "D:\\Documents\\Active\\StrategyAnalysisPlatform\\exporters\\StrategyExporter\\StrategyExporter.csproj",
+        "projectPath": "d:\\Documents\\Active\\StrategyAnalysisPlatform\\exporters\\StrategyExporter\\StrategyExporter.csproj",
         "packagesPath": "C:\\Users\\NeoNix\\.nuget\\packages\\",
-        "outputPath": "D:\\Documents\\Active\\StrategyAnalysisPlatform\\exporters\\StrategyExporter\\obj\\",
+        "outputPath": "d:\\Documents\\Active\\StrategyAnalysisPlatform\\exporters\\StrategyExporter\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"

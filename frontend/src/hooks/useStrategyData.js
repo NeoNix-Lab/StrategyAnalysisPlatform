@@ -35,7 +35,19 @@ export const useStrategyData = () => {
                         net_profit: 0,
                         win_rate: 0,
                         profit_factor: 0,
-                        max_drawdown: 0
+                        max_drawdown: 0,
+                        sharpe_ratio: 0,
+                        sortino_ratio: 0,
+                        calmar_ratio: 0,
+                        avg_mae: 0,
+                        efficiency_ratio: 0,
+                        max_consecutive_wins: 0,
+                        max_consecutive_losses: 0,
+                        total_fees: 0,
+                        total_volume: 0,
+                        stability_r2: 0,
+                        pnl_skew: 0,
+                        pnl_kurtosis: 0
                     })
                 }
 

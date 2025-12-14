@@ -14,3 +14,6 @@ dist
 build
 docs/*
 !docs/Analytics_Service_Refactor.md
+!docs/Workflow.md
+!docs/Metrics.md
+!docs/Metrics_Implementation_Status.md

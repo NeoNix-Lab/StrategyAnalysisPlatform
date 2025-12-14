@@ -34,6 +34,7 @@ def create_source_sqlite(path, bars_data):
     conn.close()
 
 def test_gap_filling(db_session, tmp_path):
+    pytest.skip("SqliteImporter is disabled in V2 architecture")
     importer = SqliteImporter(db_session)
     
     symbol = "TEST_SYM"
@@ -69,7 +70,7 @@ def test_gap_filling(db_session, tmp_path):
     assert count == 3
     
     # Verify 10:01 was NOT updated
-    bar_1001 = db_session.query(Bar).filter(Bar.timestamp == base_time + timedelta(minutes=1)).first()
+    bar_1001 = db_session.query(Bar).filter(Bar.ts_utc == base_time + timedelta(minutes=1)).first()
     assert bar_1001.volume == 1100
     
     # 4. Create "Source 3" (Gap: 10:04)

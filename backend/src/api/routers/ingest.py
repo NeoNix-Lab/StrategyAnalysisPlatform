@@ -14,7 +14,7 @@ from src.database.models import (
 )
 from src.api.schemas import (
     StrategyCreate, StrategyInstanceCreate, StrategyRunCreate, StrategyRunUpdate,
-    OrderCreate, OrderUpdate, ExecutionCreate, BarCreate
+    OrderCreate, OrderUpdate, ExecutionCreate, BarCreate, StreamIngestRequest
 )
 from src.core.trade_service import TradeService
 
@@ -148,12 +148,12 @@ async def on_orders_batch(data: list[OrderCreate], db: Session = Depends(get_db)
 async def upsert_order_logic(db: Session, data: OrderCreate):
     existing = db.query(Order).filter(Order.run_id == data.run_id, Order.order_id == data.order_id).first()
     if existing:
-        existing.status = OrderStatus(data.status)
+        existing.status = OrderStatus(data.status.value)
         existing.quantity = data.quantity 
         existing.price = data.price
         existing.update_utc = data.submit_utc
         if data.position_impact:
-            existing.position_impact = PositionImpactType(data.position_impact)
+            existing.position_impact = PositionImpactType(data.position_impact.value)
     else:
         new_order = Order(
             run_id=data.run_id,
@@ -162,16 +162,16 @@ async def upsert_order_logic(db: Session, data: OrderCreate):
             parent_order_id=data.parent_order_id,
             symbol=data.symbol,
             account_id=data.account_id,
-            side=Side(data.side),
-            order_type=OrderType(data.order_type),
+            side=Side(data.side.value),
+            order_type=OrderType(data.order_type.value),
             time_in_force=data.time_in_force,
             quantity=data.quantity,
             price=data.price,
             stop_price=data.stop_price,
-            status=OrderStatus(data.status),
+            status=OrderStatus(data.status.value),
             submit_utc=data.submit_utc,
             client_tag=data.client_tag,
-            position_impact=PositionImpactType(data.position_impact) if data.position_impact else PositionImpactType.UNKNOWN,
+            position_impact=PositionImpactType(data.position_impact.value) if data.position_impact else PositionImpactType.UNKNOWN,
             extra_json=data.extra_json
         )
         db.add(new_order)
@@ -214,6 +214,38 @@ async def on_executions_batch(data: list[ExecutionCreate], background_tasks: Bac
         logger.error(f"Error processing execution batch: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.post("/stream")
+async def ingest_stream(data: StreamIngestRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    try:
+        run_ids = set()
+        
+        # Process Orders
+        if data.orders:
+            for order in data.orders:
+                await upsert_order_logic(db, order)
+                run_ids.add(order.run_id)
+        
+        # Process Executions
+        if data.executions:
+            for exposure in data.executions:
+                await upsert_execution_logic(db, exposure)
+                run_ids.add(exposure.run_id)
+                
+        db.commit()
+        
+        # Trigger reconstruction for involved runs
+        trade_service = TradeService(db)
+        for rid in run_ids:
+            # Using background task helper
+            background_tasks.add_task(rebuild_trades_task, rid)
+            
+        return {"status": "ok", "orders_processed": len(data.orders), "executions_processed": len(data.executions)}
+        
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error processing stream: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 def rebuild_trades_task(run_id: str):
     # Helper to open a fresh session for the background task
     db_gen = get_db()
@@ -238,7 +270,7 @@ async def upsert_execution_logic(db: Session, data: ExecutionCreate):
         existing.fee_currency = data.fee_currency
         existing.liquidity = data.liquidity
         if data.position_impact:
-            existing.position_impact = PositionImpactType(data.position_impact)
+            existing.position_impact = PositionImpactType(data.position_impact.value)
         existing.extra_json = data.extra_json
     else:
         exec_obj = Execution(
@@ -251,7 +283,7 @@ async def upsert_execution_logic(db: Session, data: ExecutionCreate):
             fee=data.fee,
             fee_currency=data.fee_currency,
             liquidity=data.liquidity,
-            position_impact=PositionImpactType(data.position_impact) if data.position_impact else PositionImpactType.UNKNOWN,
+            position_impact=PositionImpactType(data.position_impact.value) if data.position_impact else PositionImpactType.UNKNOWN,
             extra_json=data.extra_json
 
         )

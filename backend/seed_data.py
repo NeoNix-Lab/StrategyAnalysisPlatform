@@ -5,7 +5,7 @@ import numpy as np
 from src.database.connection import SessionLocal, init_db
 from src.database.models import Bar, Order, Execution, Side, OrderType, OrderStatus
 from src.core.trade_builder import TradeBuilder
-from src.core.analytics import TradeAnalyzer
+    # from src.core.analytics import TradeAnalyzer (DEPRECATED)
 import uuid
 
 def generate_sine_wave_data(start_date, num_bars=1000):
@@ -154,10 +154,11 @@ def main():
     builder = TradeBuilder(db)
     trades = builder.reconstruct_trades("DEMO_STRAT", "DEMO_TICKER")
     
-    print("Calcolo Metriche Avanzate (MAE/MFE)...")
-    analyzer = TradeAnalyzer(db)
+    print("Calcolo Metriche Avanzate (MAE/MFE) con Analytics Service...")
+    from src.services.analytics import AnalyticsRouter
+    analyzer = AnalyticsRouter(db)
     for t in trades:
-        analyzer.calculate_mae_mfe(t.trade_id)
+        analyzer.calculate_trade_metrics(t.trade_id)
     
     print("✅ Seed completato! Ora puoi avviare la dashboard.")
     db.close()

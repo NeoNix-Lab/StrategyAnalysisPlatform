@@ -66,6 +66,13 @@ class StrategyRunCreate(BaseModel):
     base_currency: Optional[str] = None
     metrics_json: Optional[Dict[str, Any]] = None
 
+class StartRunRequest(BaseModel):
+    strategy_id: str
+    parameters: Dict[str, Any] = {}
+    data_range: Optional[Dict[str, Any]] = None
+    run_type: Optional[str] = "BACKTEST"
+
+
 class StrategyRunUpdate(BaseModel):
     status: Optional[str] = None
     end_utc: Optional[datetime] = None
@@ -121,6 +128,11 @@ class BarCreate(BaseModel):
     close: float
     volume: float
     volumetric_json: Optional[Dict[str, Any]] = None
+
+class StreamIngestRequest(BaseModel):
+    orders: Optional[List[OrderCreate]] = []
+    executions: Optional[List[ExecutionCreate]] = []
+
 
 # --- Response Schemas (Read) ---
 

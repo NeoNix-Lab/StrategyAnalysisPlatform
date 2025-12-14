@@ -2,7 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react'
 import { useStrategyData } from '../hooks/useStrategyData'
 import { useStrategy } from '../context/StrategyContext'
 import { useNavigate } from 'react-router-dom'
-import { Sliders, Activity, DollarSign, TrendingUp, AlertTriangle, ArrowRight } from 'lucide-react'
+import { Sliders, Activity, DollarSign, TrendingUp, AlertTriangle, ArrowRight, Shield, Target, Zap, Waves } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import './Dashboard.css'
 
@@ -44,12 +44,26 @@ const Dashboard = () => {
     // Calculate simple metrics locally from EXECUTIONS (Volume, Fees)
     // Ensure executions is an array to avoid crash
     const safeExecutions = executions || []
-    const totalExecutions = safeExecutions.length
-    const totalVolume = safeExecutions.reduce((acc, curr) => acc + ((curr.price || 0) * (curr.quantity || 0)), 0)
-    const fees = safeExecutions.reduce((acc, curr) => acc + (curr.fee || 0), 0)
 
-    // Calculate Equity Curve from TRADES (Reconstructed)
+    // Prefer backend stats for fees, fallback to local sum
+    const totalFees = stats?.total_fees !== undefined
+        ? stats.total_fees
+        : safeExecutions.reduce((acc, curr) => acc + (curr.fee || 0), 0)
+
+    // Calculate Equity Curve: Prefer Backend -> Fallback to Local
     const equityCurveData = useMemo(() => {
+        // 1. Backend Source
+        if (stats?.equity_curve && stats.equity_curve.length > 0) {
+            return stats.equity_curve.map((point, i) => ({
+                ...point,
+                index: i + 1,
+                // Ensure time is parseable
+                tooltipTime: new Date(point.time).toLocaleString(),
+                // Backend provides 'pnl' (cumulative) and 'drawdown'
+            }))
+        }
+
+        // 2. Local Fallback (Reconstruction)
         if (!trades || trades.length === 0) return []
 
         // Sort by exit time to ensure correct cumulative sum
@@ -65,7 +79,7 @@ const Dashboard = () => {
                 tooltipTime: new Date(t.exit_time).toLocaleString()
             }
         })
-    }, [trades])
+    }, [stats, trades])
 
 
     if (loading) return <div className="loading">Loading dashboard...</div>
@@ -99,6 +113,105 @@ const Dashboard = () => {
                     <h3>Net PnL</h3>
                     <div className="metric-value" style={{ fontSize: '1.2rem', color: stats && stats.net_profit >= 0 ? "#4ade80" : "#f87171" }}>
                         {stats ? stats.net_profit.toFixed(2) : 0} €
+                    </div>
+                </div>
+                <div className="card">
+                    <div className="card-icon"><DollarSign size={24} color="#fca5a5" /></div>
+                    <h3>Fees</h3>
+                    <div className="metric-value" style={{ color: '#f87171' }}>-{totalFees.toFixed(2)}€</div>
+                    <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.25rem' }}>
+                        Vol: {(stats?.total_volume || 0).toLocaleString()}
+                    </div>
+                </div>
+            </div>
+
+            {/* PERFORMANCE & RISK SECTION */}
+            <h3 style={{ marginTop: '2rem', marginBottom: '1rem', color: '#94a3b8', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Performance & Risk</h3>
+            <div className="dashboard-grid">
+                {/* Card 1: Risk Adjusted Returns */}
+                <div className="card">
+                    <div className="card-icon"><Target size={24} color="#a78bfa" /></div>
+                    <div className="metric-label">Sharpe / Sortino</div>
+                    <div className="metric-value-group">
+                        <div title="Sharpe Ratio">
+                            <span className="value">{stats ? stats.sharpe_ratio : 0}</span>
+                            <span className="sub-label">Sharpe</span>
+                        </div>
+                        <div className="divider"></div>
+                        <div title="Sortino Ratio">
+                            <span className="value">{stats ? stats.sortino_ratio : 0}</span>
+                            <span className="sub-label">Sortino</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Card 2: Drawdown & Recovery */}
+                <div className="card">
+                    <div className="card-icon"><Shield size={24} color="#f472b6" /></div>
+                    <div className="metric-label">Drawdown / Calmar</div>
+                    <div className="metric-value-group">
+                        <div title="Max Drawdown">
+                            <span className="value" style={{ color: '#f87171' }}>{stats ? stats.max_drawdown : 0}€</span>
+                            <span className="sub-label">MDD</span>
+                        </div>
+                        <div className="divider"></div>
+                        <div title="Calmar Ratio">
+                            <span className="value">{stats ? stats.calmar_ratio : 0}</span>
+                            <span className="sub-label">Calmar</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Card 3: Streaks */}
+                <div className="card">
+                    <div className="card-icon"><Waves size={24} color="#60a5fa" /></div>
+                    <div className="metric-label">Consecutive W/L</div>
+                    <div className="metric-value-group">
+                        <div title="Max Consecutive Wins">
+                            <span className="value" style={{ color: '#4ade80' }}>{stats ? stats.max_consecutive_wins : 0}</span>
+                            <span className="sub-label">Wins</span>
+                        </div>
+                        <div className="divider"></div>
+                        <div title="Max Consecutive Losses">
+                            <span className="value" style={{ color: '#f87171' }}>{stats ? stats.max_consecutive_losses : 0}</span>
+                            <span className="sub-label">Losses</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Card 4: Efficiency & Execution */}
+                <div className="card">
+                    <div className="card-icon"><Zap size={24} color="#fbbf24" /></div>
+                    <div className="metric-label">Efficiency / MAE</div>
+                    <div className="metric-value-group">
+                        <div title="Efficiency Ratio">
+                            <span className="value">{stats ? stats.efficiency_ratio : 0}</span>
+                            <span className="sub-label">Eff.</span>
+                        </div>
+                        <div className="divider"></div>
+                        <div title="Average MAE">
+                            <span className="value" style={{ color: '#f87171' }}>{stats ? stats.avg_mae : 0}</span>
+                            <span className="sub-label">MAE</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Card 5: Stability */}
+                <div className="card">
+                    <div className="card-icon"><Activity size={24} color="#a78bfa" /></div>
+                    <div className="metric-label">Stability (Level 4)</div>
+                    <div className="metric-value-group">
+                        <div title="R-Squared (Linearity)">
+                            <span className="value" style={{ color: (stats?.stability_r2 || 0) > 0.8 ? '#4ade80' : '#f87171' }}>
+                                {stats ? stats.stability_r2 : 0}
+                            </span>
+                            <span className="sub-label">R²</span>
+                        </div>
+                        <div className="divider"></div>
+                        <div title="PnL Skewness">
+                            <span className="value">{stats ? stats.pnl_skew : 0}</span>
+                            <span className="sub-label">Skew</span>
+                        </div>
                     </div>
                 </div>
             </div>

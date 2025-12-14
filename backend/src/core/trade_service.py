@@ -56,6 +56,42 @@ class TradeService:
             )
             new_trade_objs.append(trade)
             
+        # Collect IDs before commit to ensure we have them
+        trade_ids = [t.trade_id for t in new_trade_objs]
+        
         self.db.add_all(new_trade_objs)
         self.db.commit()
+        
+        # 4. Trigger Analysis (New Architecture)
+        from src.services.analytics import AnalyticsRouter
+        from src.database.models import StrategyRun, Strategy
+        
+        router = AnalyticsRouter(self.db)
+        
+        # Fetch strategy type
+        run = self.db.query(StrategyRun).filter(StrategyRun.run_id == run_id).first()
+        strategy_type = 'DEFAULT'
+        if run and run.instance and run.instance.strategy_id:
+            strategy = self.db.query(Strategy).filter(Strategy.strategy_id == run.instance.strategy_id).first()
+            
+            sType = getattr(strategy, 'type', None)
+            if strategy and sType:
+                strategy_type = sType
+        
+        # Calculate P0/P1 metrics
+        metrics = router.route_analysis(run_id=run_id, strategy_type=strategy_type)
+        
+        # Update Run
+        if run:
+            run.metrics_json = metrics
+            self.db.commit()
+
+        # Optional: Trigger per-trade analysis (P2: MAE/MFE)
+        # This could be slow for thousands of trades, so maybe only do it for recent/active ones
+        # or offload to background task. For now, we'll skip or do a lightweight loop.
+        # Trigger per-trade analysis (P2: MAE/MFE)
+        # Use pre-collected IDs to avoid stale session objects
+        for tid in trade_ids:
+             router.calculate_trade_metrics(trade_id=tid, strategy_type=strategy_type)
+
         return len(new_trade_objs)
