@@ -110,8 +110,28 @@ def process_file(file_path: Path) -> None:
             "issue": new_issue # This comes straight from GitHub API, matches schema
         }
         
-        # Determine new filename
-        new_filename = file_path.parent / f"issue-{new_number}.json"
+        # Determine new filename, enforcing the records/ directory
+        img_dir = file_path.parent
+        # If the script is run from root, file_path might be Issues/foo.json.
+        # We want Issues/records/issue-{number}.json
+        # We assume the structure is standard.
+        records_dir = file_path.parent / "records"
+        if not records_dir.exists():
+            # Fallback if we are already inside records or looking at a flat structure?
+            # Ideally we look for the 'records' sibling or child.
+            # But simpler: if file_path is "Issues/draft.json", parent is "Issues". "Issues/records" exists.
+            if (file_path.parent.name == "Issues"):
+                 records_dir = file_path.parent / "records"
+            else:
+                 # If we are somehow elsewhere, just default to same dir for safety, or try to find ROOT.
+                 records_dir = file_path.parent
+        
+        # Hardcode convention: The standard location is Issues/records/
+        # We can find the root "Issues" by looking at the known structure or imports.
+        # Let's rely on relative path if we know where we run.
+        # But safest is:
+        
+        new_filename = records_dir / f"issue-{new_number}.json"
         
         # Write new file
         with new_filename.open("w", encoding="utf-8") as f:
