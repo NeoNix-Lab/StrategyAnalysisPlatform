@@ -1,0 +1,8 @@
+{
+    "title": "Verifica Sincronizzazione 2-Vie",
+    "body": "Questo issue serve a verificare che il workflow di upload funzioni correttamente sul branch version-2.",
+    "labels": [
+        "test",
+        "ops"
+    ]
+}
