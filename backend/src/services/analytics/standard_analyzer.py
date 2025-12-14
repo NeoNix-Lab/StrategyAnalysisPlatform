@@ -148,6 +148,40 @@ class StandardAnalyzer:
         # Simple volume calc: price * qty
         total_volume = sum([e.price * e.quantity for e in executions]) if executions else 0.0
 
+        # [NEW] Execution Metrics (Level 5)
+        # We need Orders to compare against
+        orders = []
+        if run_id:
+             orders = self.db.query(Order).filter(Order.run_id == run_id).all()
+        
+        # Calculate Latency & Fill Ratio
+        latencies = []
+        ordered_qty = 0.0
+        executed_qty = 0.0
+        
+        # Create a map of orders for fast lookup
+        order_map = {o.order_id: o for o in orders}
+        
+        for e in executions:
+            executed_qty += e.quantity
+            if e.order_id in order_map:
+                o = order_map[e.order_id]
+                # Latency
+                if o.submit_utc and e.exec_utc:
+                    latency = (e.exec_utc - o.submit_utc).total_seconds()
+                    # Only positive latencies make sense, but clock skew might happen
+                    if latency >= 0:
+                        latencies.append(latency)
+        
+        # Sum ordered quantity
+        # Be careful not to double count if we have partial fills?
+        # Actually simplest is sum of all generic orders quantity vs sum of all executions quantity
+        # But for fill ratio, we usually want (Filled / Requested).
+        ordered_qty = sum([o.quantity for o in orders]) if orders else 0.0
+        
+        avg_fill_latency = np.mean(latencies) if latencies else 0.0
+        fill_ratio = (executed_qty / ordered_qty) if ordered_qty > 0 else 0.0
+
         # [NEW] Equity Curve Generation
         equity_curve = self._generate_equity_curve(df)
 
@@ -156,6 +190,9 @@ class StandardAnalyzer:
             "total_trades": int(total_trades),
             "total_fees": round(total_fees, 2),
             "total_volume": round(total_volume, 2),
+            # Level 5
+            "avg_fill_latency": round(avg_fill_latency, 3), # seconds
+            "fill_ratio": round(fill_ratio, 2), # % or ratio
             "win_rate": round(win_rate * 100, 2),
             "profit_factor": round(profit_factor, 2),
             "average_trade": round(avg_trade, 2),
@@ -280,6 +317,8 @@ class StandardAnalyzer:
             "avg_mfe": 0,
             "total_fees": 0,
             "total_volume": 0,
+            "avg_fill_latency": 0,
+            "fill_ratio": 0,
             "efficiency_ratio": 0,
             "stability_r2": 0,
             "pnl_skew": 0,

@@ -10,6 +10,11 @@ on:
     paths:
       - 'frontend/**'
 
+permissions:
+  contents: read
+  issues: write
+
+
 jobs:
   test:
     runs-on: ubuntu-latest

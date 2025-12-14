@@ -4,6 +4,10 @@ on:
   issues:
     types: [opened, edited, closed, reopened, labeled, unlabeled, assigned, unassigned]
 
+permissions:
+  contents: write
+
+
 jobs:
   persist:
     runs-on: ubuntu-latest
