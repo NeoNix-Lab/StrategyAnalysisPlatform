@@ -44,6 +44,7 @@ Every change in the trading lifecycle is sent as an event (strategy/instance/run
 - `StrategyExporter` library targets `net8.0` and provides DTOs plus HTTP services for posting events to `/api/ingest/...`.
 - `quantower_template` is a ready-to-run strategy project; Visual Studio solution included. Update the `StartArguments` for your backend address and port before running in Quantower.
 
+
 ## Getting Started
 
 ### Prerequisites
