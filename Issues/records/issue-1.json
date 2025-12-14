@@ -1,25 +1,19 @@
 {
   "event": "issues",
-  "action": "opened",
+  "action": "closed",
   "repository": "NeoNix-Lab/StrategyAnalysisPlatform",
-  "sender": "backend-maintainer",
-  "event_timestamp": "2025-12-14T18:45:00Z",
+  "sender": "NeoNix-Lab",
+  "event_timestamp": "2025-12-14T18:21:29.502169Z",
   "issue": {
     "number": 1,
-    "title": "Stop strategy does not transition run/series state",
-    "body": "Durante lo stop della strategia via API `/api/runs/{run_id}/stop` o tramite l'exporter Quantower, lo stato della run resta `RUNNING`, `end_utc` della tabella `strategy_runs` rimane `null` e la serie temporale associata (`run_series`) non viene chiusa (manca `end_utc`). Il backend persiste esaurienti ordini ed esecuzioni, ma la run non viene marcata come completata e la chiusura della serie non viene aggiornata, quindi i dashboard continuano a interrogare dati aperti.\n\nPotrebbe essere necessario propagare il flag di stop anche alla logica di reconstrutione (serie/trades) e verificare che `stop_run` setti `RunSeries.end_utc` quando la run è terminata.",
-    "state": "open",
+    "title": "Backend Tests Failed",
+    "body": "### Backend Test Failure\nThe backend tests failed on run [20212107944](https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/actions/runs/20212107944).\n\nPlease investigate the logs.",
+    "state": "closed",
     "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/1",
-    "labels": [
-      "backend",
-      "export",
-      "bug"
-    ],
-    "assignees": [
-      "backend-team"
-    ],
-    "created_at": "2025-12-14T18:44:00Z",
-    "updated_at": "2025-12-14T18:44:00Z",
-    "closed_at": null
+    "labels": [],
+    "assignees": [],
+    "created_at": "2025-12-14T18:14:02Z",
+    "updated_at": "2025-12-14T18:21:21Z",
+    "closed_at": "2025-12-14T18:21:21Z"
   }
 }

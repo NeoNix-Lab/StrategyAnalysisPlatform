@@ -1,17 +1,11 @@
 {
   "1": {
-    "title": "Stop strategy does not transition run/series state",
-    "state": "open",
-    "labels": [
-      "backend",
-      "export",
-      "bug"
-    ],
-    "assignees": [
-      "backend-team"
-    ],
-    "last_action": "opened",
-    "last_updated": "2025-12-14T18:45:00Z",
+    "title": "Backend Tests Failed",
+    "state": "closed",
+    "labels": [],
+    "assignees": [],
+    "last_action": "closed",
+    "last_updated": "2025-12-14T18:21:29.502169Z",
     "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/1"
   }
 }
