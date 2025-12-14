@@ -7,6 +7,7 @@ on:
     branches:
       - main
       - develop
+      - version-2
 
 jobs:
   upload-issues:
