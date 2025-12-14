@@ -1,3 +1,4 @@
+import React, { useMemo } from 'react'
 import { useStrategyData } from '../hooks/useStrategyData'
 import { useStrategy } from '../context/StrategyContext'
 import { Sliders, Activity, DollarSign, TrendingUp, AlertTriangle } from 'lucide-react'
@@ -5,25 +6,39 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import './Dashboard.css'
 
 const Dashboard = () => {
-    const { trades: executions, loading } = useStrategyData()
+    // [FIX] Separate 'executions' (raw) and 'trades' (reconstructed)
+    const { executions, trades, stats, loading } = useStrategyData()
     const { runs, selectedRun, instances, selectedInstance } = useStrategy()
 
     const currentRun = runs.find(r => r.run_id === selectedRun)
     const currentInstance = instances.find(i => i.instance_id === selectedInstance)
 
-    // Calculate simple metrics locally since backend analytics is disabled
-    const totalExecutions = executions.length
-    const totalVolume = executions.reduce((acc, curr) => acc + (curr.price * curr.quantity), 0)
-    const fees = executions.reduce((acc, curr) => acc + (curr.fee || 0), 0)
+    // Calculate simple metrics locally from EXECUTIONS (Volume, Fees)
+    // Ensure executions is an array to avoid crash
+    const safeExecutions = executions || []
+    const totalExecutions = safeExecutions.length
+    const totalVolume = safeExecutions.reduce((acc, curr) => acc + ((curr.price || 0) * (curr.quantity || 0)), 0)
+    const fees = safeExecutions.reduce((acc, curr) => acc + (curr.fee || 0), 0)
 
-    // Mock Equity Curve (Cumulative Volume/Cost as proxy for activity, strictly NOT PnL)
-    // Real PnL requires Trade Reconstruction (Entry vs Exit).
-    // Use a placeholder chart or just execution count over time.
-    const chartData = executions.map((e, i) => ({
-        index: i,
-        price: e.price,
-        time: new Date(e.exec_utc).toLocaleTimeString()
-    }))
+    // Calculate Equity Curve from TRADES (Reconstructed)
+    const equityCurveData = useMemo(() => {
+        if (!trades || trades.length === 0) return []
+
+        // Sort by exit time to ensure correct cumulative sum
+        const sortedTrades = [...trades].sort((a, b) => new Date(a.exit_time) - new Date(b.exit_time))
+
+        let runningPnL = 0
+        return sortedTrades.map((t, i) => {
+            runningPnL += (t.pnl_net || 0)
+            return {
+                index: i + 1,
+                pnl: runningPnL,
+                time: new Date(t.exit_time).toLocaleTimeString(),
+                tooltipTime: new Date(t.exit_time).toLocaleString()
+            }
+        })
+    }, [trades])
+
 
     if (loading) return <div className="loading">Loading dashboard...</div>
 
@@ -38,23 +53,25 @@ const Dashboard = () => {
             <div className="dashboard-grid">
                 <div className="card">
                     <div className="card-icon"><Activity size={24} color="#38bdf8" /></div>
-                    <h3>Total Executions</h3>
-                    <div className="metric-value">{totalExecutions}</div>
+                    <h3>Total Trades</h3>
+                    <div className="metric-value">{stats ? stats.total_trades : 0}</div>
                 </div>
                 <div className="card">
                     <div className="card-icon"><TrendingUp size={24} color="#4ade80" /></div>
-                    <h3>Total Volume</h3>
-                    <div className="metric-value">{totalVolume.toFixed(2)} <span style={{ fontSize: '0.6em' }}>USD</span></div>
+                    <h3>Win Rate</h3>
+                    <div className="metric-value">{stats ? stats.win_rate : 0}%</div>
                 </div>
                 <div className="card">
                     <div className="card-icon"><DollarSign size={24} color="#f87171" /></div>
-                    <h3>Total Fees</h3>
-                    <div className="metric-value negative">{fees.toFixed(4)}</div>
+                    <h3>Profit Factor</h3>
+                    <div className="metric-value">{stats ? stats.profit_factor : 0}</div>
                 </div>
                 <div className="card">
-                    <div className="card-icon"><AlertTriangle size={24} color="#facc15" /></div>
-                    <h3>PnL Status</h3>
-                    <div className="metric-value" style={{ fontSize: '1.2rem', color: '#facc15' }}>Pending Analytics</div>
+                    <div className="card-icon"><AlertTriangle size={24} color={stats && stats.net_profit >= 0 ? "#4ade80" : "#f87171"} /></div>
+                    <h3>Net PnL</h3>
+                    <div className="metric-value" style={{ fontSize: '1.2rem', color: stats && stats.net_profit >= 0 ? "#4ade80" : "#f87171" }}>
+                        {stats ? stats.net_profit.toFixed(2) : 0} €
+                    </div>
                 </div>
             </div>
 
@@ -110,23 +127,27 @@ const Dashboard = () => {
                 </div>
             )}
 
-            {/* Execution Activity Chart */}
+            {/* Equity Curve Chart */}
             <div className="charts-grid" style={{ marginTop: '2rem' }}>
                 <div className="card chart-card" style={{ gridColumn: '1 / -1' }}>
-                    <h3>Execution Prices (Raw)</h3>
+                    <h3>Cumulative Net Profit</h3>
                     <div className="chart-container">
                         <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={chartData}>
+                            <LineChart data={equityCurveData}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                                 <XAxis dataKey="index" stroke="#94a3b8" />
                                 <YAxis domain={['auto', 'auto']} stroke="#94a3b8" />
-                                <Tooltip contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155' }} />
+                                <Tooltip
+                                    contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: '#fff' }}
+                                    labelFormatter={(label, payload) => payload[0]?.payload.tooltipTime || label}
+                                />
                                 <Line
                                     type="monotone"
-                                    dataKey="price"
-                                    stroke="#38bdf8"
+                                    dataKey="pnl"
+                                    name="Net Profit"
+                                    stroke={equityCurveData.length > 0 && equityCurveData[equityCurveData.length - 1].pnl >= 0 ? "#4ade80" : "#f87171"}
                                     strokeWidth={2}
-                                    dot={true}
+                                    dot={false}
                                 />
                             </LineChart>
                         </ResponsiveContainer>

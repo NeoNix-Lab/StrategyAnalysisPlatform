@@ -16,6 +16,7 @@ from src.api.schemas import (
     StrategyCreate, StrategyInstanceCreate, StrategyRunCreate, StrategyRunUpdate,
     OrderCreate, OrderUpdate, ExecutionCreate, BarCreate
 )
+from src.core.trade_service import TradeService
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -189,16 +190,42 @@ async def on_execution(data: ExecutionCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/batch/executions")
-async def on_executions_batch(data: list[ExecutionCreate], db: Session = Depends(get_db)):
+async def on_executions_batch(data: list[ExecutionCreate], background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     try:
+        run_ids = set()
         for item in data:
             await upsert_execution_logic(db, item)
+            run_ids.add(item.run_id)
         db.commit()
+        
+        # Trigger Trade Reconstruction for affected runs
+        trade_service = TradeService(db)
+        for rid in run_ids:
+            # We can't pass db session to background task safely if it closes. 
+            # Ideally background task opens its own session.
+            # For now, let's run it synchronously or structure a proper background worker.
+            # Given SQLite/FastAPI simplicity, running it here (post-commit) or via helper that opens new session is best.
+            # Let's define a helper for the background task.
+            background_tasks.add_task(rebuild_trades_task, rid)
+            
         return {"status": "ok", "count": len(data)}
     except Exception as e:
         db.rollback()
         logger.error(f"Error processing execution batch: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+def rebuild_trades_task(run_id: str):
+    # Helper to open a fresh session for the background task
+    db_gen = get_db()
+    db = next(db_gen)
+    try:
+        service = TradeService(db)
+        count = service.rebuild_trades_for_run(run_id)
+        logger.info(f"Reconstructed {count} trades for run {run_id}")
+    except Exception as e:
+        logger.error(f"Error rebuilding trades for {run_id}: {e}")
+    finally:
+        db.close()
 
 async def upsert_execution_logic(db: Session, data: ExecutionCreate):
     existing = db.query(Execution).filter(Execution.run_id == data.run_id, Execution.execution_id == data.execution_id).first()

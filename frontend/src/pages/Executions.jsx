@@ -4,7 +4,7 @@ import { ArrowDown, ArrowUp, Filter, Search } from 'lucide-react'
 import './Dashboard.css' // Reuse dashboard styles for cards
 
 const Executions = () => {
-    const { trades: executions, loading, error } = useStrategyData()
+    const { executions, loading, error } = useStrategyData()
     const [filterSide, setFilterSide] = useState('ALL')
     const [searchTerm, setSearchTerm] = useState('')
 

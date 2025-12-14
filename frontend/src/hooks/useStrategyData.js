@@ -5,7 +5,8 @@ import { useStrategy } from '../context/StrategyContext'
 export const useStrategyData = () => {
     const { selectedRun } = useStrategy()
     const [stats, setStats] = useState(null)
-    const [trades, setTrades] = useState([]) // Now Executions
+    const [trades, setTrades] = useState([])
+    const [executions, setExecutions] = useState([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
 
@@ -38,23 +39,25 @@ export const useStrategyData = () => {
                     })
                 }
 
-                // 2. Fetch Executions instead of Trades
+                // 2. Fetch Executions
                 const execRes = await axios.get(`${API_URL}/executions/run/${selectedRun}`)
+                setExecutions(execRes.data)
 
-                // Map executions to a format that won't break the UI
-                const processed = execRes.data.map((e, index) => ({
-                    ...e,
-                    id: e.execution_id, // UI uses id
-                    index: index + 1,
-                    cumulativePnl: 0, // Placeholder
-                    pnl_net: 0,
-                    pnlColor: '#aaaaaa',
-                    position_impact: e.position_impact || 'UNKNOWN',
-                    fee: e.fee || 0,
-                    liquidity: e.liquidity || '?'
-                }))
+                // 3. Fetch Reconstructed Trades
+                try {
+                    const tradesRes = await axios.get(`${API_URL}/runs/${selectedRun}/trades`)
+                    const processedTrades = tradesRes.data.map((t, index) => ({
+                        ...t,
+                        index: index + 1,
+                        mae: t.mae || 0,
+                        mfe: t.mfe || 0
+                    }))
+                    setTrades(processedTrades)
+                } catch (tradeErr) {
+                    console.warn("Failed to fetch trades or no trades found", tradeErr)
+                    setTrades([])
+                }
 
-                setTrades(processed)
                 setLoading(false)
             } catch (err) {
                 console.error("Error fetching data:", err)
@@ -66,5 +69,5 @@ export const useStrategyData = () => {
         fetchData()
     }, [selectedRun])
 
-    return { stats, trades, loading, error }
+    return { stats, trades, executions, loading, error }
 }
