@@ -52,9 +52,7 @@ namespace StrategyExporter.Services
 
         public async Task ExportBarsAsync(IEnumerable<BarDto> bars)
         {
-            using var response = await _client.PostAsJsonAsync($"{_baseUrl}/api/ingest/stream", new { bars = bars });
-            // We might want to just log errors instead of throwing to avoid crashing strategy logic?
-            // For now, let the caller (Buffer) handle exceptions.
+            using var response = await _client.PostAsJsonAsync($"{_baseUrl}/api/ingest/batch/bars", bars);
             response.EnsureSuccessStatusCode();
         }
 
@@ -64,7 +62,7 @@ namespace StrategyExporter.Services
             {
                 OverrideRunId(order);
             }
-            using var response = await _client.PostAsJsonAsync($"{_baseUrl}/api/ingest/stream", new { orders = orders });
+            using var response = await _client.PostAsJsonAsync($"{_baseUrl}/api/ingest/batch/orders", orders);
             response.EnsureSuccessStatusCode();
         }
 
@@ -74,7 +72,7 @@ namespace StrategyExporter.Services
             {
                 OverrideRunId(trade);
             }
-            using var response = await _client.PostAsJsonAsync($"{_baseUrl}/api/ingest/stream", new { executions = trades });
+            using var response = await _client.PostAsJsonAsync($"{_baseUrl}/api/ingest/batch/executions", trades);
             response.EnsureSuccessStatusCode();
         }
 

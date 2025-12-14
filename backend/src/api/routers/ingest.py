@@ -124,36 +124,7 @@ def on_run_start(data: StrategyRunCreate, db: Session = Depends(get_db)):
 async def on_order(data: OrderCreate, db: Session = Depends(get_db)):
     logger.info(f"Received Order Event: {data.order_id} (Status: {data.status})")
     try:
-        # Upsert Order
-        existing = db.query(Order).filter(Order.run_id == data.run_id, Order.order_id == data.order_id).first()
-        if existing:
-            existing.status = OrderStatus(data.status)
-            existing.quantity = data.quantity 
-            existing.price = data.price
-            existing.update_utc = data.submit_utc # Or separate update time?
-            if data.position_impact:
-                existing.position_impact = PositionImpactType(data.position_impact)
-        else:
-            new_order = Order(
-                run_id=data.run_id,
-                strategy_id=data.strategy_id,
-                order_id=data.order_id,
-                parent_order_id=data.parent_order_id,
-                symbol=data.symbol,
-                account_id=data.account_id,
-                side=Side(data.side),
-                order_type=OrderType(data.order_type),
-                time_in_force=data.time_in_force,
-                quantity=data.quantity,
-                price=data.price,
-                stop_price=data.stop_price,
-                status=OrderStatus(data.status),
-                submit_utc=data.submit_utc,
-                client_tag=data.client_tag,
-                position_impact=PositionImpactType(data.position_impact) if data.position_impact else PositionImpactType.UNKNOWN,
-                extra_json=data.extra_json
-            )
-            db.add(new_order)
+        await upsert_order_logic(db, data)
         db.commit()
         return {"status": "ok", "id": data.order_id}
     except Exception as e:
@@ -161,41 +132,55 @@ async def on_order(data: OrderCreate, db: Session = Depends(get_db)):
         logger.error(f"Error processing order: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.post("/batch/orders")
+async def on_orders_batch(data: list[OrderCreate], db: Session = Depends(get_db)):
+    try:
+        for item in data:
+            await upsert_order_logic(db, item)
+        db.commit()
+        return {"status": "ok", "count": len(data)}
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error processing order batch: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+async def upsert_order_logic(db: Session, data: OrderCreate):
+    existing = db.query(Order).filter(Order.run_id == data.run_id, Order.order_id == data.order_id).first()
+    if existing:
+        existing.status = OrderStatus(data.status)
+        existing.quantity = data.quantity 
+        existing.price = data.price
+        existing.update_utc = data.submit_utc
+        if data.position_impact:
+            existing.position_impact = PositionImpactType(data.position_impact)
+    else:
+        new_order = Order(
+            run_id=data.run_id,
+            strategy_id=data.strategy_id,
+            order_id=data.order_id,
+            parent_order_id=data.parent_order_id,
+            symbol=data.symbol,
+            account_id=data.account_id,
+            side=Side(data.side),
+            order_type=OrderType(data.order_type),
+            time_in_force=data.time_in_force,
+            quantity=data.quantity,
+            price=data.price,
+            stop_price=data.stop_price,
+            status=OrderStatus(data.status),
+            submit_utc=data.submit_utc,
+            client_tag=data.client_tag,
+            position_impact=PositionImpactType(data.position_impact) if data.position_impact else PositionImpactType.UNKNOWN,
+            extra_json=data.extra_json
+        )
+        db.add(new_order)
+        db.flush() # Ensure visible for next iter in batch
+
 @router.post("/event/execution")
 async def on_execution(data: ExecutionCreate, db: Session = Depends(get_db)):
     logger.info(f"Received Execution Event: {data.execution_id} for Order {data.order_id}")
     try:
-        # Upsert Logic
-        existing = db.query(Execution).filter(Execution.run_id == data.run_id, Execution.execution_id == data.execution_id).first()
-        if existing:
-            # Update
-            existing.order_id = data.order_id
-            existing.exec_utc = data.exec_utc
-            existing.price = data.price
-            existing.quantity = data.quantity
-            existing.fee = data.fee
-            existing.fee_currency = data.fee_currency
-            existing.liquidity = data.liquidity
-            if data.position_impact:
-                existing.position_impact = PositionImpactType(data.position_impact)
-            existing.extra_json = data.extra_json
-        else:
-            # Insert
-            exec_obj = Execution(
-                run_id=data.run_id,
-                execution_id=data.execution_id,
-                order_id=data.order_id,
-                exec_utc=data.exec_utc,
-                price=data.price,
-                quantity=data.quantity,
-                fee=data.fee,
-                fee_currency=data.fee_currency,
-                liquidity=data.liquidity,
-                position_impact=PositionImpactType(data.position_impact) if data.position_impact else PositionImpactType.UNKNOWN,
-                extra_json=data.extra_json
-            )
-            db.add(exec_obj)
-        
+        await upsert_execution_logic(db, data)
         db.commit()
         return {"status": "ok", "id": data.execution_id}
     except Exception as e:
@@ -203,73 +188,129 @@ async def on_execution(data: ExecutionCreate, db: Session = Depends(get_db)):
         logger.error(f"Error processing execution: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/event/bar")
-def on_bar(data: BarCreate, db: Session = Depends(get_db)):
+@router.post("/batch/executions")
+async def on_executions_batch(data: list[ExecutionCreate], db: Session = Depends(get_db)):
     try:
-        # "Unified Market Data Layer" Logic
-        
-        # 1. Calculate MarketSeries ID (Hash)
-        series_key = f"{data.symbol}_{data.timeframe}_{data.venue}_{data.provider}"
-        series_id = hashlib.md5(series_key.encode()).hexdigest()
-        
-        # 2. Ensure MarketSeries Exists
-        market_series = db.query(MarketSeries).filter(MarketSeries.series_id == series_id).first()
-        if not market_series:
-            market_series = MarketSeries(
-                series_id=series_id,
-                symbol=data.symbol,
-                timeframe=data.timeframe,
-                venue=data.venue,
-                provider=data.provider,
-                created_utc=datetime.utcnow()
-            )
-            db.add(market_series)
-            db.commit() # Commit needed to create ID for foreign keys
-        
-        # 3. Ensure Run Subscription (Run -> MarketSeries)
-        sub = db.query(RunSubscription).filter(
-            RunSubscription.run_id == data.run_id,
-            RunSubscription.series_id == series_id
-        ).first()
-        
-        if not sub:
-            sub = RunSubscription(run_id=data.run_id, series_id=series_id)
-            db.add(sub)
-            # We don't necessarily need to commit here immediately if we are batching, 
-            # but for safety let's assume one-by-one flow for now.
-        
-        # 4. Upsert Bar in MarketBar
-        existing = db.query(MarketBar).filter(
-            MarketBar.series_id == series_id,
-            MarketBar.ts_utc == data.ts_utc
-        ).first()
-        
-        if existing:
-            # Update (e.g. Volume might change on final close update?)
-            existing.open = data.open
-            existing.high = data.high
-            existing.low = data.low
-            existing.close = data.close
-            existing.volume = data.volume
-            existing.volumetric_json = data.volumetric_json
-        else:
-            new_bar = MarketBar(
-                series_id=series_id,
-                ts_utc=data.ts_utc,
-                open=data.open,
-                high=data.high,
-                low=data.low,
-                close=data.close,
-                volume=data.volume,
-                volumetric_json=data.volumetric_json
-            )
-            db.add(new_bar)
-            
+        for item in data:
+            await upsert_execution_logic(db, item)
         db.commit()
-        
+        return {"status": "ok", "count": len(data)}
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error processing execution batch: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+async def upsert_execution_logic(db: Session, data: ExecutionCreate):
+    existing = db.query(Execution).filter(Execution.run_id == data.run_id, Execution.execution_id == data.execution_id).first()
+    if existing:
+        existing.order_id = data.order_id
+        existing.exec_utc = data.exec_utc
+        existing.price = data.price
+        existing.quantity = data.quantity
+        existing.fee = data.fee
+        existing.fee_currency = data.fee_currency
+        existing.liquidity = data.liquidity
+        if data.position_impact:
+            existing.position_impact = PositionImpactType(data.position_impact)
+        existing.extra_json = data.extra_json
+    else:
+        exec_obj = Execution(
+            run_id=data.run_id,
+            execution_id=data.execution_id,
+            order_id=data.order_id,
+            exec_utc=data.exec_utc,
+            price=data.price,
+            quantity=data.quantity,
+            fee=data.fee,
+            fee_currency=data.fee_currency,
+            liquidity=data.liquidity,
+            position_impact=PositionImpactType(data.position_impact) if data.position_impact else PositionImpactType.UNKNOWN,
+            extra_json=data.extra_json
+
+        )
+        db.add(exec_obj)
+        db.flush() # Ensure visible for next iter in batch
+
+@router.post("/event/bar")
+async def on_bar(data: BarCreate, db: Session = Depends(get_db)):
+    try:
+        await upsert_bar_logic(db, data)
         db.commit()
         return {"status": "ok"}
     except Exception as e:
         db.rollback()
         logger.error(f"Error processing bar: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/batch/bars")
+async def on_bars_batch(data: list[BarCreate], db: Session = Depends(get_db)):
+    try:
+        for item in data:
+            await upsert_bar_logic(db, item)
+        db.commit()
+        return {"status": "ok", "count": len(data)}
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error processing bar batch: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+async def upsert_bar_logic(db: Session, data: BarCreate):
+    # "Unified Market Data Layer" Logic
+    
+    # 1. Calculate MarketSeries ID (Hash)
+    series_key = f"{data.symbol}_{data.timeframe}_{data.venue}_{data.provider}"
+    series_id = hashlib.md5(series_key.encode()).hexdigest()
+    
+    # 2. Ensure MarketSeries Exists
+    market_series = db.query(MarketSeries).filter(MarketSeries.series_id == series_id).first()
+    if not market_series:
+        market_series = MarketSeries(
+            series_id=series_id,
+            symbol=data.symbol,
+            timeframe=data.timeframe,
+            venue=data.venue,
+            provider=data.provider,
+            created_utc=datetime.utcnow()
+        )
+        db.add(market_series)
+        db.flush() # Flush to make ID available, but don't commit yet if in batch
+
+    # 3. Ensure Run Subscription (Run -> MarketSeries)
+    sub = db.query(RunSubscription).filter(
+        RunSubscription.run_id == data.run_id,
+        RunSubscription.series_id == series_id
+    ).first()
+    
+    if not sub:
+        sub = RunSubscription(run_id=data.run_id, series_id=series_id)
+        db.add(sub)
+        db.flush() # Ensure visible for next iter in batch
+    
+    # 4. Upsert Bar in MarketBar
+    existing = db.query(MarketBar).filter(
+        MarketBar.series_id == series_id,
+        MarketBar.ts_utc == data.ts_utc
+    ).first()
+    
+    if existing:
+        # Update
+        existing.open = data.open
+        existing.high = data.high
+        existing.low = data.low
+        existing.close = data.close
+        existing.volume = data.volume
+        existing.volumetric_json = data.volumetric_json
+    else:
+        new_bar = MarketBar(
+            series_id=series_id,
+            ts_utc=data.ts_utc,
+            open=data.open,
+            high=data.high,
+            low=data.low,
+            close=data.close,
+            volume=data.volume,
+            volumetric_json=data.volumetric_json
+
+        )
+        db.add(new_bar)
+        db.flush() # Ensure visible for next iter in batch

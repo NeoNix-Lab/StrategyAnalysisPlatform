@@ -10,13 +10,13 @@
 using System;
 using System.Reflection;
 
-[assembly: System.Reflection.AssemblyCompanyAttribute("NeoNix")]
+[assembly: System.Reflection.AssemblyCompanyAttribute("StrategyExporter.Tests")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
-[assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.4.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.4+ffbd55f8cbcf2cf38b783140f140f6774b48daad")]
-[assembly: System.Reflection.AssemblyProductAttribute("StrategyExporter")]
-[assembly: System.Reflection.AssemblyTitleAttribute("StrategyExporter")]
-[assembly: System.Reflection.AssemblyVersionAttribute("1.0.4.0")]
+[assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+ffbd55f8cbcf2cf38b783140f140f6774b48daad")]
+[assembly: System.Reflection.AssemblyProductAttribute("StrategyExporter.Tests")]
+[assembly: System.Reflection.AssemblyTitleAttribute("StrategyExporter.Tests")]
+[assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
 
 // Generato dalla classe WriteCodeFragment di MSBuild.
 

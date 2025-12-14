@@ -1,9 +1,11 @@
 using System;
 using System.Net.Http;
+using System.Collections.Generic;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using TradingPlatform.BusinessLayer;
+using StrategyExporterTemplate.DTOs;
 
 namespace StrategyExporterTemplate.Services
 {
@@ -40,6 +42,21 @@ namespace StrategyExporterTemplate.Services
             {
                 Core.Instance.Loggers.Log($"Exporter Exception [{endpoint}]: {ex.Message}", LoggingLevel.Error);
             }
+        }
+
+        public async Task ExportBarsAsync(IEnumerable<BarDto> bars)
+        {
+            await SendAsync("api/ingest/batch/bars", bars);
+        }
+
+        public async Task ExportOrdersAsync(IEnumerable<OrderDto> orders)
+        {
+            await SendAsync("api/ingest/batch/orders", orders);
+        }
+
+        public async Task ExportExecutionsAsync(IEnumerable<ExecutionDto> executions)
+        {
+            await SendAsync("api/ingest/batch/executions", executions);
         }
 
         public async Task StopRunAsync(string runId)

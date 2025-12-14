@@ -45,6 +45,7 @@ namespace StrategyExporterTemplate
 
         // Export
         private HttpExporter _exporter;
+        private ExportBuffer _buffer;
         private string _runId = string.Empty;
         private string _instanceId = string.Empty;
         private string _strategyId = string.Empty;
@@ -140,6 +141,18 @@ namespace StrategyExporterTemplate
 
         protected override void OnStop()
         {
+            if (_buffer != null)
+            {
+                try
+                {
+                    _buffer.Dispose(); // Flushes remaining data
+                }
+                catch (Exception ex)
+                {
+                    Core.Instance.Loggers.Log($"{this.Name} Failed to flush buffer: {ex.Message}", LoggingLevel.Error);
+                }
+            }
+
             if (_exporter != null)
             {
                 if (!string.IsNullOrEmpty(_runId))
@@ -183,6 +196,7 @@ namespace StrategyExporterTemplate
         private void InitializeExporterSync()
         {
             this._exporter = new HttpExporter(this.HttpExportEndpoint);
+            this._buffer = new ExportBuffer(this._exporter, 50); // Batch size 50
 
             try
             {
@@ -246,7 +260,7 @@ namespace StrategyExporterTemplate
         private void ExportOrder(Order order)
         {
             // Fire and forget, no need to wait for TCS, init is already done.
-            Task.Run(async () =>
+            Task.Run(() =>
             {
                 var dto = new OrderDto
                 {
@@ -266,13 +280,15 @@ namespace StrategyExporterTemplate
                     SubmitUtc = order.LastUpdateTime == default ? DateTime.UtcNow : order.LastUpdateTime,
                     PositionImpact = "UNKNOWN"
                 };
-                await _exporter.SendAsync("api/ingest/event/order", dto);
+
+                // Use Buffer
+                _buffer.AddOrder(dto);
             });
         }
 
         private void ExportExecution(Trade trade)
         {
-            Task.Run(async () =>
+            Task.Run(() =>
             {
                 // No need to wait anymore
                 var dto = new ExecutionDto
@@ -289,13 +305,15 @@ namespace StrategyExporterTemplate
                     PositionImpact = trade.PositionImpactType == PositionImpactType.Undefined ? "UNKNOWN" :
                         trade.PositionImpactType == PositionImpactType.Open ? "OPEN" : "CLOSE",
                 };
-                await _exporter.SendAsync("api/ingest/event/execution", dto);
+
+                // Use Buffer
+                _buffer.AddExecution(dto);
             });
         }
 
         private void ExportBar(HistoryItem bar)
         {
-            Task.Run(async () =>
+            Task.Run(() =>
             {
                 var dto = new BarDto
                 {
@@ -313,7 +331,9 @@ namespace StrategyExporterTemplate
                                                     // Volumetric:
                                                     // Volumetric = new Dictionary<string, object> { ... }
                 };
-                await _exporter.SendAsync("api/ingest/event/bar", dto);
+
+                // Use Buffer
+                _buffer.AddBar(dto);
             });
         }
         #endregion

@@ -6,9 +6,10 @@ import './Dashboard.css'
 
 const Dashboard = () => {
     const { trades: executions, loading } = useStrategyData()
-    const { runs, selectedRun } = useStrategy()
+    const { runs, selectedRun, instances, selectedInstance } = useStrategy()
 
     const currentRun = runs.find(r => r.run_id === selectedRun)
+    const currentInstance = instances.find(i => i.instance_id === selectedInstance)
 
     // Calculate simple metrics locally since backend analytics is disabled
     const totalExecutions = executions.length
@@ -25,6 +26,11 @@ const Dashboard = () => {
     }))
 
     if (loading) return <div className="loading">Loading dashboard...</div>
+
+    // Resolve parameters from Instance (Configuration) or Run (Snapshot)
+    // Priority: Run Snapshot > Instance Config
+    // Note: detailed parameters are usually on the Instance.
+    const parameters = currentRun?.parameters_json || currentInstance?.parameters_json;
 
     return (
         <div className="dashboard-container">
@@ -53,27 +59,31 @@ const Dashboard = () => {
             </div>
 
             {/* Parameters Overview */}
-            {currentRun?.parameters_json && (
+            {parameters && (
                 <div className="card parameters-card" style={{ marginTop: '2rem' }}>
-                    <div className="parameters-header" style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '1rem' }}>
+                    <div className="parameters-header" style={{ marginBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                             <div style={{ padding: '0.5rem', borderRadius: '8px', background: 'rgba(56, 189, 248, 0.1)' }}>
                                 <Sliders size={20} className="text-accent" style={{ color: 'var(--accent)' }} />
                             </div>
                             <div>
                                 <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1.1rem' }}>Configuration</h3>
-                                <span className="subtitle" style={{ fontSize: '0.8rem' }}>Run Parameters</span>
+                                <span className="subtitle" style={{ fontSize: '0.8rem' }}>Active Strategy Parameters</span>
                             </div>
                         </div>
                     </div>
 
                     <div className="parameters-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem' }}>
-                        {Object.entries(currentRun.parameters_json).map(([key, value]) => (
+                        {Object.entries(parameters).map(([key, value]) => (
                             <div key={key} className="parameter-item" style={{
-                                background: 'rgba(15, 23, 42, 0.3)',
+                                background: 'rgba(15, 23, 42, 0.4)',
                                 padding: '1rem',
-                                borderRadius: '8px',
-                                border: '1px solid rgba(255,255,255,0.05)'
+                                borderRadius: '12px',
+                                border: '1px solid rgba(255,255,255,0.05)',
+                                transition: 'all 0.2s ease',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '0.5rem'
                             }}>
                                 <span className="parameter-key" style={{
                                     display: 'block',
@@ -81,7 +91,7 @@ const Dashboard = () => {
                                     fontSize: '0.75rem',
                                     textTransform: 'uppercase',
                                     letterSpacing: '0.05em',
-                                    marginBottom: '0.25rem'
+                                    fontWeight: '500'
                                 }}>
                                     {key.replace(/_/g, ' ')}
                                 </span>
@@ -89,7 +99,8 @@ const Dashboard = () => {
                                     color: 'var(--text-primary)',
                                     fontWeight: '600',
                                     fontFamily: typeof value === 'object' ? 'monospace' : 'inherit',
-                                    wordBreak: 'break-all'
+                                    wordBreak: 'break-all',
+                                    fontSize: '1rem'
                                 }}>
                                     {typeof value === 'object' ? JSON.stringify(value) : String(value)}
                                 </div>

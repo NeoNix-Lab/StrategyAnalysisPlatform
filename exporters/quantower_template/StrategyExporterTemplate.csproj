@@ -10,7 +10,7 @@
     <!-- Adjust paths as needed for your environment -->
     <StartAction>Program</StartAction>
     <StartProgram>C:\Quantower\TradingPlatform\v1.145.9\Console.StarterNew.exe</StartProgram>
-    <StartArguments>--address 127.0.0.1 --port 57929</StartArguments>
+    <StartArguments>--address 127.0.0.1 --port 65112</StartArguments>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
