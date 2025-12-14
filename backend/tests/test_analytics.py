@@ -22,12 +22,14 @@ class MockTrade:
         self.strategy_id = "test_strategy"
 
 class MockExecution:
-    def __init__(self, fee=0.0, price=100.0, quantity=1.0, order_id="ord1"):
+    def __init__(self, fee=0.0, price=100.0, quantity=1.0, order_id="ord1", exec_utc=None):
         self.fee = fee
         self.price = price
         self.quantity = quantity
         self.order_id = order_id
         self.run_id = "test_run"
+        self.exec_utc = exec_utc or datetime.utcnow()
+
 
 @pytest.fixture
 def mock_db_session():
