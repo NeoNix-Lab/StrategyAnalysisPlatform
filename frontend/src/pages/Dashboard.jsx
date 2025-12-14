@@ -54,16 +54,43 @@ const Dashboard = () => {
 
             {/* Parameters Overview */}
             {currentRun?.parameters_json && (
-                <div className="card parameters-card">
-                    <div className="parameters-header">
-                        <Sliders size={20} className="text-accent" style={{ color: 'var(--accent)' }} />
-                        <h3>Run Configuration</h3>
+                <div className="card parameters-card" style={{ marginTop: '2rem' }}>
+                    <div className="parameters-header" style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '1rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            <div style={{ padding: '0.5rem', borderRadius: '8px', background: 'rgba(56, 189, 248, 0.1)' }}>
+                                <Sliders size={20} className="text-accent" style={{ color: 'var(--accent)' }} />
+                            </div>
+                            <div>
+                                <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1.1rem' }}>Configuration</h3>
+                                <span className="subtitle" style={{ fontSize: '0.8rem' }}>Run Parameters</span>
+                            </div>
+                        </div>
                     </div>
-                    <div className="parameters-grid">
+
+                    <div className="parameters-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem' }}>
                         {Object.entries(currentRun.parameters_json).map(([key, value]) => (
-                            <div key={key} className="parameter-item">
-                                <span className="parameter-key">{key.replace(/_/g, ' ')}</span>
-                                <div className={`parameter-value ${typeof value === 'object' ? 'json' : ''}`}>
+                            <div key={key} className="parameter-item" style={{
+                                background: 'rgba(15, 23, 42, 0.3)',
+                                padding: '1rem',
+                                borderRadius: '8px',
+                                border: '1px solid rgba(255,255,255,0.05)'
+                            }}>
+                                <span className="parameter-key" style={{
+                                    display: 'block',
+                                    color: 'var(--text-secondary)',
+                                    fontSize: '0.75rem',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.05em',
+                                    marginBottom: '0.25rem'
+                                }}>
+                                    {key.replace(/_/g, ' ')}
+                                </span>
+                                <div className={`parameter-value ${typeof value === 'object' ? 'json' : ''}`} style={{
+                                    color: 'var(--text-primary)',
+                                    fontWeight: '600',
+                                    fontFamily: typeof value === 'object' ? 'monospace' : 'inherit',
+                                    wordBreak: 'break-all'
+                                }}>
                                     {typeof value === 'object' ? JSON.stringify(value) : String(value)}
                                 </div>
                             </div>

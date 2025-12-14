@@ -132,54 +132,39 @@ namespace StrategyExporter.DTOs
         public string? TimeInForce { get; set; } = "GTC";
     }
 
-    public class TradeDto
+    public class ExecutionDto
     {
-        [JsonPropertyName("trade_id")]
-        public string TradeId { get; set; } = string.Empty;
-
         [JsonPropertyName("run_id")]
-        public string? RunId { get; set; }
+        public string RunId { get; set; } = string.Empty;
 
-        [JsonPropertyName("strategy_id")]
-        public string StrategyId { get; set; } = string.Empty;
+        [JsonPropertyName("execution_id")]
+        public string ExecutionId { get; set; } = string.Empty;
 
-        [JsonPropertyName("symbol")]
-        public string Symbol { get; set; } = string.Empty;
+        [JsonPropertyName("order_id")]
+        public string OrderId { get; set; } = string.Empty;
 
-        [JsonPropertyName("side")]
-        public string Side { get; set; } = "BUY";
+        [JsonPropertyName("exec_utc")]
+        public DateTime ExecUtc { get; set; }
 
-        [JsonPropertyName("entry_time")]
-        public DateTime EntryTime { get; set; }
-
-        [JsonPropertyName("exit_time")]
-        public DateTime ExitTime { get; set; }
-
-        [JsonPropertyName("entry_price")]
-        public double EntryPrice { get; set; }
-
-        [JsonPropertyName("exit_price")]
-        public double ExitPrice { get; set; }
+        [JsonPropertyName("price")]
+        public double Price { get; set; }
 
         [JsonPropertyName("quantity")]
         public double Quantity { get; set; }
 
-        [JsonPropertyName("pnl_gross")]
-        public double PnlGross { get; set; }
+        [JsonPropertyName("fee")]
+        public double? Fee { get; set; }
 
-        [JsonPropertyName("pnl_net")]
-        public double PnlNet { get; set; }
+        [JsonPropertyName("fee_currency")]
+        public string? FeeCurrency { get; set; }
 
-        [JsonPropertyName("commission")]
-        public double Commission { get; set; } = 0.0;
+        [JsonPropertyName("liquidity")]
+        public string? Liquidity { get; set; }
 
-        [JsonPropertyName("regime_trend")]
-        public string? RegimeTrend { get; set; }
+        [JsonPropertyName("position_impact")]
+        public string? PositionImpact { get; set; } = "UNKNOWN";
 
-        [JsonPropertyName("regime_volatility")]
-        public string? RegimeVolatility { get; set; }
-
-        [JsonPropertyName("setup_tag")]
-        public string? SetupTag { get; set; }
+        [JsonPropertyName("extra_json")]
+        public Dictionary<string, object>? ExtraJson { get; set; }
     }
 }

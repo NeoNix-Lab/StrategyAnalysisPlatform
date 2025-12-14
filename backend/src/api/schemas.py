@@ -105,6 +105,7 @@ class ExecutionCreate(BaseModel):
     fee: Optional[float] = 0.0
     fee_currency: Optional[str] = None
     liquidity: Optional[str] = None
+    position_impact: Optional[PositionImpactType] = PositionImpactType.UNKNOWN
     extra_json: Optional[Dict[str, Any]] = None
 
 class BarCreate(BaseModel):

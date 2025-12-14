@@ -53,6 +53,8 @@ namespace StrategyExporterTemplate
 
         #endregion
 
+        #region //--- QUANTOWER ---
+
         public StrategyExporterTemplate()
             : base()
         {
@@ -140,20 +142,44 @@ namespace StrategyExporterTemplate
         {
             if (_exporter != null)
             {
+                if (!string.IsNullOrEmpty(_runId))
+                {
+                    try
+                    {
+                        // Blocking call to ensure finalize happens before dispose
+                        _exporter.StopRunAsync(_runId).Wait();
+                    }
+                    catch (Exception ex)
+                    {
+                        Core.Instance.Loggers.Log($"{this.Name} Failed to stop run: {ex.Message}", LoggingLevel.Error);
+                    }
+                }
                 _exporter.Dispose();
             }
 
-            this.historicalData.NewHistoryItem -= this.HistoricalData_NewHistoryItem;
-            this.historicalData.Dispose();
+            if (this.historicalData != null)
+            {
+                this.historicalData.NewHistoryItem -= this.HistoricalData_NewHistoryItem;
+                this.historicalData.Dispose();
+            }
 
             Core.Instance.TradeAdded -= this.Instance_TradeAdded;
             Core.Instance.OrderAdded -= this.Instance_OrderAdded;
         }
 
+        protected override void OnInitializeMetrics(Meter meter)
+        {
+            meter.CreateObservableGauge("Balance", () =>
+            {
+                return this.InputAccount != null ? this.InputAccount.Balance : 0.0;
+            });
+        }
         protected override void OnRemove()
         {
         }
+        #endregion
 
+        #region // --- Export Methods ---
         private void InitializeExporterSync()
         {
             this._exporter = new HttpExporter(this.HttpExportEndpoint);
@@ -217,8 +243,6 @@ namespace StrategyExporterTemplate
             }
         }
 
-        // --- Export Methods ---
-
         private void ExportOrder(Order order)
         {
             // Fire and forget, no need to wait for TCS, init is already done.
@@ -261,7 +285,9 @@ namespace StrategyExporterTemplate
                     Quantity = trade.Quantity,
                     Fee = trade.Fee?.Value,
                     FeeCurrency = trade.Fee?.Asset.UniqueId ?? "UNKNOWN",
-                    Liquidity = "UNKNOWN"
+                    Liquidity = "UNKNOWN",
+                    PositionImpact = trade.PositionImpactType == PositionImpactType.Undefined ? "UNKNOWN" :
+                        trade.PositionImpactType == PositionImpactType.Open ? "OPEN" : "CLOSE",
                 };
                 await _exporter.SendAsync("api/ingest/event/execution", dto);
             });
@@ -276,7 +302,7 @@ namespace StrategyExporterTemplate
                     RunId = _runId,
                     Symbol = this.InputSymbol.Name,
                     Timeframe = this.AggregationPeriod.ToString(),
-                    Venue = this.InputAccount.Name, // Account Name usually serves as Venue in Quantower for some connections, or use Connection info
+                    Venue = this.InputSymbol.Description, // Account Name usually serves as Venue in Quantower for some connections, or use Connection info
                     Provider = "Quantower",
                     TsUtc = bar.TimeLeft,
                     Open = bar[PriceType.Open],
@@ -284,14 +310,15 @@ namespace StrategyExporterTemplate
                     Low = bar[PriceType.Low],
                     Close = bar[PriceType.Close],
                     Volume = bar[PriceType.Volume], // or bar[PriceType.Volume]? check SDK
-                    // Volumetric:
-                    // Volumetric = new Dictionary<string, object> { ... }
+                                                    // Volumetric:
+                                                    // Volumetric = new Dictionary<string, object> { ... }
                 };
                 await _exporter.SendAsync("api/ingest/event/bar", dto);
             });
         }
+        #endregion
 
-        // --- Helpers ---
+        #region // --- Helpers ---
 
         private void PlaceOrder(Side side)
         {
@@ -348,12 +375,8 @@ namespace StrategyExporterTemplate
             }
         }
 
-        protected override void OnInitializeMetrics(Meter meter)
-        {
-            meter.CreateObservableGauge("Balance", () =>
-            {
-                return this.InputAccount != null ? this.InputAccount.Balance : 0.0;
-            });
-        }
+
+        #endregion
+
     }
 }

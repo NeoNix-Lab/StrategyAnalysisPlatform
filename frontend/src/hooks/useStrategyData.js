@@ -48,7 +48,10 @@ export const useStrategyData = () => {
                     index: index + 1,
                     cumulativePnl: 0, // Placeholder
                     pnl_net: 0,
-                    pnlColor: '#aaaaaa'
+                    pnlColor: '#aaaaaa',
+                    position_impact: e.position_impact || 'UNKNOWN',
+                    fee: e.fee || 0,
+                    liquidity: e.liquidity || '?'
                 }))
 
                 setTrades(processed)

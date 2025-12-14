@@ -73,6 +73,7 @@ namespace StrategyExporterTemplate.DTOs
         [JsonPropertyName("fee")] public double? Fee { get; set; }
         [JsonPropertyName("fee_currency")] public string FeeCurrency { get; set; }
         [JsonPropertyName("liquidity")] public string Liquidity { get; set; }
+        [JsonPropertyName("position_impact")] public string PositionImpact { get; set; }
         [JsonPropertyName("extra_json")] public Dictionary<string, object> Extra { get; set; }
     }
 

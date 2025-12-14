@@ -178,6 +178,7 @@ class Execution(Base):
     fee = Column(Float, default=0.0)
     fee_currency = Column(String, nullable=True)
     liquidity = Column(String, nullable=True) # MAKER/TAKER
+    position_impact = Column(Enum(PositionImpactType), default=PositionImpactType.UNKNOWN, nullable=True)
     
     extra_json = Column(JSON, nullable=True)
 

@@ -50,31 +50,57 @@ const Executions = () => {
                         <thead>
                             <tr>
                                 <th>Time (UTC)</th>
-                                <th>Execution ID</th>
-                                <th>Order ID</th>
+                                <th>Impact</th>
                                 <th>Price</th>
                                 <th>Quantity</th>
                                 <th>Fee</th>
+                                <th>Liquidity</th>
+                                <th>IDs</th>
                             </tr>
                         </thead>
                         <tbody>
                             {filteredExecutions.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>
+                                    <td colSpan={7} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
                                         No executions found for this run.
                                     </td>
                                 </tr>
                             ) : (
-                                filteredExecutions.map(exec => (
-                                    <tr key={exec.execution_id}>
-                                        <td>{new Date(exec.exec_utc).toLocaleString()}</td>
-                                        <td className="mono">{exec.execution_id}</td>
-                                        <td className="mono">{exec.order_id}</td>
-                                        <td className="num">{exec.price}</td>
-                                        <td className="num">{exec.quantity}</td>
-                                        <td className="num">{exec.fee} {exec.fee_currency}</td>
-                                    </tr>
-                                ))
+                                filteredExecutions.map(exec => {
+                                    const impactClass = `badge-${exec.position_impact?.toLowerCase() || 'unknown'}`
+                                    return (
+                                        <tr key={exec.execution_id} className="trade-row">
+                                            <td style={{ whiteSpace: 'nowrap', color: 'var(--text-secondary)' }}>
+                                                {new Date(exec.exec_utc).toLocaleTimeString()} <span style={{ fontSize: '0.8em', opacity: 0.7 }}>{new Date(exec.exec_utc).toLocaleDateString()}</span>
+                                            </td>
+                                            <td>
+                                                <span className={`badge ${impactClass}`}>
+                                                    {exec.position_impact || 'UNKNOWN'}
+                                                </span>
+                                            </td>
+                                            <td className="num font-mono" style={{ fontWeight: 600 }}>{exec.price.toFixed(2)}</td>
+                                            <td className="num font-mono">{exec.quantity}</td>
+                                            <td className="num" style={{ color: exec.fee > 0 ? 'var(--danger)' : 'var(--text-secondary)' }}>
+                                                {exec.fee ? exec.fee.toFixed(4) : '-'} <span style={{ fontSize: '0.7em' }}>{exec.fee_currency}</span>
+                                            </td>
+                                            <td>
+                                                <span style={{
+                                                    fontSize: '0.75rem',
+                                                    padding: '0.2rem 0.5rem',
+                                                    borderRadius: '4px',
+                                                    background: exec.liquidity === 'MAKER' ? 'rgba(56, 189, 248, 0.1)' : 'transparent',
+                                                    color: exec.liquidity === 'MAKER' ? 'var(--accent)' : 'var(--text-secondary)'
+                                                }}>
+                                                    {exec.liquidity || '-'}
+                                                </span>
+                                            </td>
+                                            <td className="mono" style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                                                <div title={`Exec: ${exec.execution_id}`}>{exec.execution_id.substring(0, 8)}...</div>
+                                                <div title={`Order: ${exec.order_id}`} style={{ opacity: 0.7 }}>{exec.order_id.substring(0, 8)}...</div>
+                                            </td>
+                                        </tr>
+                                    )
+                                })
                             )}
                         </tbody>
                     </table>

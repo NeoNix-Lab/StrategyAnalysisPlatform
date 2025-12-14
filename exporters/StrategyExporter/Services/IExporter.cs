@@ -13,7 +13,7 @@ namespace StrategyExporter.Services
         // Data Streaming
         Task ExportBarsAsync(IEnumerable<BarDto> bars);
         Task ExportOrdersAsync(IEnumerable<OrderDto> orders);
-        Task ExportTradesAsync(IEnumerable<TradeDto> trades);
+        Task ExportTradesAsync(IEnumerable<ExecutionDto> trades);
 
         // Lifecycle
         Task StopRunAsync(string runId);

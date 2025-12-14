@@ -25,7 +25,7 @@ namespace StrategyExporter.Services
         // Buffers
         private List<BarDto> _bars = new();
         private List<OrderDto> _orders = new();
-        private List<TradeDto> _trades = new();
+        private List<ExecutionDto> _executions = new();
 
         // Async coordination
         private readonly SemaphoreSlim _writeLock = new(1, 1);
@@ -73,17 +73,17 @@ namespace StrategyExporter.Services
             if (toExport != null) EnqueueExport(async () => await _exporter.ExportOrdersAsync(toExport));
         }
 
-        public void AddTrade(TradeDto trade)
+        public void AddExecution(ExecutionDto execution)
         {
-            if (trade == null) return;
-            List<TradeDto>? toExport = null;
+            if (execution == null) return;
+            List<ExecutionDto>? toExport = null;
             lock (_tradesLock)
             {
-                _trades.Add(trade);
-                if (_trades.Count >= _batchSize)
+                _executions.Add(execution);
+                if (_executions.Count >= _batchSize)
                 {
-                    toExport = _trades;
-                    _trades = new List<TradeDto>();
+                    toExport = _executions;
+                    _executions = new List<ExecutionDto>();
                 }
             }
             if (toExport != null) EnqueueExport(async () => await _exporter.ExportTradesAsync(toExport));
@@ -128,11 +128,11 @@ namespace StrategyExporter.Services
             // 1. Snapshot remaining buffers
             List<BarDto>? barsSnap;
             List<OrderDto>? ordersSnap;
-            List<TradeDto>? tradesSnap;
+            List<ExecutionDto>? executionsSnap;
 
             lock (_barsLock) { barsSnap = _bars.Count > 0 ? _bars : null; _bars = new List<BarDto>(); }
             lock (_ordersLock) { ordersSnap = _orders.Count > 0 ? _orders : null; _orders = new List<OrderDto>(); }
-            lock (_tradesLock) { tradesSnap = _trades.Count > 0 ? _trades : null; _trades = new List<TradeDto>(); }
+            lock (_tradesLock) { executionsSnap = _executions.Count > 0 ? _executions : null; _executions = new List<ExecutionDto>(); }
 
             // 2. Wait for current running uploads
             Task[] pending;
@@ -148,7 +148,7 @@ namespace StrategyExporter.Services
             {
                 if (barsSnap != null) await _exporter.ExportBarsAsync(barsSnap);
                 if (ordersSnap != null) await _exporter.ExportOrdersAsync(ordersSnap);
-                if (tradesSnap != null) await _exporter.ExportTradesAsync(tradesSnap);
+                if (executionsSnap != null) await _exporter.ExportTradesAsync(executionsSnap);
             }
             catch { }
             finally

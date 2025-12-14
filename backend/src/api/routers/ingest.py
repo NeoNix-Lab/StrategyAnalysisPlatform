@@ -165,9 +165,22 @@ async def on_order(data: OrderCreate, db: Session = Depends(get_db)):
 async def on_execution(data: ExecutionCreate, db: Session = Depends(get_db)):
     logger.info(f"Received Execution Event: {data.execution_id} for Order {data.order_id}")
     try:
-        # Idempotency check
+        # Upsert Logic
         existing = db.query(Execution).filter(Execution.run_id == data.run_id, Execution.execution_id == data.execution_id).first()
-        if not existing:
+        if existing:
+            # Update
+            existing.order_id = data.order_id
+            existing.exec_utc = data.exec_utc
+            existing.price = data.price
+            existing.quantity = data.quantity
+            existing.fee = data.fee
+            existing.fee_currency = data.fee_currency
+            existing.liquidity = data.liquidity
+            if data.position_impact:
+                existing.position_impact = PositionImpactType(data.position_impact)
+            existing.extra_json = data.extra_json
+        else:
+            # Insert
             exec_obj = Execution(
                 run_id=data.run_id,
                 execution_id=data.execution_id,
@@ -178,10 +191,12 @@ async def on_execution(data: ExecutionCreate, db: Session = Depends(get_db)):
                 fee=data.fee,
                 fee_currency=data.fee_currency,
                 liquidity=data.liquidity,
+                position_impact=PositionImpactType(data.position_impact) if data.position_impact else PositionImpactType.UNKNOWN,
                 extra_json=data.extra_json
             )
             db.add(exec_obj)
-            db.commit()
+        
+        db.commit()
         return {"status": "ok", "id": data.execution_id}
     except Exception as e:
         db.rollback()

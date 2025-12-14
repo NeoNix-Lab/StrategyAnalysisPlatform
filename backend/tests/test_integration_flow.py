@@ -1,34 +1,17 @@
-import urllib.request
-import urllib.error
-import json
-import uuid
+import pytest
 import time
+import uuid
 from datetime import datetime
 
-BASE_URL = "http://127.0.0.1:8000/api"
+# Tests depend on 'client' fixture from conftest.py
+# If client is None (app import failed), rely on pytest.mark.skip or similar
+# But here we just assume it works or fails with a clear error.
 
-def make_request(method, endpoint, data=None):
-    url = f"{BASE_URL}{endpoint}"
-    req = urllib.request.Request(url, method=method)
-    req.add_header('Content-Type', 'application/json')
-    
-    body = None
-    if data:
-        body = json.dumps(data).encode('utf-8')
-    
-    try:
-        with urllib.request.urlopen(req, data=body) as response:
-            resp_body = response.read().decode('utf-8')
-            return json.loads(resp_body)
-    except urllib.error.HTTPError as e:
-        print(f"HTTP Error {e.code}: {e.read().decode('utf-8')}")
-        return None
-    except Exception as e:
-        print(f"Error: {e}")
-        return None
+def test_flow(client):
+    if client is None:
+        pytest.skip("API Client not available (likely import error in conftest)")
 
-def test_flow():
-    print("--- Starting Integration Flow Test (urllib) ---")
+    print("--- Starting Integration Flow Test (TestClient) ---")
     
     # 1. Start Run
     print("\n1. Starting Run...")
@@ -38,11 +21,11 @@ def test_flow():
         "data_range": {"symbol": "EURUSD", "timeframe": "M1"}
     }
     
-    run_data = make_request("POST", "/runs/start", start_payload)
-    if not run_data:
-        print("FAILED to start run")
-        return
+    resp = client.post("/runs/start", json=start_payload)
+    if resp.status_code != 200:
+        pytest.fail(f"FAILED to start run: {resp.text}")
     
+    run_data = resp.json()
     run_id = run_data['run_id']
     print(f"SUCCESS: Run started with ID: {run_id}")
     
@@ -83,25 +66,20 @@ def test_flow():
         ]
     }
     
-    resp_data = make_request("POST", "/ingest/stream", stream_payload)
-    if not resp_data:
-        print("FAILED to ingest stream")
-        return
+    resp = client.post("/ingest/stream", json=stream_payload)
+    if resp.status_code != 200:
+        pytest.fail(f"FAILED to ingest stream: {resp.text}")
         
+    resp_data = resp.json()
     print(f"SUCCESS: Stream ingested. Response: {resp_data}")
     
     # 3. Stop Run
     print("\n3. Stopping Run...")
-    time.sleep(1)
+    # No sleep needed for TestClient usually, unless background tasks involved.
     
-    run_end_data = make_request("POST", f"/runs/{run_id}/stop")
-    if not run_end_data:
-        print("FAILED to stop run")
-        return
+    resp = client.post(f"/runs/{run_id}/stop")
+    if resp.status_code != 200:
+        pytest.fail(f"FAILED to stop run: {resp.text}")
         
+    run_end_data = resp.json()
     print(f"SUCCESS: Run stopped. Status: {run_end_data.get('status')}, EndTime: {run_end_data.get('end_time')}")
-    
-    print("\n--- Integration Test COMPLETED SUCCESSFULY ---")
-
-if __name__ == "__main__":
-    test_flow()

@@ -1,14 +1,8 @@
-import sqlite3
-import pandas as pd
-from datetime import datetime, timedelta
 import os
 import sys
-
-# Add project root to path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
-from src.database.connection import engine, Base, SessionLocal
-from src.database.models import Bar, Order, StrategyRun, Strategy, Side, OrderType, OrderStatus
+import sqlite3
+import pytest
+from src.database.models import Order, StrategyRun, Strategy
 from src.etl.import_sqlite import SqliteImporter
 
 def create_source_sqlite(filename):
@@ -57,51 +51,39 @@ def create_source_sqlite(filename):
     conn.commit()
     conn.close()
 
-def test_strategy_run_import():
-    # 1. Setup DB
-    from sqlalchemy import create_engine
-    from sqlalchemy.orm import sessionmaker
-    
-    test_engine = create_engine('sqlite:///:memory:')
-    Base.metadata.create_all(test_engine)
-    TestSession = sessionmaker(bind=test_engine)
-    session = TestSession()
-    
-    importer = SqliteImporter(session)
+def test_strategy_run_import(db_session):
+    importer = SqliteImporter(db_session)
     
     # 2. Create Source File
     source_file = 'test_run_import.sqlite'
-    create_source_sqlite(source_file)
-    
-    # 3. Import
-    print("Running Import...")
-    importer.import_file(source_file)
-    
-    # 4. Verify Strategy Created
-    strat = session.query(Strategy).filter_by(strategy_id='TEST_STRAT').first()
-    assert strat is not None
-    print(f"✅ Strategy Created: {strat.name}")
-    
-    # 5. Verify Run Created
-    run = session.query(StrategyRun).filter_by(strategy_id='TEST_STRAT').first()
-    assert run is not None
-    print(f"✅ Run Created: {run.run_id}")
-    
-    # 6. Verify Order Linked to Run
-    order = session.query(Order).filter_by(order_id='ORD-001').first()
-    assert order.run_id == run.run_id
-    print(f"✅ Order Linked to Run: {order.run_id}")
-    
-    # Cleanup
-    session.close()
-    test_engine.dispose()
+    # Ensure cleanup
     if os.path.exists(source_file):
-        try:
-            os.remove(source_file)
-        except:
-            pass
-            
-    print("\n✅ TEST PASSED: Strategy Run logic verified.")
-
-if __name__ == "__main__":
-    test_strategy_run_import()
+        os.remove(source_file)
+        
+    try:
+        create_source_sqlite(source_file)
+        
+        # 3. Import
+        print("Running Import...")
+        importer.import_file(source_file)
+        
+        # 4. Verify Strategy Created
+        strat = db_session.query(Strategy).filter_by(strategy_id='TEST_STRAT').first()
+        assert strat is not None
+        assert strat.name == 'TEST_STRAT'
+        
+        # 5. Verify Run Created
+        run = db_session.query(StrategyRun).filter_by(strategy_id='TEST_STRAT').first()
+        assert run is not None
+        
+        # 6. Verify Order Linked to Run
+        order = db_session.query(Order).filter_by(order_id='ORD-001').first()
+        assert order is not None
+        assert order.run_id == run.run_id
+        
+    finally:
+        if os.path.exists(source_file):
+            try:
+                os.remove(source_file)
+            except:
+                pass

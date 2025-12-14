@@ -1,5 +1,10 @@
 # Strategy Analysis Platform V2
 
+[![Backend CI](https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/actions/workflows/backend-ci.yml/badge.svg)](https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/actions/workflows/backend-ci.yml)
+[![Frontend CI](https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/actions/workflows/frontend-ci.yml/badge.svg)](https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/actions/workflows/frontend-ci.yml)
+[![.NET CI](https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/actions/workflows/dotnet-ci.yml/badge.svg)](https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/actions/workflows/dotnet-ci.yml)
+
+
 ## Overview
 The Strategy Analysis Platform V2 is an event-first system designed for advanced algorithmic trading analytics. It unifies order flow export, persistence, and visualization into a seamless real-time dashboard.
 

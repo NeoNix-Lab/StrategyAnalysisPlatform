@@ -1,6 +1,13 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from src.database.connection import init_db
+import sys
+import asyncio
+
+# Fix for Windows "too many file descriptors in select()" error
+# This switches the event loop to Proactor (IOCP) which supports >> 512 connections.
+if sys.platform == 'win32':
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 # Routers
 from src.api.routers import executions

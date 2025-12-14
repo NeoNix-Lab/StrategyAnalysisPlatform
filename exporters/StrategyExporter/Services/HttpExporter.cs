@@ -29,6 +29,12 @@ namespace StrategyExporter.Services
 
 
 
+        public async Task SendAsync<T>(string uri, T payload)
+        {
+            var response = await _client.PostAsJsonAsync($"{_baseUrl}/{uri}", payload);
+            response.EnsureSuccessStatusCode();
+        }
+
         public async Task<string> StartRunAsync(RunRegistrationDto runInfo)
         {
             this._activeStrategyId = runInfo.StrategyId;
@@ -62,20 +68,21 @@ namespace StrategyExporter.Services
             response.EnsureSuccessStatusCode();
         }
 
-        public async Task ExportTradesAsync(IEnumerable<TradeDto> trades)
+        public async Task ExportTradesAsync(IEnumerable<ExecutionDto> trades)
         {
             foreach (var trade in trades)
             {
                 OverrideRunId(trade);
             }
-            using var response = await _client.PostAsJsonAsync($"{_baseUrl}/api/ingest/stream", new { trades = trades });
+            using var response = await _client.PostAsJsonAsync($"{_baseUrl}/api/ingest/stream", new { executions = trades });
             response.EnsureSuccessStatusCode();
         }
 
         public async Task StopRunAsync(string runId)
         {
-            // Optional: notify backend of run completion
+            // Call finalize endpoint
             using var response = await _client.PostAsync($"{_baseUrl}/api/runs/{runId}/stop", null);
+            response.EnsureSuccessStatusCode();
         }
 
         public void Dispose()
@@ -89,11 +96,12 @@ namespace StrategyExporter.Services
             obj.RunId = _activeRunId;
             obj.StrategyId = _activeStrategyId;
         }
-        private void OverrideRunId(TradeDto obj)
+        private void OverrideRunId(ExecutionDto obj)
         {
             // Do NOT change TradeId.
             obj.RunId = _activeRunId;
-            obj.StrategyId = _activeStrategyId;
+            // StrategyId might not be in ExecutionDto if we removed it? Let's check DTO.
+            // DTO has no StrategyId anymore.
         }
     }
 }

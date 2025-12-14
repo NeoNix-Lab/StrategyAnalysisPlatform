@@ -17,3 +17,19 @@ def get_run(run_id: str, db: Session = Depends(get_db)):
 @router.get("/instance/{instance_id}", response_model=List[StrategyRunResponse])
 def get_runs_by_instance(instance_id: str, db: Session = Depends(get_db)):
     return db.query(StrategyRun).filter(StrategyRun.instance_id == instance_id).all()
+
+@router.post("/{run_id}/stop", response_model=StrategyRunResponse)
+def stop_run(run_id: str, db: Session = Depends(get_db)):
+    run = db.query(StrategyRun).filter(StrategyRun.run_id == run_id).first()
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+    
+    from datetime import datetime
+    from src.database.models import RunStatus
+    
+    run.status = RunStatus.COMPLETED
+    run.end_utc = datetime.utcnow()
+    
+    db.commit()
+    db.refresh(run)
+    return run
