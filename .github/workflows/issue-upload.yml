@@ -1,0 +1,66 @@
+name: Issue Upload
+
+on:
+  push:
+    paths:
+      - 'Issues/**.json'
+    branches:
+      - main
+      - develop
+
+jobs:
+  upload-issues:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # Needed for git diff
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Detect Changed Files
+        id: changed-files
+        run: |
+          # Get list of added/modified JSON files in Issues/
+          # We purposefully exclude deleted files
+          FILES=$(git diff --name-only --diff-filter=AM ${{ github.event.before }} ${{ github.sha }} | grep '^Issues/.*\.json$' || true)
+          # Multiline output to env var
+          echo "FILES<<EOF" >> $GITHUB_ENV
+          echo "$FILES" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Sync to GitHub
+        if: env.FILES != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Pass the files as arguments
+          python Issues/sync_upstream.py $FILES
+
+      - name: Commit Renames (New Issues)
+        if: success()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Add any new files (renamed ones) and removing old ones happens via git add -A or standard add of the directory
+          # sync_upstream.py deletes the old file and writes the new one.
+          
+          git add Issues/
+          
+          if git diff --cached --quiet; then
+            echo "No file renames to commit."
+          else
+            git commit -m "chore: rename new local issues [skip ci]"
+            git push
+          fi
