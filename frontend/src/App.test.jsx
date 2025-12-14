@@ -15,5 +15,6 @@ describe('App', () => {
         // Ideally we mock the child components if they fetch data.
         // For now, just a basic render check.
         expect(document.body).toBeInTheDocument()
+
     })
 })
