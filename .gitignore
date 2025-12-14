@@ -13,3 +13,4 @@ env
 dist
 build
 docs/*
+!docs/Analytics_Service_Refactor.md
