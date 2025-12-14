@@ -1,7 +1,8 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import { useStrategyData } from '../hooks/useStrategyData'
 import { useStrategy } from '../context/StrategyContext'
-import { Sliders, Activity, DollarSign, TrendingUp, AlertTriangle } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Sliders, Activity, DollarSign, TrendingUp, AlertTriangle, ArrowRight } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import './Dashboard.css'
 
@@ -9,6 +10,33 @@ const Dashboard = () => {
     // [FIX] Separate 'executions' (raw) and 'trades' (reconstructed)
     const { executions, trades, stats, loading } = useStrategyData()
     const { runs, selectedRun, instances, selectedInstance } = useStrategy()
+    const navigate = useNavigate()
+
+    const [displayCount, setDisplayCount] = useState(20)
+
+    // Reset display count when run changes
+    useEffect(() => {
+        setDisplayCount(20)
+    }, [selectedRun])
+
+    const sortedTrades = useMemo(() => {
+        if (!trades) return []
+        return [...trades].sort((a, b) => new Date(b.exit_time) - new Date(a.exit_time))
+    }, [trades])
+
+    const visibleTrades = useMemo(() => {
+        return sortedTrades.slice(0, displayCount)
+    }, [sortedTrades, displayCount])
+
+    const handleScroll = (e) => {
+        const { scrollTop, clientHeight, scrollHeight } = e.target
+        // Load more when near bottom (50px threshold)
+        if (scrollHeight - scrollTop <= clientHeight + 50) {
+            if (displayCount < sortedTrades.length) {
+                setDisplayCount(prev => prev + 20)
+            }
+        }
+    }
 
     const currentRun = runs.find(r => r.run_id === selectedRun)
     const currentInstance = instances.find(i => i.instance_id === selectedInstance)
@@ -152,6 +180,87 @@ const Dashboard = () => {
                             </LineChart>
                         </ResponsiveContainer>
                     </div>
+                </div>
+            </div>
+
+            {/* Recent Trades Table */}
+            <div className="card" style={{ marginTop: '2rem' }}>
+                <div className="card-header" style={{ marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h3 style={{ margin: 0 }}>Recent Trades</h3>
+                    <button
+                        onClick={() => navigate('/trades')}
+                        style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#3b82f6',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            fontSize: '0.9rem',
+                            padding: '0.5rem',
+                            transition: 'color 0.2s'
+                        }}
+                        onMouseEnter={(e) => e.target.style.color = '#60a5fa'}
+                        onMouseLeave={(e) => e.target.style.color = '#3b82f6'}
+                    >
+                        View All <ArrowRight size={16} />
+                    </button>
+                </div>
+                <div
+                    className="table-container infinite-scroll-container"
+                    onScroll={handleScroll}
+                    style={{
+                        overflowX: 'auto',
+                        overflowY: 'auto',
+                        maxHeight: '400px', // Fixed height for scroll
+                        position: 'relative'
+                    }}
+                >
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                        <thead style={{ position: 'sticky', top: 0, background: '#0f172a', zIndex: 10 }}>
+                            <tr style={{ borderBottom: '1px solid #334155', textAlign: 'left', color: '#94a3b8' }}>
+                                <th style={{ padding: '0.75rem' }}>Time (Exit)</th>
+                                <th style={{ padding: '0.75rem' }}>Symbol</th>
+                                <th style={{ padding: '0.75rem' }}>Side</th>
+                                <th style={{ padding: '0.75rem', textAlign: 'right' }}>Size</th>
+                                <th style={{ padding: '0.75rem', textAlign: 'right' }}>Entry</th>
+                                <th style={{ padding: '0.75rem', textAlign: 'right' }}>Exit</th>
+                                <th style={{ padding: '0.75rem', textAlign: 'right' }}>PnL</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {visibleTrades.length > 0 ? (
+                                visibleTrades.map((t, i) => (
+                                    <tr key={i} style={{ borderBottom: '1px solid #1e293b' }}>
+                                        <td style={{ padding: '0.75rem' }}>{new Date(t.exit_time).toLocaleString()}</td>
+                                        <td style={{ padding: '0.75rem' }}>{t.symbol}</td>
+                                        <td style={{ padding: '0.75rem' }}>
+                                            <span style={{
+                                                color: t.side === 'BUY' ? '#4ade80' : '#f87171',
+                                                background: t.side === 'BUY' ? 'rgba(74, 222, 128, 0.1)' : 'rgba(248, 113, 113, 0.1)',
+                                                padding: '0.25rem 0.5rem',
+                                                borderRadius: '4px',
+                                                fontSize: '0.8rem'
+                                            }}>
+                                                {t.side}
+                                            </span>
+                                        </td>
+                                        <td style={{ padding: '0.75rem', textAlign: 'right' }}>{t.quantity}</td>
+                                        <td style={{ padding: '0.75rem', textAlign: 'right' }}>{t.entry_price}</td>
+                                        <td style={{ padding: '0.75rem', textAlign: 'right' }}>{t.exit_price}</td>
+                                        <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 'bold', color: t.pnl_net >= 0 ? '#4ade80' : '#f87171' }}>
+                                            {t.pnl_net.toFixed(2)}
+                                        </td>
+                                    </tr>
+                                ))
+                            ) : (
+                                <tr>
+                                    <td colSpan="7" style={{ padding: '1rem', textAlign: 'center', color: '#64748b' }}>No trades recorded</td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>

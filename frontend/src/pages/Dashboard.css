@@ -58,3 +58,24 @@
     font-size: 0.9rem;
     color: var(--accent);
 }
+
+/* Custom Scrollbar for Infinite Scroll Table */
+.infinite-scroll-container::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.infinite-scroll-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.infinite-scroll-container::-webkit-scrollbar-thumb {
+    background-color: rgba(148, 163, 184, 0.2);
+    border-radius: 10px;
+    transition: all 0.3s ease;
+}
+
+/* On hover of the container, make scrollbar more visible */
+.infinite-scroll-container:hover::-webkit-scrollbar-thumb {
+    background-color: rgba(148, 163, 184, 0.5);
+}
