@@ -6,6 +6,7 @@ import Trades from './pages/Trades'
 import TradeDetails from './pages/TradeDetails'
 import Setups from './pages/Setups'
 import Reports from './pages/Reports'
+import TradeReplayPage from './pages/TradeReplayPage'
 import Efficiency from './pages/Efficiency'
 import Regime from './pages/Regime'
 import StressTest from './pages/StressTest'
@@ -22,6 +23,7 @@ function App() {
                     <Route path="executions" element={<Executions />} />
                     <Route path="trades" element={<Trades />} />
                     <Route path="trades/:tradeId" element={<TradeDetails />} />
+                    <Route path="trades/:tradeId/replay" element={<TradeReplayPage />} />
 
                     {/* Analytics Routes */}
                     <Route path="analysis/setups" element={<Setups />} />

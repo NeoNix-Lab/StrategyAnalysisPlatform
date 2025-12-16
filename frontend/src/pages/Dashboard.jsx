@@ -340,6 +340,7 @@ const Dashboard = () => {
                                 <th style={{ padding: '0.75rem', textAlign: 'right' }}>Entry</th>
                                 <th style={{ padding: '0.75rem', textAlign: 'right' }}>Exit</th>
                                 <th style={{ padding: '0.75rem', textAlign: 'right' }}>PnL</th>
+                                <th style={{ padding: '0.75rem', textAlign: 'right' }}></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -364,6 +365,18 @@ const Dashboard = () => {
                                         <td style={{ padding: '0.75rem', textAlign: 'right' }}>{t.exit_price}</td>
                                         <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 'bold', color: t.pnl_net >= 0 ? '#4ade80' : '#f87171' }}>
                                             {t.pnl_net.toFixed(2)}
+                                        </td>
+                                        <td style={{ padding: '0.75rem', textAlign: 'right' }}>
+                                            <button
+                                                style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer' }}
+                                                title="Replay Trade"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    navigate(`/trades/${t.trade_id}/replay`);
+                                                }}
+                                            >
+                                                <Activity size={16} />
+                                            </button>
                                         </td>
                                     </tr>
                                 ))

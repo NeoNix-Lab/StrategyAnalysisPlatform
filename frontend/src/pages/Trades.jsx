@@ -95,6 +95,7 @@ const Trades = () => {
                             <th onClick={() => requestSort('pnl_net')} className="text-right">PnL Net {getSortIcon('pnl_net')}</th>
                             <th onClick={() => requestSort('mae')} className="text-right">MAE {getSortIcon('mae')}</th>
                             <th onClick={() => requestSort('mfe')} className="text-right">MFE {getSortIcon('mfe')}</th>
+                            <th className="text-right">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -119,6 +120,18 @@ const Trades = () => {
                                 </td>
                                 <td className="text-right text-secondary">{trade.mae.toFixed(2)}</td>
                                 <td className="text-right text-secondary">{trade.mfe.toFixed(2)}</td>
+                                <td className="text-right" onClick={(e) => e.stopPropagation()}>
+                                    <button
+                                        className="action-btn"
+                                        style={{ background: 'transparent', border: '1px solid #334155', color: '#94a3b8', borderRadius: '4px', cursor: 'pointer', padding: '2px 8px' }}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            navigate(`/trades/${trade.trade_id}/replay`);
+                                        }}
+                                    >
+                                        Replay
+                                    </button>
+                                </td>
                             </tr>
                         ))}
                     </tbody>

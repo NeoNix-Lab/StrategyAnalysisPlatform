@@ -19,6 +19,8 @@ class TradeResponse(BaseModel):
     exit_price: float
     quantity: float
     pnl_net: float
+    run_id: str
+    timeframe: Optional[str] = None
     mae: Optional[float] = None
     mfe: Optional[float] = None
     duration_seconds: Optional[float] = None
@@ -82,7 +84,28 @@ def get_stats(strategy_id: str, run_id: Optional[str] = None, db: Session = Depe
 
 @router.get("/{trade_id}", response_model=TradeResponse)
 def read_trade(trade_id: str, db: Session = Depends(get_db)):
+    from src.database.models import StrategyRun, StrategyInstance
+    
     trade = db.query(Trade).filter(Trade.trade_id == trade_id).first()
     if not trade:
         raise HTTPException(status_code=404, detail="Trade not found")
-    return TradeResponse.model_validate(trade)
+        
+    # Manually attach timeframe from relations if available
+    # Trade -> Run -> Instance -> Timeframe
+    tf = None
+    try:
+        # Access relationship (lazy load)
+        if trade.run and trade.run.instance:
+            tf = trade.run.instance.timeframe
+    except Exception:
+        pass
+        
+    # Convert to dict to inject extra field
+    resp_data = trade.__dict__.copy()
+    resp_data['timeframe'] = tf
+    
+    # Handle side enum for pydantic validation if needed (though from_attributes usually handles it)
+    if 'side' in resp_data and hasattr(resp_data['side'], 'name'):
+        resp_data['side'] = resp_data['side'].name
+        
+    return TradeResponse(**resp_data)

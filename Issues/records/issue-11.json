@@ -1,0 +1,11 @@
+{
+    "title": "Incorrect Bar Construction in Replayer",
+    "body": "The bar construction in the replayer seems incorrect. There is a suspicion that the data in the database might also be incorrect.",
+    "labels": [
+        "bug",
+        "replayer",
+        "database",
+        "high-priority"
+    ],
+    "assignees": []
+}
