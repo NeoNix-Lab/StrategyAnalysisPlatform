@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("NeoNix")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.4.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.4+6144b886070a5bb140307e58504f8200331d4f00")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.4+b8f128853aa09b2ec9d96285da203c4aabcbb8bd")]
 [assembly: System.Reflection.AssemblyProductAttribute("StrategyExporter")]
 [assembly: System.Reflection.AssemblyTitleAttribute("StrategyExporter")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.4.0")]

@@ -1,0 +1,10 @@
+{
+    "title": "Backtester speed vs API handling",
+    "body": "The backtester is faster than the system's ability to process API calls, leaving pending API calls whose completion is never notified except in the terminal logs.",
+    "labels": [
+        "bug",
+        "backtester",
+        "api"
+    ],
+    "assignees": []
+}

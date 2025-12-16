@@ -1,53 +1,91 @@
+import { useState } from 'react'
 import { Outlet, Link, useLocation } from 'react-router-dom'
-import { LayoutDashboard, List, Activity, Database, Settings } from 'lucide-react'
+import { LayoutDashboard, List, Activity, Database, Settings, LineChart, Target, BookOpen, Zap, BarChart2, ChevronLeft, ChevronRight } from 'lucide-react'
 import StrategySelector from './StrategySelector'
 import './Layout.css'
 
 const Layout = () => {
     const location = useLocation()
+    const [isCollapsed, setIsCollapsed] = useState(false)
 
     const isActive = (path) => location.pathname === path
 
+    const toggleSidebar = () => setIsCollapsed(!isCollapsed)
+
     return (
-        <div className="app-layout">
+        <div className={`app-layout ${isCollapsed ? 'collapsed' : ''}`}>
             <aside className="sidebar">
                 <div className="sidebar-header">
-                    <h2>Quant Lab <span style={{ fontSize: '0.7em', color: 'var(--accent)' }}>V2</span></h2>
+                    {!isCollapsed && (
+                        <h2 className="brand-title">
+                            Quant Lab <span className="brand-version">V2</span>
+                        </h2>
+                    )}
+                    <button className="sidebar-toggle" onClick={toggleSidebar}>
+                        {isCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+                    </button>
                 </div>
                 <nav className="sidebar-nav">
-                    <Link to="/" className={`nav-item ${isActive('/') ? 'active' : ''}`}>
+                    <Link to="/" className={`nav-item ${isActive('/') ? 'active' : ''}`} title={isCollapsed ? "Dashboard" : ""}>
                         <LayoutDashboard size={20} />
-                        <span>Dashboard</span>
+                        {!isCollapsed && <span>Dashboard</span>}
                     </Link>
 
-                    {/* Replaces Trades */}
-                    <Link to="/executions" className={`nav-item ${isActive('/executions') ? 'active' : ''}`}>
+                    <Link to="/trades" className={`nav-item ${isActive('/trades') ? 'active' : ''}`} title={isCollapsed ? "Trades" : ""}>
+                        <LineChart size={20} />
+                        {!isCollapsed && <span>Trades</span>}
+                    </Link>
+                    <Link to="/executions" className={`nav-item ${isActive('/executions') ? 'active' : ''}`} title={isCollapsed ? "Executions" : ""}>
                         <List size={20} />
-                        <span>Executions</span>
+                        {!isCollapsed && <span>Executions</span>}
                     </Link>
 
-                    {/* Temporary Placeholder for Analytics */}
-                    <div className="nav-divider">Analytics (Coming Soon)</div>
-                    <div className="nav-item disabled">
+                    <div className="nav-divider">{!isCollapsed ? "Analytics" : "..."}</div>
+
+                    <Link to="/analysis/setups" className={`nav-item ${isActive('/analysis/setups') ? 'active' : ''}`} title={isCollapsed ? "Setups" : ""}>
+                        <Target size={20} />
+                        {!isCollapsed && <span>Setups</span>}
+                    </Link>
+                    <Link to="/analysis/reports" className={`nav-item ${isActive('/analysis/reports') ? 'active' : ''}`} title={isCollapsed ? "Reports" : ""}>
+                        <BookOpen size={20} />
+                        {!isCollapsed && <span>Reports</span>}
+                    </Link>
+                    <Link to="/analysis/efficiency" className={`nav-item ${isActive('/analysis/efficiency') ? 'active' : ''}`} title={isCollapsed ? "Efficiency" : ""}>
                         <Activity size={20} />
-                        <span>Efficiency</span>
-                    </div>
-
-                    <div className="nav-divider">System</div>
-                    <Link to="/data" className={`nav-item ${isActive('/data') ? 'active' : ''}`}>
-                        <Database size={20} />
-                        <span>Data Management</span>
+                        {!isCollapsed && <span>Efficiency</span>}
                     </Link>
-                    <Link to="/settings" className={`nav-item ${isActive('/settings') ? 'active' : ''}`}>
+                    <Link to="/analysis/regime" className={`nav-item ${isActive('/analysis/regime') ? 'active' : ''}`} title={isCollapsed ? "Regime" : ""}>
+                        <BarChart2 size={20} />
+                        {!isCollapsed && <span>Regime</span>}
+                    </Link>
+                    <Link to="/analysis/stress-test" className={`nav-item ${isActive('/analysis/stress-test') ? 'active' : ''}`} title={isCollapsed ? "Stress Test" : ""}>
+                        <Zap size={20} />
+                        {!isCollapsed && <span>Stress Test</span>}
+                    </Link>
+
+                    <div className="nav-divider">{!isCollapsed ? "System" : "..."}</div>
+
+                    <Link to="/data" className={`nav-item ${isActive('/data') ? 'active' : ''}`} title={isCollapsed ? "Data Management" : ""}>
+                        <Database size={20} />
+                        {!isCollapsed && <span>Data Management</span>}
+                    </Link>
+                    <Link to="/settings" className={`nav-item ${isActive('/settings') ? 'active' : ''}`} title={isCollapsed ? "Settings" : ""}>
                         <Settings size={20} />
-                        <span>Settings</span>
+                        {!isCollapsed && <span>Settings</span>}
                     </Link>
                 </nav>
             </aside>
             <main className="main-content-wrapper">
                 <header className="topbar">
                     <div className="breadcrumbs">
-                        Strategy Analysis Platform / {location.pathname === '/' ? 'Dashboard' : location.pathname.substring(1).charAt(0).toUpperCase() + location.pathname.substring(2)}
+                        <span>Strategy Analysis Platform</span>
+                        <ChevronRight size={16} className="breadcrumb-separator" />
+                        <span style={{ color: 'var(--accent)' }}>
+                            {location.pathname === '/'
+                                ? 'Dashboard'
+                                : location.pathname.split('/')[1].charAt(0).toUpperCase() + location.pathname.split('/')[1].slice(1)
+                            }
+                        </span>
                     </div>
                     <div className="strategy-selector-wrapper">
                         <StrategySelector />

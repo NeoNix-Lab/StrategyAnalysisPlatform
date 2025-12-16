@@ -357,6 +357,9 @@ class Trade(Base):
     
     duration_seconds = Column(Float, nullable=True)
     
+    regime_trend = Column(String, nullable=True)
+    regime_volatility = Column(String, nullable=True)
+    
     extra_json = Column(JSON, nullable=True) # Custom strategy tags etc.
 
     run = relationship("StrategyRun", back_populates="trades")

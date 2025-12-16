@@ -90,3 +90,6 @@ Supporting design notes and references live under `docs/`:
 - `Issues/update_issue_record.py` parses each GitHub `issues` event and writes a per-issue JSON snapshot under `Issues/records`, keeps the `Issues/index.json` summary updated, and logs the event to `Issues/workflows/issue-events.log`.
 - `.github/workflows/issue-tracking.yml` runs on every issue event, commits the generated files back to the repo, and therefore makes the repository its own issue database that workflows (and humans) can consume.
 - The existing CI workflows (Backend, Frontend, .NET) already raise issues on failures; this automation ensures those issues and any manual edits are mirrored inside version control for tracking, audits, and downstream automation.
+
+## GitHub Project Helpers
+- `GitHubProject/` provides tooling for Projects (Beta) boards. `manage_project.py` (requires `GITHUB_TOKEN` and `requests`) can list cards, push issues (e.g., `python GitHubProject/manage_project.py add-issue --issue 1`), add note cards, update single-select/text fields, and sync locally persisted `Issues/records` entries onto the board for manual triage.

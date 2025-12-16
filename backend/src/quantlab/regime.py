@@ -7,8 +7,16 @@ class RegimeDetector:
         """
         Calcola il regime di mercato (Trend e Volatilità) per ogni barra.
         Richiede un DataFrame con colonne: open, high, low, close.
+        Assumes 'ts_utc' as the timestamp column.
         """
+        if df.empty:
+            return pd.DataFrame(columns=['ts_utc', 'regime_trend', 'regime_volatility'])
+            
         df = df.copy()
+        
+        # Ensure we have a sorted index or column for rolling ops
+        if 'ts_utc' in df.columns:
+            df.sort_values('ts_utc', inplace=True)
         
         # --- 1. Trend Detection (SMA + ADX proxy) ---
         # Usiamo una combinazione di SMA per determinare il trend
@@ -28,10 +36,13 @@ class RegimeDetector:
         # --- 2. Volatility Detection (Bollinger Band Width) ---
         # BB Width = (Upper - Lower) / Middle
         df['std_dev'] = df['close'].rolling(window=period).std()
-        df['bb_upper'] = df['sma_50'] + (2 * df['std_dev']) # Usa SMA locale se preferisci
+        
         # Ricalcoliamo BB standard su sma_20
         sma_20 = df['close'].rolling(window=20).mean()
         std_20 = df['close'].rolling(window=20).std()
+        
+        # Avoid division by zero
+        sma_20 = sma_20.replace(0, np.nan)
         
         df['bb_width'] = (4 * std_20) / sma_20 # (Upper - Lower) / Middle approx
         
@@ -48,4 +59,8 @@ class RegimeDetector:
         choices_vol = ['HIGH', 'LOW']
         df['regime_volatility'] = np.select(conditions_vol, choices_vol, default='NORMAL')
         
-        return df[['timestamp', 'regime_trend', 'regime_volatility']]
+        columns_to_return = ['regime_trend', 'regime_volatility']
+        if 'ts_utc' in df.columns:
+            columns_to_return.insert(0, 'ts_utc')
+            
+        return df[columns_to_return]

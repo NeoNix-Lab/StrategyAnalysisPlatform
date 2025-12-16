@@ -18,3 +18,4 @@ This folder now acts as a lightweight issue database that GitHub workflows can a
 - Avoid manual edits unless you know what you are doing, as the workflow will keep overwriting the per-issue files.
 - If you need to inspect state in automation, rely on `Issues/index.json` to avoid opening large bodies.
 - Workflows can consume `Issues/records` or `Issues/index.json` as a source-of-truth for triage status or to drive downstream releases.
+- Use `GitHubProject/manage_project.py` to mirror these snapshots into a GitHub Projects (Beta) board, add note cards, or drive automation gates without leaving the repository context.

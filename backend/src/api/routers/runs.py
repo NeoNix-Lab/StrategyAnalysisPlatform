@@ -130,7 +130,11 @@ def get_run_trades(run_id: str, db: Session = Depends(get_db)):
                 "exit_price": t.exit_price,
                 "pnl_net": t.pnl_net,
                 "quantity": t.quantity,
-                "duration_seconds": t.duration_seconds
+                "duration_seconds": t.duration_seconds,
+                "mae": t.mae,
+                "mfe": t.mfe,
+                "regime_trend": t.regime_trend,
+                "regime_volatility": t.regime_volatility
             }
             for t in db_trades
         ]

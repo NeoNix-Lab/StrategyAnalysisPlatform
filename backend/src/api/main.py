@@ -16,6 +16,7 @@ from src.api.routers import setups
 from src.api.routers import ingest
 from src.api.routers import strategies
 from src.api.routers import runs
+from src.api.routers import trades
 
 app = FastAPI(
     title="Strategy Analysis Platform API",
@@ -41,6 +42,7 @@ app.include_router(setups.router, prefix="/api/setups", tags=["setups"])
 app.include_router(ingest.router, prefix="/api/ingest", tags=["ingest"])
 app.include_router(strategies.router, prefix="/api/strategies", tags=["strategies"])
 app.include_router(runs.router, prefix="/api/runs", tags=["runs"])
+app.include_router(trades.router, prefix="/api/trades", tags=["trades"])
 
 @app.get("/health")
 def health_check():

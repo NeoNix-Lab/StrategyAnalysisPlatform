@@ -19,21 +19,37 @@ def read_bars(
     db: Session = Depends(get_db)
 ):
     # Find Series
+    # 1. Try Run-Specific Series (Legacy/Backtest specific)
     series = db.query(RunSeries).filter(
         RunSeries.run_id == run_id,
         RunSeries.symbol == symbol,
         RunSeries.timeframe == timeframe
     ).first()
 
-    if not series:
-        return []
+    if series:
+        query = db.query(Bar).filter(Bar.series_id == series.series_id)
+        if start_utc:
+            query = query.filter(Bar.ts_utc >= start_utc)
+        if end_utc:
+            query = query.filter(Bar.ts_utc <= end_utc)
+        return query.order_by(Bar.ts_utc.asc()).limit(limit).all()
 
-    query = db.query(Bar).filter(Bar.series_id == series.series_id)
+    # 2. Fallback to Shared Market Data
+    from src.database.models import MarketSeries, MarketBar
+    
+    m_series = db.query(MarketSeries).filter(
+        MarketSeries.symbol == symbol,
+        MarketSeries.timeframe == timeframe
+    ).first()
+    
+    if not m_series:
+        return []
+        
+    query = db.query(MarketBar).filter(MarketBar.series_id == m_series.series_id)
     
     if start_utc:
-        query = query.filter(Bar.ts_utc >= start_utc)
+        query = query.filter(MarketBar.ts_utc >= start_utc)
     if end_utc:
-        query = query.filter(Bar.ts_utc <= end_utc)
+        query = query.filter(MarketBar.ts_utc <= end_utc)
         
-    bars = query.order_by(Bar.ts_utc.asc()).limit(limit).all()
-    return bars
+    return query.order_by(MarketBar.ts_utc.asc()).limit(limit).all()
