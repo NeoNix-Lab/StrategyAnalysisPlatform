@@ -1,6 +1,8 @@
 from sqlalchemy.orm import Session
-from src.database.models import Trade, Execution, Order, Side
+from src.database.models import Trade, Execution, Order, Side, StrategyRun, StrategyInstance, MarketSeries, MarketBar
 from src.quantlab.metrics import MetricsEngine
+from src.quantlab.regime import RegimeDetector
+import pandas as pd
 import uuid
 
 class TradeService:
@@ -26,6 +28,39 @@ class TradeService:
         # For simplicity in this step: Delete all run trades and re-insert.
         self.db.query(Trade).filter(Trade.run_id == run_id).delete()
         
+        # --- Pre-calculate Regime Data (Optimization) ---
+        df_regime = pd.DataFrame()
+        try:
+            # Get Instance Info
+            run_info = self.db.query(StrategyRun).filter(StrategyRun.run_id == run_id).first()
+            if run_info and run_info.instance_id:
+                instance = self.db.query(StrategyInstance).filter(StrategyInstance.instance_id == run_info.instance_id).first()
+                if instance and instance.symbol and instance.timeframe:
+                    # Find Market Series
+                    # We try to find a matching series. If multiple, take first. 
+                    # Assuming standard provider preference isn't critical here, just need data.
+                    m_series = self.db.query(MarketSeries).filter(
+                        MarketSeries.symbol == instance.symbol,
+                        MarketSeries.timeframe == instance.timeframe
+                    ).first()
+                    
+                    if m_series:
+                        # Load Bars
+                        bars_query = self.db.query(MarketBar).filter(MarketBar.series_id == m_series.series_id).order_by(MarketBar.ts_utc.asc())
+                        df_bars = pd.read_sql(bars_query.statement, self.db.bind)
+                        
+                        if not df_bars.empty:
+                            if 'ts_utc' in df_bars.columns:
+                                df_bars['ts_utc'] = pd.to_datetime(df_bars['ts_utc'])
+                            
+                            df_regime = RegimeDetector.calculate_regime(df_bars)
+                            if not df_regime.empty and 'ts_utc' in df_regime.columns:
+                                df_regime = df_regime.sort_values('ts_utc')
+        except Exception as e:
+            print(f"Warning: Failed to calculate regime for run {run_id}: {e}")
+
+
+        
         new_trade_objs = []
         for t_dict in trade_dicts:
             # t_dict has: 'entry_time', 'exit_time', 'entry_price', 'exit_price', 'quantity', 
@@ -37,6 +72,24 @@ class TradeService:
                 side_enum = Side[side_val] 
             else:
                 side_enum = side_val
+
+            # Regime Lookup
+            r_trend = None
+            r_vol = None
+            if not df_regime.empty and 'ts_utc' in df_regime.columns:
+                try:
+                    # Find index where bar_time <= entry_time
+                    # searchsorted returns index where item should be inserted to maintain order. 
+                    # side='right' -> > entry_time. subtract 1 to get <= entry_time.
+                    idx = df_regime['ts_utc'].searchsorted(t_dict['entry_time'], side='right') - 1
+                    if idx >= 0:
+                        regime_row = df_regime.iloc[idx]
+                        # Check if timestamp is reasonably close? (e.g. within timeframe * 2)
+                        # For now assume if it's the latest bar before entry, it's valid context.
+                        r_trend = regime_row.get('regime_trend')
+                        r_vol = regime_row.get('regime_volatility')
+                except Exception:
+                    pass
 
             trade = Trade(
                 trade_id=str(uuid.uuid4()),
@@ -52,6 +105,8 @@ class TradeService:
                 pnl_gross=t_dict.get('pnl_gross', 0.0),
                 commission=t_dict.get('commission', 0.0),
                 duration_seconds=t_dict.get('duration_seconds', 0.0),
+                regime_trend=r_trend,
+                regime_volatility=r_vol,
                 extra_json={}
             )
             new_trade_objs.append(trade)
