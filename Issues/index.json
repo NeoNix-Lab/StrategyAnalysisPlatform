@@ -10,11 +10,14 @@
   },
   "8": {
     "title": "MA empty",
-    "state": "open",
-    "labels": [],
+    "state": "closed",
+    "labels": [
+      "bug",
+      "frontend"
+    ],
     "assignees": [],
-    "last_action": "opened",
-    "last_updated": "2025-12-14T19:21:24.853935Z",
+    "last_action": "closed",
+    "last_updated": "2025-12-20T16:25:24.244828Z",
     "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/8"
   },
   "9": {
