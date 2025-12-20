@@ -8,7 +8,7 @@
     "number": 8,
     "title": "MA empty",
     "body": "in frontend MA dosent display any data",
-    "state": "open",
+    "state": "closed",
     "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/8",
     "labels": [
       "bug",
