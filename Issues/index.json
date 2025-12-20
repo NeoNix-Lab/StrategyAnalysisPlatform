@@ -75,5 +75,14 @@
     "last_action": "closed",
     "last_updated": "2025-12-20T16:27:28.489879Z",
     "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/12"
+  },
+  "21": {
+    "title": "Frontend Tests Failed",
+    "state": "closed",
+    "labels": [],
+    "assignees": [],
+    "last_action": "closed",
+    "last_updated": "2025-12-20T17:28:13.519454Z",
+    "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/21"
   }
 }
