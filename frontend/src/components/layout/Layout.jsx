@@ -64,9 +64,13 @@ const Layout = () => {
                         <Zap size={20} />
                         {!isCollapsed && <span>Stress Test</span>}
                     </Link>
-                    <Link to="/ml" className={`nav-item ${isActive('/ml') ? 'active' : ''}`} title={isCollapsed ? "Machine Learning" : ""}>
+                    <Link to="/ml" className={`nav-item ${isActive('/ml') ? 'active' : ''}`} title={isCollapsed ? "Quick Train" : ""}>
+                        <Zap size={20} />
+                        {!isCollapsed && <span>Quick Train</span>}
+                    </Link>
+                    <Link to="/ml/studio" className={`nav-item ${isActive('/ml/studio') ? 'active' : ''}`} title={isCollapsed ? "ML Studio" : ""}>
                         <Brain size={20} />
-                        {!isCollapsed && <span>Machine Learning</span>}
+                        {!isCollapsed && <span>ML Studio</span>}
                     </Link>
                     <Link to="/datasets" className={`nav-item ${isActive('/datasets') ? 'active' : ''}`} title={isCollapsed ? "Datasets" : ""}>
                         <Database size={20} />
