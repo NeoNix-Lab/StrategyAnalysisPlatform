@@ -17,3 +17,5 @@ docs/*
 !docs/Workflow.md
 !docs/Metrics.md
 !docs/Metrics_Implementation_Status.md
+Issues/records/
+Issues/index.json
