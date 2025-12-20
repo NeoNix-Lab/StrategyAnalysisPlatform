@@ -51,7 +51,53 @@ class RunStatus(enum.Enum):
     FAILED = "FAILED"
     CANCELED = "CANCELED"
 
+class Role(enum.Enum):
+    ADMIN = "ADMIN"
+    USER = "USER"
+    GUEST = "GUEST"
+
 # --- Tables ---
+
+class User(Base):
+    __tablename__ = 'users'
+
+    user_id = Column(String, primary_key=True) # UUID
+    email = Column(String, unique=True, nullable=False)
+    hashed_password = Column(String, nullable=False)
+    
+    role = Column(Enum(Role), default=Role.USER, nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_utc = Column(DateTime, default=datetime.utcnow)
+    
+    settings = relationship("UserSettings", back_populates="user")
+    api_keys = relationship("ApiKey", back_populates="user")
+
+class UserSettings(Base):
+    __tablename__ = 'user_settings'
+
+    setting_id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String, ForeignKey('users.user_id'), nullable=False)
+    
+    name = Column(String, nullable=False)
+    payload_json = Column(JSON, nullable=False)
+    updated_utc = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = relationship("User", back_populates="settings")
+    
+    __table_args__ = (
+        UniqueConstraint('user_id', 'name', name='uq_user_setting'),
+    )
+
+class ApiKey(Base):
+    __tablename__ = 'api_keys'
+    
+    key_id = Column(String, primary_key=True)
+    user_id = Column(String, ForeignKey('users.user_id'), nullable=False)
+    key_hash = Column(String, nullable=False)
+    label = Column(String, nullable=True)
+    expires_utc = Column(DateTime, nullable=True)
+    
+    user = relationship("User", back_populates="api_keys")
 
 class Strategy(Base):
     __tablename__ = 'strategies'

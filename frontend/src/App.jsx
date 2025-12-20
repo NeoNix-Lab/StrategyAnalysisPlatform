@@ -1,5 +1,8 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
 import Layout from './components/layout/Layout'
+import LoginPage from './pages/auth/LoginPage'
+import RegisterPage from './pages/auth/RegisterPage'
+import PrivateRoutes from './components/PrivateRoutes'
 import Dashboard from './pages/Dashboard'
 import Executions from './pages/Executions' // New Page
 import Trades from './pages/Trades'
@@ -16,28 +19,34 @@ import './App.css'
 
 function App() {
     return (
-        <BrowserRouter>
-            <Routes>
-                <Route path="/" element={<Layout />}>
-                    <Route index element={<Dashboard />} />
-                    <Route path="executions" element={<Executions />} />
-                    <Route path="trades" element={<Trades />} />
-                    <Route path="trades/:tradeId" element={<TradeDetails />} />
-                    <Route path="trades/:tradeId/replay" element={<TradeReplayPage />} />
+        <Routes>
+            {/* Public Routes */}
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
 
-                    {/* Analytics Routes */}
-                    <Route path="analysis/setups" element={<Setups />} />
-                    <Route path="analysis/reports" element={<Reports />} />
-                    <Route path="analysis/efficiency" element={<Efficiency />} />
-                    <Route path="analysis/regime" element={<Regime />} />
-                    <Route path="analysis/stress-test" element={<StressTest />} />
+            {/* Private Routes */}
+            {/* Main Application Routes (Auth removed temporarily) */}
+            <Route path="/" element={<Layout />}>
+                <Route index element={<Dashboard />} />
+                <Route path="executions" element={<Executions />} />
+                <Route path="trades" element={<Trades />} />
+                <Route path="trades/:tradeId" element={<TradeDetails />} />
+                <Route path="trades/:tradeId/replay" element={<TradeReplayPage />} />
 
-                    <Route path="data" element={<DataManagement />} />
-                    <Route path="settings" element={<Settings />} />
-                    <Route path="*" element={<Navigate to="/" replace />} />
-                </Route>
-            </Routes>
-        </BrowserRouter>
+                {/* Analytics Routes */}
+                <Route path="analysis/setups" element={<Setups />} />
+                <Route path="analysis/reports" element={<Reports />} />
+                <Route path="analysis/efficiency" element={<Efficiency />} />
+                <Route path="analysis/regime" element={<Regime />} />
+                <Route path="analysis/stress-test" element={<StressTest />} />
+
+                <Route path="data" element={<DataManagement />} />
+                <Route path="settings" element={<Settings />} />
+            </Route>
+
+            {/* Catch all */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
     )
 }
 

@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { Outlet, Link, useLocation } from 'react-router-dom'
-import { LayoutDashboard, List, Activity, Database, Settings, LineChart, Target, BookOpen, Zap, BarChart2, ChevronLeft, ChevronRight } from 'lucide-react'
+import { LayoutDashboard, List, Activity, Database, Settings, LineChart, Target, BookOpen, Zap, BarChart2, ChevronLeft, ChevronRight, LogOut } from 'lucide-react'
+import { useAuth } from '../../context/AuthContext'
 import StrategySelector from './StrategySelector'
 import './Layout.css'
 
 const Layout = () => {
+    const { user, logout } = useAuth()
     const location = useLocation()
     const [isCollapsed, setIsCollapsed] = useState(false)
 
@@ -74,6 +76,19 @@ const Layout = () => {
                         {!isCollapsed && <span>Settings</span>}
                     </Link>
                 </nav>
+
+                <div className="sidebar-footer">
+                    <div className="nav-divider">{!isCollapsed ? "User" : "..."}</div>
+                    <div className="user-profile" title={user?.email}>
+                        <div className="user-info">
+                            {!isCollapsed && <span className="user-email">{user?.email}</span>}
+                        </div>
+                        <button onClick={logout} className="logout-btn" title="Logout">
+                            <LogOut size={20} />
+                            {!isCollapsed && <span>Logout</span>}
+                        </button>
+                    </div>
+                </div>
             </aside>
             <main className="main-content-wrapper">
                 <header className="topbar">

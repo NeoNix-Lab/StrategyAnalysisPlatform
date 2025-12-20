@@ -258,12 +258,48 @@ class StandardAnalyzer:
         return net_profit / abs(max_drawdown)
         
     def _calculate_efficiency(self, df: pd.DataFrame) -> float:
-        # Efficiency can be defined as sum(PnL) / sum(MFE) (How much of the available move did we capture?)
-        # Or PnL / (MFE + MAE) per trade.
-        # Simple proxy: Total Net Profit / Total MFE
-        if 'mfe' not in df or df['mfe'].sum() == 0:
+        """
+        Calculates Capture Efficiency: Total captured Move (Price*Qty) / Total Potential Move (MFE*Qty).
+        This cancels out the contract multiplier, providing a correct efficiency ratio (0.0 to 1.0+).
+        """
+        if df.empty:
             return 0.0
-        return df['pnl_net'].sum() / df['mfe'].sum()
+            
+        if 'mfe' not in df or 'quantity' not in df or 'entry_price' not in df or 'exit_price' not in df:
+            return 0.0
+
+        total_captured = 0.0
+        total_potential = 0.0
+        
+        for _, t in df.iterrows():
+            mfe = t.get('mfe', 0.0)
+            if pd.isna(mfe) or mfe <= 0:
+                continue
+                
+            qty = t.get('quantity', 0.0)
+            if qty <= 0:
+                continue
+
+            entry = t.get('entry_price', 0.0)
+            exit_p = t.get('exit_price', 0.0)
+            side = str(t.get('side', 'BUY'))
+            
+            # Calculate Captured Price Delta
+            if side == 'BUY':
+                captured_delta = exit_p - entry
+            else:
+                captured_delta = entry - exit_p
+            
+            # Potential Price Delta (MFE) is already max favorable excursion from entry
+            potential_delta = mfe
+            
+            total_captured += captured_delta * qty
+            total_potential += potential_delta * qty
+            
+        if total_potential == 0:
+            return 0.0
+            
+        return total_captured / total_potential
 
     def _calculate_stability(self, df: pd.DataFrame) -> float:
         """

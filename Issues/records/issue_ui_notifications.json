@@ -1,0 +1,11 @@
+{
+    "title": "Missing UI Notifications for Data Ingestion Status",
+    "body": "# Missing UI Notifications for Data Ingestion Status\n\n## Issue Description\nThe Frontend UI currently has no visibility into the status of backend data ingestion tasks. \n- When a strategy is actively streaming data (Orders/Executions) to the backend, the UI does not show a \"Syncing\" or \"Live\" indicator.\n- When the backend finishes processing a batch or rebuilding trades, the UI is not notified to refresh its data (e.g., the Trade Log or Charts).\n\n## Impact\n- Users must manually refresh the page to see if new trades have appeared.\n- No visual confirmation that the connection to the strategy is active.\n\n## Proposed Solution\n1. **WebSockets / SSE**: Implement a simple WebSocket or Server-Sent Events (SSE) endpoint (e.g., `/api/events/stream`) that pushes status updates (`INGEST_START`, `INGEST_COMPLETE`, `TRADE_UPDATE`).\n2. **Polling Fallback**: Alternatively, have the UI poll a status endpoint, though this is less efficient for real-time feedback.\n3. **Toast Notifications**: Show a non-intrusive toast in the UI when \"New Trades Available\".\n\n## Action Items\n1. Design the notification mechanism (WS vs SSE).\n2. Update `ingest.py` to broadcast events upon successful batch commit/rebuild.\n3. Update Frontend `Layout` or `Context` to listen for these events.",
+    "labels": [
+        "enhancement",
+        "frontend",
+        "ux",
+        "real-time"
+    ],
+    "assignees": []
+}

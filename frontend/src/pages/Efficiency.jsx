@@ -16,23 +16,29 @@ const Efficiency = () => {
     // --- Advanced Metrics Calculation ---
     const enrichedTrades = useMemo(() => {
         return trades.map(t => {
-            // Calcolo Exit Efficiency
-            // MFE è delta prezzo. Potential Profit = MFE * Quantity.
-            // Se MFE è 0 (improbabile se profit > 0), efficienza è 0.
-            // Usiamo pnl_net per essere conservativi (o pnl_gross se disponibile).
-            // Qui approssimiamo usando pnl_net.
-            const potentialProfit = t.mfe * t.quantity
+            // Calcolo Exit Efficiency usando Price Delta per evitare problemi di Multiplier
+            // Captured Delta = (Exit - Entry) per Buy, (Entry - Exit) per Sell
+            const isBuy = t.side === 'BUY' || t.side === 'LONG' // Handle potential variations
+            const capturedDelta = isBuy ? (t.exit_price - t.entry_price) : (t.entry_price - t.exit_price)
+
+            // Potential Delta (MFE) è sempre positivo (distanza massima favorevole)
+            const potentialDelta = t.mfe || 0
+
+            // Potential Profit (Gross stimato senza multiplier, utile solo per pesature interne)
+            const potentialProfit = potentialDelta * t.quantity
+
             let exitEff = 0
-            if (potentialProfit > 0 && t.pnl_net > 0) {
-                exitEff = (t.pnl_net / potentialProfit) * 100
-            } else if (t.pnl_net < 0) {
-                // Per i loss, l'efficienza di uscita non è ben definita nello stesso modo, 
-                // o è negativa. Lasciamo 0 o null per ora per i grafici di efficienza "cattura".
-                exitEff = 0
+            if (potentialDelta > 0) {
+                // Efficienza = Quanto del movimento potenziale abbiamo catturato?
+                // Può essere negativo se il trade è in perdita.
+                exitEff = (capturedDelta / potentialDelta) * 100
             }
 
-            // Cap a 100% per casi strani (slippage favorevole o dati sporchi)
-            exitEff = Math.min(exitEff, 110)
+            // Cap a 110% per outlier
+            // Se exitEff è molto negativo (es. -200%), lo lasciamo o lo clippiamo?
+            // Per distribuzione bucket (0-100), i negativi vanno esclusi o messi in bucket 0.
+            // Qui lasciamo il valore raw, la logica di visualizzazione filtrerà.
+            if (exitEff > 110) exitEff = 110
 
             return {
                 ...t,

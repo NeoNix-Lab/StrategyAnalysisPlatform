@@ -139,6 +139,69 @@
     overflow: hidden;
 }
 
+.sidebar-footer {
+    padding: 1rem;
+    border-top: 1px solid rgba(51, 65, 85, 0.5);
+    background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.02));
+    margin-top: auto;
+}
+
+.user-profile {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    color: var(--text-secondary);
+}
+
+.user-info {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.user-email {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 150px;
+}
+
+.logout-btn {
+    background: transparent;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 6px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.logout-btn:hover {
+    background-color: rgba(239, 68, 68, 0.1);
+    /* Red tint */
+    color: #ef4444;
+    /* Red color */
+}
+
+.app-layout.collapsed .sidebar-footer {
+    padding: 1rem 0.5rem;
+}
+
+.app-layout.collapsed .user-profile {
+    justify-content: center;
+}
+
+.app-layout.collapsed .logout-btn span {
+    display: none;
+}
+
 .topbar {
     height: 64px;
     border-bottom: 1px solid rgba(51, 65, 85, 0.5);

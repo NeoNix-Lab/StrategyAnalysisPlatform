@@ -247,15 +247,30 @@ async def ingest_stream(data: StreamIngestRequest, background_tasks: BackgroundT
         raise HTTPException(status_code=500, detail=str(e))
 
 def rebuild_trades_task(run_id: str):
+    import time
     # Helper to open a fresh session for the background task
     db_gen = get_db()
     db = next(db_gen)
+    
+    
     try:
-        service = TradeService(db)
-        count = service.rebuild_trades_for_run(run_id)
-        logger.info(f"Reconstructed {count} trades for run {run_id}")
-    except Exception as e:
-        logger.error(f"Error rebuilding trades for {run_id}: {e}")
+        max_retries = 5
+        retry_delay = 0.2
+        
+        for attempt in range(max_retries):
+            try:
+                service = TradeService(db)
+                count = service.rebuild_trades_for_run(run_id)
+                logger.info(f"Reconstructed {count} trades for run {run_id}")
+                break # Success
+            except Exception as e:
+                if "database is locked" in str(e) and attempt < max_retries - 1:
+                    logger.warning(f"Database locked during trade rebuild for {run_id}, retrying ({attempt+1}/{max_retries})...")
+                    time.sleep(retry_delay)
+                    retry_delay *= 2 # Exponential backoff
+                else:
+                    logger.error(f"Error rebuilding trades for {run_id}: {e}")
+                    break
     finally:
         db.close()
 

@@ -7,7 +7,17 @@ import os
 DB_PATH = "trading_data.db"
 DATABASE_URL = f"sqlite:///{DB_PATH}"
 
-engine = create_engine(DATABASE_URL, echo=False)
+from sqlalchemy import event
+
+engine = create_engine(DATABASE_URL, echo=False, connect_args={"check_same_thread": False})
+
+# Enable Write-Ahead Logging (WAL) for better concurrency
+@event.listens_for(engine, "connect")
+def set_sqlite_pragma(dbapi_connection, connection_record):
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.execute("PRAGMA synchronous=NORMAL") # Optional: trade some safety for speed
+    cursor.close()
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def init_db():

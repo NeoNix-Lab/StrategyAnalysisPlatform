@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("StrategyExporter.Tests")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+b8f128853aa09b2ec9d96285da203c4aabcbb8bd")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+de9313b2ab3da51a40170c359b8ffc44f3013a66")]
 [assembly: System.Reflection.AssemblyProductAttribute("StrategyExporter.Tests")]
 [assembly: System.Reflection.AssemblyTitleAttribute("StrategyExporter.Tests")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

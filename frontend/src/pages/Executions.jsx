@@ -30,7 +30,12 @@ const Executions = () => {
         <div className="dashboard-container">
             <div className="card">
                 <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                    <h3>Execution Log</h3>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+                        <h3>Execution Log</h3>
+                        <span className="badge" style={{ backgroundColor: '#334155', color: '#f8fafc' }}>
+                            {filteredExecutions.length}
+                        </span>
+                    </div>
                     <div style={{ display: 'flex', gap: '1rem' }}>
                         <div className="search-box" style={{ background: '#1e293b', padding: '0.5rem', borderRadius: '6px', display: 'flex', alignItems: 'center' }}>
                             <Search size={16} color="#94a3b8" />

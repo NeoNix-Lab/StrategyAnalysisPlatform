@@ -1,0 +1,11 @@
+{
+    "title": "Postponed Authentication Fixes: Persistent 401 Unauthorized",
+    "body": "# Postponed Authentication Fixes\n\n## Issue Description\nAuthentication system logic is implemented but currently disabled due to persistent `401 Unauthorized` errors on the `/api/auth/me` endpoint after login/registration.\n\n## Symptoms\n- `POST /api/auth/register` and `POST /api/auth/login` succeed (return 200/201 and JWT token).\n- `GET /api/auth/me` fails with `401 Unauthorized`.\n- Backend logs show successful requests but then 401.\n- `Bcrypt` length limit (72 bytes) issues were encountered and partially patched in `crypto.py`.\n\n## Current State\n- `PrivateRoutes` wrapper removed in `App.jsx`.\n- Auth pages (`/login`, `/register`) are accessible but not mandatory.\n- Backend `run_server.py` probably needs a full clean restart or environment check.\n\n## TODO to Restore Auth\n1. Debug `src/auth/service.py` -> `get_current_user` logic. Verify JWT decoding matches the encoding algorithm (`HS256`) and Secret Key.\n2. Ensure Frontend Axios instances send `Authorization` header correctly (check `axios.js` defaults vs interceptors).\n3. Check if `python-jose` requires `cryptography` backend explicit initialization on Windows/Proactor loop.\n4. Re-enable `PrivateRoutes` in `App.jsx` when stable.",
+    "labels": [
+        "bug",
+        "auth",
+        "backend",
+        "postponed"
+    ],
+    "assignees": []
+}
