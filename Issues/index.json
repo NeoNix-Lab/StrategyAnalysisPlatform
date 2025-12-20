@@ -34,5 +34,17 @@
     "last_action": "closed",
     "last_updated": "2025-12-14T19:25:45.571434Z",
     "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/2"
+  },
+  "7": {
+    "title": "Verifica Sincronizzazione 2-Vie",
+    "state": "closed",
+    "labels": [
+      "test",
+      "ops"
+    ],
+    "assignees": [],
+    "last_action": "closed",
+    "last_updated": "2025-12-20T16:24:53.345658Z",
+    "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/7"
   }
 }
