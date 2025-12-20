@@ -1,0 +1,115 @@
+{
+  "event": "manual_push",
+  "action": "created",
+  "repository": "NeoNix-Lab/StrategyAnalysisPlatform",
+  "issue": {
+    "url": "https://api.github.com/repos/NeoNix-Lab/StrategyAnalysisPlatform/issues/15",
+    "repository_url": "https://api.github.com/repos/NeoNix-Lab/StrategyAnalysisPlatform",
+    "labels_url": "https://api.github.com/repos/NeoNix-Lab/StrategyAnalysisPlatform/issues/15/labels{/name}",
+    "comments_url": "https://api.github.com/repos/NeoNix-Lab/StrategyAnalysisPlatform/issues/15/comments",
+    "events_url": "https://api.github.com/repos/NeoNix-Lab/StrategyAnalysisPlatform/issues/15/events",
+    "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/15",
+    "id": 3749955559,
+    "node_id": "I_kwDOQkFd_c7fg8fn",
+    "number": 15,
+    "title": "Duplicate Strategy Entries: Same Strategy Creates New DB Records",
+    "user": {
+      "login": "github-actions[bot]",
+      "id": 41898282,
+      "node_id": "MDM6Qm90NDE4OTgyODI=",
+      "avatar_url": "https://avatars.githubusercontent.com/in/15368?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/github-actions%5Bbot%5D",
+      "html_url": "https://github.com/apps/github-actions",
+      "followers_url": "https://api.github.com/users/github-actions%5Bbot%5D/followers",
+      "following_url": "https://api.github.com/users/github-actions%5Bbot%5D/following{/other_user}",
+      "gists_url": "https://api.github.com/users/github-actions%5Bbot%5D/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/github-actions%5Bbot%5D/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/github-actions%5Bbot%5D/subscriptions",
+      "organizations_url": "https://api.github.com/users/github-actions%5Bbot%5D/orgs",
+      "repos_url": "https://api.github.com/users/github-actions%5Bbot%5D/repos",
+      "events_url": "https://api.github.com/users/github-actions%5Bbot%5D/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/github-actions%5Bbot%5D/received_events",
+      "type": "Bot",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "labels": [
+      {
+        "id": 9828857196,
+        "node_id": "LA_kwDOQkFd_c8AAAACSdh1bA",
+        "url": "https://api.github.com/repos/NeoNix-Lab/StrategyAnalysisPlatform/labels/backend",
+        "name": "backend",
+        "color": "ededed",
+        "default": false,
+        "description": null
+      },
+      {
+        "id": 9784746440,
+        "node_id": "LA_kwDOQkFd_c8AAAACRzdhyA",
+        "url": "https://api.github.com/repos/NeoNix-Lab/StrategyAnalysisPlatform/labels/bug",
+        "name": "bug",
+        "color": "d73a4a",
+        "default": true,
+        "description": "Something isn't working"
+      },
+      {
+        "id": 9862283502,
+        "node_id": "LA_kwDOQkFd_c8AAAACS9aA7g",
+        "url": "https://api.github.com/repos/NeoNix-Lab/StrategyAnalysisPlatform/labels/data-integrity",
+        "name": "data-integrity",
+        "color": "ededed",
+        "default": false,
+        "description": null
+      },
+      {
+        "id": 9862283503,
+        "node_id": "LA_kwDOQkFd_c8AAAACS9aA7w",
+        "url": "https://api.github.com/repos/NeoNix-Lab/StrategyAnalysisPlatform/labels/duplication",
+        "name": "duplication",
+        "color": "ededed",
+        "default": false,
+        "description": null
+      }
+    ],
+    "state": "open",
+    "locked": false,
+    "assignee": null,
+    "assignees": [],
+    "milestone": null,
+    "comments": 0,
+    "created_at": "2025-12-20T11:10:42Z",
+    "updated_at": "2025-12-20T11:10:42Z",
+    "closed_at": null,
+    "author_association": "CONTRIBUTOR",
+    "active_lock_reason": null,
+    "sub_issues_summary": {
+      "total": 0,
+      "completed": 0,
+      "percent_completed": 0
+    },
+    "issue_dependencies_summary": {
+      "blocked_by": 0,
+      "total_blocked_by": 0,
+      "blocking": 0,
+      "total_blocking": 0
+    },
+    "body": "# Duplicate Strategy Entries\n\n## Issue Description\nThe user observed that executing the **same strategy** (presumably restarting it in Quantower or the trading platform) results in the creation of a **new Strategy entity** in the database, leading to a new `StrategyInstance` and `StrategyRun` chain.\n\n## Expected Behavior\n- If the Strategy definition (Name, ID, Version) hasn't changed, the system should map the new Run to the **existing** Strategy and Instance (unless parameters changed substantially).\n- The `strategy_id` should act as the unique key to prevent duplication.\n\n## Observed Behavior\n- A new row in the `strategies` table is created for every execution session, cluttering the database and fragmenting the history of a single strategy logic.\n\n## Potential Causes\n1. **Dynamic ID Generation**: The client (Quantower exporter) might be generating a random `strategy_id` (Guid) at every startup instead of using a persistent static ID for the strategy class.\n2. **Upsert Logic Failure**: The backend `upsert_strategy` function might be failing to find the existing record (e.g., mismatch in ID format, case sensitivity) and defaulting to creation.\n3. **Instance Separation**: It is normal to have a new `Run`, but `Strategy` and `StrategyInstance` (if params are identical) should ideally be reused.\n\n## Action Items\n1. Check the `StrategyExporter` C# code to ensure `StrategyId` is static/persistent for the algorithm, not random.\n2. Verify `upsert_strategy` in `ingest.py` uses the correct primary key lookup.\n3. Implement a check: if `strategy_id` exists, update timestamp/metadata but do not create new.",
+    "closed_by": null,
+    "reactions": {
+      "url": "https://api.github.com/repos/NeoNix-Lab/StrategyAnalysisPlatform/issues/15/reactions",
+      "total_count": 0,
+      "+1": 0,
+      "-1": 0,
+      "laugh": 0,
+      "hooray": 0,
+      "confused": 0,
+      "heart": 0,
+      "rocket": 0,
+      "eyes": 0
+    },
+    "timeline_url": "https://api.github.com/repos/NeoNix-Lab/StrategyAnalysisPlatform/issues/15/timeline",
+    "performed_via_github_app": null,
+    "state_reason": null
+  }
+}
