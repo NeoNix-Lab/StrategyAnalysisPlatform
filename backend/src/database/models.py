@@ -99,6 +99,22 @@ class ApiKey(Base):
     
     user = relationship("User", back_populates="api_keys")
 
+class Dataset(Base):
+    __tablename__ = 'datasets'
+    
+    dataset_id = Column(String, primary_key=True) # UUID
+    name = Column(String, nullable=False)
+    description = Column(String, nullable=True)
+    created_utc = Column(DateTime, default=datetime.utcnow)
+    
+    # Configuration for reconstructing the dataset
+    # e.g. [{"run_id": "...", "start_time": "...", "end_time": "..."}]
+    sources_json = Column(JSON, nullable=False) 
+    
+    # ML Metadata
+    feature_config_json = Column(JSON, nullable=True) # e.g. ["open", "close", "rsi_14"]
+
+
 class Strategy(Base):
     __tablename__ = 'strategies'
 

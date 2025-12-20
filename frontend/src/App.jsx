@@ -15,6 +15,8 @@ import Regime from './pages/Regime'
 import StressTest from './pages/StressTest'
 import DataManagement from './pages/DataManagement'
 import Settings from './pages/Settings'
+import MachineLearning from './pages/MachineLearning'
+import Datasets from './pages/Datasets' // New
 import './App.css'
 
 function App() {
@@ -37,9 +39,10 @@ function App() {
                 <Route path="analysis/setups" element={<Setups />} />
                 <Route path="analysis/reports" element={<Reports />} />
                 <Route path="analysis/efficiency" element={<Efficiency />} />
-                <Route path="analysis/regime" element={<Regime />} />
                 <Route path="analysis/stress-test" element={<StressTest />} />
 
+                <Route path="ml" element={<MachineLearning />} /> {/* New Route */}
+                <Route path="datasets" element={<Datasets />} /> {/* New Route */}
                 <Route path="data" element={<DataManagement />} />
                 <Route path="settings" element={<Settings />} />
             </Route>

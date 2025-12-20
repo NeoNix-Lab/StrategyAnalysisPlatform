@@ -7,6 +7,36 @@ from src.api.schemas import StrategyRunResponse, StartRunRequest
 
 router = APIRouter()
 
+@router.get("/", response_model=List[dict])
+def list_runs(skip: int = 0, limit: int = 50, db: Session = Depends(get_db)):
+    """
+    List recent strategy runs.
+    """
+    from src.database.models import Strategy, StrategyInstance
+    
+    # Query runs with joins to get strategy name
+    results = db.query(StrategyRun, StrategyInstance, Strategy)\
+        .join(StrategyInstance, StrategyRun.instance_id == StrategyInstance.instance_id)\
+        .outerjoin(Strategy, StrategyInstance.strategy_id == Strategy.strategy_id)\
+        .order_by(StrategyRun.start_utc.desc())\
+        .offset(skip)\
+        .limit(limit)\
+        .all()
+
+    runs_data = []
+    for run, instance, strategy in results:
+        runs_data.append({
+            "run_id": run.run_id,
+            "status": run.status.value if run.status else "UNKNOWN",
+            "start_time": run.start_utc.isoformat() if run.start_utc else None,
+            "strategy_name": strategy.name if strategy else "Unknown Strategy",
+            "instance_name": instance.instance_name,
+            "symbol": instance.symbol,
+            "timeframe": instance.timeframe
+        })
+    
+    return runs_data
+
 @router.get("/{run_id}", response_model=StrategyRunResponse)
 def get_run(run_id: str, db: Session = Depends(get_db)):
     run = db.query(StrategyRun).filter(StrategyRun.run_id == run_id).first()

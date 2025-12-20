@@ -19,7 +19,9 @@ from src.api.routers import runs
 from src.api.routers import trades
 from src.api.routers import metrics
 from src.api.routers import auth
+from src.api.routers import auth
 from src.api.routers import training
+from src.api.routers import datasets
 
 app = FastAPI(
     title="Strategy Analysis Platform API",
@@ -49,6 +51,7 @@ app.include_router(trades.router, prefix="/api/trades", tags=["trades"])
 app.include_router(metrics.router, prefix="/api/metrics", tags=["metrics"])
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(training.router, prefix="/api/training", tags=["training"])
+app.include_router(datasets.router, prefix="/api/datasets", tags=["datasets"])
 
 @app.get("/health")
 def health_check():

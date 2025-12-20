@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Outlet, Link, useLocation } from 'react-router-dom'
-import { LayoutDashboard, List, Activity, Database, Settings, LineChart, Target, BookOpen, Zap, BarChart2, ChevronLeft, ChevronRight, LogOut } from 'lucide-react'
+import { LayoutDashboard, List, Activity, Database, Settings, LineChart, Target, BookOpen, Zap, BarChart2, ChevronLeft, ChevronRight, LogOut, Brain } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import StrategySelector from './StrategySelector'
 import './Layout.css'
@@ -63,6 +63,14 @@ const Layout = () => {
                     <Link to="/analysis/stress-test" className={`nav-item ${isActive('/analysis/stress-test') ? 'active' : ''}`} title={isCollapsed ? "Stress Test" : ""}>
                         <Zap size={20} />
                         {!isCollapsed && <span>Stress Test</span>}
+                    </Link>
+                    <Link to="/ml" className={`nav-item ${isActive('/ml') ? 'active' : ''}`} title={isCollapsed ? "Machine Learning" : ""}>
+                        <Brain size={20} />
+                        {!isCollapsed && <span>Machine Learning</span>}
+                    </Link>
+                    <Link to="/datasets" className={`nav-item ${isActive('/datasets') ? 'active' : ''}`} title={isCollapsed ? "Datasets" : ""}>
+                        <Database size={20} />
+                        {!isCollapsed && <span>Datasets</span>}
                     </Link>
 
                     <div className="nav-divider">{!isCollapsed ? "System" : "..."}</div>
