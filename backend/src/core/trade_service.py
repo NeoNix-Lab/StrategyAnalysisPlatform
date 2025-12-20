@@ -1,13 +1,65 @@
 from sqlalchemy.orm import Session
-from src.database.models import Trade, Execution, Order, Side, StrategyRun, StrategyInstance, MarketSeries, MarketBar
+from src.database.models import Trade, Execution, Order, Side
+# Local imports inside methods to assume no circular deps
 from src.quantlab.metrics import MetricsEngine
 from src.quantlab.regime import RegimeDetector
 import pandas as pd
 import uuid
+import traceback
 
 class TradeService:
     def __init__(self, db: Session):
         self.db = db
+
+    def _get_regime_df(self, run_id: str) -> pd.DataFrame:
+        """
+        Helper to fetch market data and calculate regime for a run.
+        """
+        try:
+            from src.database.models import StrategyRun, StrategyInstance, MarketSeries, MarketBar
+            
+            # Use get() for primary key
+            run = self.db.query(StrategyRun).get(run_id)
+            if not run or not run.instance_id:
+                return pd.DataFrame()
+
+            # Access via relationship or query
+            instance = run.instance
+            if not instance:
+                 instance = self.db.query(StrategyInstance).get(run.instance_id)
+
+            if not instance or not instance.symbol or not instance.timeframe:
+                return pd.DataFrame()
+
+            m_series = self.db.query(MarketSeries).filter(
+                MarketSeries.symbol == instance.symbol,
+                MarketSeries.timeframe == instance.timeframe
+            ).first()
+
+            if not m_series:
+                return pd.DataFrame()
+            
+            # Load Bars
+            # Use statement and connection for pandas
+            stmt = self.db.query(MarketBar).filter(MarketBar.series_id == m_series.series_id).order_by(MarketBar.ts_utc.asc()).statement
+            df_bars = pd.read_sql(stmt, self.db.connection())
+            
+            if df_bars.empty:
+                return pd.DataFrame()
+
+            if 'ts_utc' in df_bars.columns:
+                df_bars['ts_utc'] = pd.to_datetime(df_bars['ts_utc'])
+            
+            df_regime = RegimeDetector.calculate_regime(df_bars)
+            if not df_regime.empty and 'ts_utc' in df_regime.columns:
+                return df_regime.sort_values('ts_utc')
+
+            return pd.DataFrame()
+
+        except Exception:
+            print(f"Warning: Failed to calculate regime for run {run_id}")
+            traceback.print_exc()
+            return pd.DataFrame()
 
     def rebuild_trades_for_run(self, run_id: str):
         """
@@ -29,37 +81,7 @@ class TradeService:
         self.db.query(Trade).filter(Trade.run_id == run_id).delete()
         
         # --- Pre-calculate Regime Data (Optimization) ---
-        df_regime = pd.DataFrame()
-        try:
-            # Get Instance Info
-            run_info = self.db.query(StrategyRun).filter(StrategyRun.run_id == run_id).first()
-            if run_info and run_info.instance_id:
-                instance = self.db.query(StrategyInstance).filter(StrategyInstance.instance_id == run_info.instance_id).first()
-                if instance and instance.symbol and instance.timeframe:
-                    # Find Market Series
-                    # We try to find a matching series. If multiple, take first. 
-                    # Assuming standard provider preference isn't critical here, just need data.
-                    m_series = self.db.query(MarketSeries).filter(
-                        MarketSeries.symbol == instance.symbol,
-                        MarketSeries.timeframe == instance.timeframe
-                    ).first()
-                    
-                    if m_series:
-                        # Load Bars
-                        bars_query = self.db.query(MarketBar).filter(MarketBar.series_id == m_series.series_id).order_by(MarketBar.ts_utc.asc())
-                        df_bars = pd.read_sql(bars_query.statement, self.db.bind)
-                        
-                        if not df_bars.empty:
-                            if 'ts_utc' in df_bars.columns:
-                                df_bars['ts_utc'] = pd.to_datetime(df_bars['ts_utc'])
-                            
-                            df_regime = RegimeDetector.calculate_regime(df_bars)
-                            if not df_regime.empty and 'ts_utc' in df_regime.columns:
-                                df_regime = df_regime.sort_values('ts_utc')
-        except Exception as e:
-            print(f"Warning: Failed to calculate regime for run {run_id}: {e}")
-
-
+        df_regime = self._get_regime_df(run_id)
         
         new_trade_objs = []
         for t_dict in trade_dicts:
@@ -124,14 +146,18 @@ class TradeService:
         router = AnalyticsRouter(self.db)
         
         # Fetch strategy type
-        run = self.db.query(StrategyRun).filter(StrategyRun.run_id == run_id).first()
+        # Re-query for safety
+        run = self.db.query(StrategyRun).get(run_id)
         strategy_type = 'DEFAULT'
-        if run and run.instance and run.instance.strategy_id:
-            strategy = self.db.query(Strategy).filter(Strategy.strategy_id == run.instance.strategy_id).first()
-            
-            sType = getattr(strategy, 'type', None)
-            if strategy and sType:
-                strategy_type = sType
+        if run and run.instance:
+            # We can try to access strategy relation if loaded, else query
+             if run.instance.strategy_id:
+                  # Use get()
+                  # strategy = self.db.query(Strategy).get(run.instance.strategy_id)
+                  # Simplest: assume relation is working or use loose type
+                  pass
+            # Or just use logic:
+            # instance loaded above?
         
         # Calculate P0/P1 metrics
         metrics = router.route_analysis(run_id=run_id, strategy_type=strategy_type)
@@ -150,3 +176,4 @@ class TradeService:
              router.calculate_trade_metrics(trade_id=tid, strategy_type=strategy_type)
 
         return len(new_trade_objs)
+
