@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  main-backend:
+    build: ./backend
+    container_name: main-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - TRAINING_SERVICE_URL=http://training-node:5000
+      - DATABASE_URL=sqlite:///trading_data.db
+    volumes:
+      - ./backend/trading_data.db:/app/trading_data.db
+    depends_on:
+      - training-node
+
+  training-node:
+    build: ./services/training_node
+    container_name: training-node
+    ports:
+      - "5000:5000"
+    volumes:
+      # Optional: Share DB if needed, or mount dataset
+      - ./backend/trading_data.db:/app/trading_data.db
+
+networks:
+  default:
+    driver: bridge

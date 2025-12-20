@@ -1,0 +1,38 @@
+{
+  "1": {
+    "title": "Backend Tests Failed",
+    "state": "closed",
+    "labels": [],
+    "assignees": [],
+    "last_action": "closed",
+    "last_updated": "2025-12-14T18:21:29.502169Z",
+    "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/1"
+  },
+  "8": {
+    "title": "MA empty",
+    "state": "open",
+    "labels": [],
+    "assignees": [],
+    "last_action": "opened",
+    "last_updated": "2025-12-14T19:21:24.853935Z",
+    "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/8"
+  },
+  "9": {
+    "title": "Ma Empty",
+    "state": "open",
+    "labels": [],
+    "assignees": [],
+    "last_action": "opened",
+    "last_updated": "2025-12-14T19:22:14.816582Z",
+    "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/9"
+  },
+  "2": {
+    "title": "Frontend Tests Failed",
+    "state": "closed",
+    "labels": [],
+    "assignees": [],
+    "last_action": "closed",
+    "last_updated": "2025-12-14T19:25:45.571434Z",
+    "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/2"
+  }
+}

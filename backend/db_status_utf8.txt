@@ -1,0 +1,13 @@
+Tabelle nel database: ['bars', 'executions', 'ingest_events', 'order_oco_groups', 'order_oco_links', 'orders', 'run_series', 'strategies', 'strategy_instances', 'strategy_runs']
+
+Conteggio record:
+  Strategies: 1
+  Runs: 7
+  Bars: 23262
+  Orders: 289
+  Executions: 191
+
+Ultimi Run:
+  - 60349a6f-f1f9-4248-b521-1b538fdebe5c (RunStatus.RUNNING) started at 2025-12-13 15:23:42.687003
+  - ea9ba9c8-6366-437e-b13e-13b2f92d19d2 (RunStatus.RUNNING) started at 2025-12-13 15:07:11.638480
+  - 5549fb61-32c7-4df4-bb6b-ff1d13da5216 (RunStatus.RUNNING) started at 2025-12-13 15:04:28.976434

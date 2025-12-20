@@ -1,0 +1,49 @@
+name: Frontend CI
+
+on:
+  push:
+    branches: [ "main", "develop", "version-2" ]
+    paths:
+      - 'frontend/**'
+  pull_request:
+    branches: [ "main", "develop", "version-2" ]
+    paths:
+      - 'frontend/**'
+
+permissions:
+  contents: read
+  issues: write
+
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Run tests
+      run: npm run test
+
+    - name: Create Issue on Failure
+      if: failure()
+      uses: dacbd/create-issue-action@v1
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        title: "Frontend Tests Failed"
+        body: |
+          ### Frontend Test Failure
+          The frontend tests failed on run [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}).
+          
+          Please investigate the logs.

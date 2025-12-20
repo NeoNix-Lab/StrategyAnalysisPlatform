@@ -1,0 +1,13 @@
+D:\Documents\Active\StrategyAnalysisPlatform\exporters\StrategyExporter\obj\Debug\net8.0\StrategyExporter.csproj.AssemblyReference.cache
+D:\Documents\Active\StrategyAnalysisPlatform\exporters\StrategyExporter\obj\Debug\net8.0\StrategyExporter.GeneratedMSBuildEditorConfig.editorconfig
+D:\Documents\Active\StrategyAnalysisPlatform\exporters\StrategyExporter\obj\Debug\net8.0\StrategyExporter.AssemblyInfoInputs.cache
+D:\Documents\Active\StrategyAnalysisPlatform\exporters\StrategyExporter\obj\Debug\net8.0\StrategyExporter.AssemblyInfo.cs
+D:\Documents\Active\StrategyAnalysisPlatform\exporters\StrategyExporter\obj\Debug\net8.0\StrategyExporter.csproj.CoreCompileInputs.cache
+D:\Documents\Active\StrategyAnalysisPlatform\exporters\StrategyExporter\obj\Debug\net8.0\StrategyExporter.sourcelink.json
+D:\Documents\Active\StrategyAnalysisPlatform\exporters\StrategyExporter\bin\Debug\net8.0\StrategyExporter.deps.json
+D:\Documents\Active\StrategyAnalysisPlatform\exporters\StrategyExporter\bin\Debug\net8.0\StrategyExporter.dll
+D:\Documents\Active\StrategyAnalysisPlatform\exporters\StrategyExporter\bin\Debug\net8.0\StrategyExporter.pdb
+D:\Documents\Active\StrategyAnalysisPlatform\exporters\StrategyExporter\obj\Debug\net8.0\StrategyExporter.dll
+D:\Documents\Active\StrategyAnalysisPlatform\exporters\StrategyExporter\obj\Debug\net8.0\refint\StrategyExporter.dll
+D:\Documents\Active\StrategyAnalysisPlatform\exporters\StrategyExporter\obj\Debug\net8.0\StrategyExporter.pdb
+D:\Documents\Active\StrategyAnalysisPlatform\exporters\StrategyExporter\obj\Debug\net8.0\ref\StrategyExporter.dll
