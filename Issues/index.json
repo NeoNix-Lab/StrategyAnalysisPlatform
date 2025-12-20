@@ -84,5 +84,20 @@
     "last_action": "closed",
     "last_updated": "2025-12-20T17:28:13.519454Z",
     "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/21"
+  },
+  "16": {
+    "title": "Incomplete Trade Persistence: Not All Trades Are Saved",
+    "state": "closed",
+    "labels": [
+      "bug",
+      "backend",
+      "database",
+      "data-integrity",
+      "critical"
+    ],
+    "assignees": [],
+    "last_action": "closed",
+    "last_updated": "2025-12-20T18:15:17.991440Z",
+    "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/16"
   }
 }
