@@ -49,5 +49,18 @@
     "last_action": "closed",
     "last_updated": "2025-12-20T16:24:53.345658Z",
     "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/7"
+  },
+  "10": {
+    "title": "Backtester speed vs API handling",
+    "state": "closed",
+    "labels": [
+      "bug",
+      "backtester",
+      "api"
+    ],
+    "assignees": [],
+    "last_action": "closed",
+    "last_updated": "2025-12-20T16:27:02.874048Z",
+    "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/10"
   }
 }
