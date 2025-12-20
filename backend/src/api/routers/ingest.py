@@ -198,15 +198,10 @@ async def on_executions_batch(data: list[ExecutionCreate], background_tasks: Bac
             run_ids.add(item.run_id)
         db.commit()
         
-        # Trigger Trade Reconstruction for affected runs
-        trade_service = TradeService(db)
-        for rid in run_ids:
-            # We can't pass db session to background task safely if it closes. 
-            # Ideally background task opens its own session.
-            # For now, let's run it synchronously or structure a proper background worker.
-            # Given SQLite/FastAPI simplicity, running it here (post-commit) or via helper that opens new session is best.
-            # Let's define a helper for the background task.
-            background_tasks.add_task(rebuild_trades_task, rid)
+        # Trigger Trade Reconstruction for affected runs - DISABLED for Manual Trigger
+        # trade_service = TradeService(db)
+        # for rid in run_ids:
+        #     background_tasks.add_task(rebuild_trades_task, rid)
             
         return {"status": "ok", "count": len(data)}
     except Exception as e:
@@ -233,11 +228,10 @@ async def ingest_stream(data: StreamIngestRequest, background_tasks: BackgroundT
                 
         db.commit()
         
-        # Trigger reconstruction for involved runs
-        trade_service = TradeService(db)
-        for rid in run_ids:
-            # Using background task helper
-            background_tasks.add_task(rebuild_trades_task, rid)
+        # Trigger reconstruction for involved runs - DISABLED for Manual Trigger
+        # trade_service = TradeService(db)
+        # for rid in run_ids:
+        #     background_tasks.add_task(rebuild_trades_task, rid)
             
         return {"status": "ok", "orders_processed": len(data.orders), "executions_processed": len(data.executions)}
         

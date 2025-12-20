@@ -2,17 +2,19 @@ import React, { useMemo, useState, useEffect } from 'react'
 import { useStrategyData } from '../hooks/useStrategyData'
 import { useStrategy } from '../context/StrategyContext'
 import { useNavigate } from 'react-router-dom'
-import { Sliders, Activity, DollarSign, TrendingUp, AlertTriangle, ArrowRight, Shield, Target, Zap, Waves } from 'lucide-react'
+import axios from 'axios'
+import { Sliders, Activity, DollarSign, TrendingUp, AlertTriangle, ArrowRight, Shield, Target, Zap, Waves, RefreshCw } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import './Dashboard.css'
 
 const Dashboard = () => {
     // [FIX] Separate 'executions' (raw) and 'trades' (reconstructed)
-    const { executions, trades, stats, loading } = useStrategyData()
+    const { executions, trades, stats, loading, refresh } = useStrategyData()
     const { runs, selectedRun, instances, selectedInstance } = useStrategy()
     const navigate = useNavigate()
 
     const [displayCount, setDisplayCount] = useState(20)
+    const [rebuilding, setRebuilding] = useState(false)
 
     // Reset display count when run changes
     useEffect(() => {
@@ -35,6 +37,20 @@ const Dashboard = () => {
             if (displayCount < sortedTrades.length) {
                 setDisplayCount(prev => prev + 20)
             }
+        }
+    }
+
+    const handleRebuild = async () => {
+        if (!selectedRun) return
+        try {
+            setRebuilding(true)
+            await axios.post(`http://127.0.0.1:8000/api/trades/rebuild/${selectedRun}`)
+            await refresh()
+        } catch (err) {
+            console.error("Rebuild failed:", err)
+            alert("Failed to rebuild trades")
+        } finally {
+            setRebuilding(false)
         }
     }
 
@@ -123,6 +139,34 @@ const Dashboard = () => {
                         Vol: {(stats?.total_volume || 0).toLocaleString()}
                     </div>
                 </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
+                <button
+                    onClick={handleRebuild}
+                    disabled={rebuilding || !selectedRun}
+                    className="rebuild-btn"
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        padding: '0.5rem 1rem',
+                        background: 'rgba(56, 189, 248, 0.1)',
+                        color: '#38bdf8',
+                        border: '1px solid rgba(56, 189, 248, 0.2)',
+                        borderRadius: '6px',
+                        cursor: rebuilding ? 'not-allowed' : 'pointer',
+                        fontSize: '0.9rem',
+                        fontWeight: '500',
+                        transition: 'all 0.2s'
+                    }}
+                >
+                    <RefreshCw size={16} className={rebuilding ? "spin-anim" : ""} style={{ animation: rebuilding ? 'spin 1s linear infinite' : 'none' }} />
+                    {rebuilding ? 'Rebuilding...' : 'Rebuild Trades'}
+                </button>
+                <style>{`
+                    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+                `}</style>
             </div>
 
             {/* PERFORMANCE & RISK SECTION */}

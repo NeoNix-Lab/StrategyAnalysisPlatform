@@ -109,3 +109,14 @@ def read_trade(trade_id: str, db: Session = Depends(get_db)):
         resp_data['side'] = resp_data['side'].name
         
     return TradeResponse(**resp_data)
+
+@router.post("/rebuild/{run_id}")
+def rebuild_trades(run_id: str, db: Session = Depends(get_db)):
+    from src.core.trade_service import TradeService
+    
+    try:
+        service = TradeService(db)
+        count = service.rebuild_trades_for_run(run_id)
+        return {"status": "ok", "message": f"Rebuilt {count} trades", "count": count}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

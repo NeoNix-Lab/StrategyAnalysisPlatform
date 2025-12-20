@@ -9,7 +9,7 @@ DATABASE_URL = f"sqlite:///{DB_PATH}"
 
 from sqlalchemy import event
 
-engine = create_engine(DATABASE_URL, echo=False, connect_args={"check_same_thread": False})
+engine = create_engine(DATABASE_URL, echo=False, connect_args={"check_same_thread": False, "timeout": 10})
 
 # Enable Write-Ahead Logging (WAL) for better concurrency
 @event.listens_for(engine, "connect")
