@@ -99,5 +99,18 @@
     "last_action": "closed",
     "last_updated": "2025-12-20T18:15:17.991440Z",
     "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/16"
+  },
+  "26": {
+    "title": "Implement ML Studio Control Plane",
+    "state": "open",
+    "labels": [
+      "enhancement"
+    ],
+    "assignees": [
+      "NeoNix-Lab"
+    ],
+    "last_action": "opened",
+    "last_updated": "2025-12-20T20:13:33.530484Z",
+    "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/26"
   }
 }
