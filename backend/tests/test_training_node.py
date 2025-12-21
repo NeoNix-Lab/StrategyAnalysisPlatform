@@ -81,4 +81,6 @@ def test_build_keras_model():
     
     model = build_keras_model(config, input_shape)
     assert isinstance(model, tf.keras.Model)
-    assert len(model.layers) >= 3 # Input + 2 Dense
+    # Newer Keras versions might not count InputLayer in model.layers
+    # We added 2 Dense layers, so we expect at least 2
+    assert len(model.layers) >= 2
