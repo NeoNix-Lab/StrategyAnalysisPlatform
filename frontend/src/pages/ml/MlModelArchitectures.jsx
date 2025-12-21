@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Save, Layers } from 'lucide-react';
+import { Plus, Save, Layers, Settings, Database, Trash2 } from 'lucide-react';
 import ModelBuilder from './components/ModelBuilder';
 import '../Dashboard.css';
 
@@ -73,7 +73,7 @@ const MlModelArchitectures = () => {
     };
 
     return (
-        <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '2rem', height: 'calc(100vh - 140px)' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '250px 1fr', gap: '2rem', height: 'calc(100vh - 140px)' }}>
 
             {/* List Panel */}
             <div className="card" style={{ display: 'flex', flexDirection: 'column', padding: '0', overflow: 'hidden' }}>
@@ -116,7 +116,7 @@ const MlModelArchitectures = () => {
                                 type="text"
                                 value={name}
                                 onChange={e => setName(e.target.value)}
-                                style={{ background: 'transparent', border: 'none', fontSize: '1.5rem', fontWeight: 700, color: '#f1f5f9', width: '100%', outline: 'none' }}
+                                style={{ background: 'transparent', border: 'none', fontSize: '1.5rem', fontWeight: 700, color: '#f1f5f9', width: '60%', outline: 'none' }}
                                 placeholder="Model Name"
                             />
                             <button
@@ -134,7 +134,7 @@ const MlModelArchitectures = () => {
                             style={{ background: '#0f172a', border: '1px solid #334155', padding: '0.5rem', borderRadius: '4px', color: '#cbd5e1' }}
                             placeholder="Description (optional)"
                         />
-                        <div style={{ flex: 1, overflowY: 'auto' }}>
+                        <div style={{ flex: 1, overflowY: 'auto', border: '1px solid #334155', borderRadius: '8px', padding: '1rem', background: '#0f172a' }}>
                             <ModelBuilder layers={layers} setLayers={setLayers} />
                         </div>
                     </>

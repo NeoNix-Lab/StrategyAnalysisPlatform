@@ -146,8 +146,25 @@ def validate_reward(req: ValidateRewardRequest, db: Session = Depends(get_db)):
     
     try:
         exec(req.code, {}, local_scope)
-        if "reward" in local_scope:
+        
+        result = None
+        
+        # 1. Check for function-based definition (Standard)
+        if "calculate_reward" in local_scope and callable(local_scope["calculate_reward"]):
+            # Default test action: Try BUY (1) or HOLD (0) from actions namespace if available, else 1
+            test_action = 1
+            if hasattr(mock_env, 'actions'):
+                if hasattr(mock_env.actions, 'BUY'): test_action = mock_env.actions.BUY
+                elif hasattr(mock_env.actions, 'HOLD'): test_action = mock_env.actions.HOLD
+            
+            # Call the user's function
+            result = local_scope["calculate_reward"](mock_env, test_action)
+            
+        # 2. Check for script-based definition (Legacy)
+        elif "reward" in local_scope:
             result = local_scope["reward"]
+            
+        if result is not None:
             try:
                 float_res = float(result)
                 return {
@@ -159,9 +176,9 @@ def validate_reward(req: ValidateRewardRequest, db: Session = Depends(get_db)):
                     }
                 }
             except:
-                return {"valid": False, "error": f"Result 'reward' is not a number: {type(result)}"}
+                return {"valid": False, "error": f"Result is not a number: {type(result)}"}
         else:
-             return {"valid": False, "error": "Code must assign 'reward' variable"}
+             return {"valid": False, "error": "Code must define 'def calculate_reward(env, action):' or assign 'reward' variable"}
              
     except Exception as e:
         return {"valid": False, "error": str(e)}

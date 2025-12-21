@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Save, Zap } from 'lucide-react';
+import { Plus, Save, Zap, Settings, Trash2 } from 'lucide-react';
 import ProcessConfig from './components/ProcessConfig';
 import '../Dashboard.css';
 
@@ -85,7 +85,7 @@ const MlTrainingProcesses = () => {
     };
 
     return (
-        <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '2rem', height: 'calc(100vh - 140px)' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '250px 1fr', gap: '2rem', height: 'calc(100vh - 140px)' }}>
 
             {/* List Panel */}
             <div className="card" style={{ display: 'flex', flexDirection: 'column', padding: '0', overflow: 'hidden' }}>
@@ -146,7 +146,7 @@ const MlTrainingProcesses = () => {
                             style={{ background: '#0f172a', border: '1px solid #334155', padding: '0.5rem', borderRadius: '4px', color: '#cbd5e1' }}
                             placeholder="Description (optional)"
                         />
-                        <div style={{ flex: 1, overflowY: 'auto' }}>
+                        <div style={{ flex: 1, overflowY: 'auto', border: '1px solid #334155', borderRadius: '8px', padding: '1rem', background: '#0f172a' }}>
                             <ProcessConfig config={config} setConfig={setConfig} />
                         </div>
                     </>
