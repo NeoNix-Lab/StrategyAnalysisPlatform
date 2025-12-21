@@ -13,6 +13,14 @@ router = APIRouter()
 
 # --- Schemas ---
 
+class UpdateDatasetRequest(BaseModel):
+    feature_config: List[str]
+
+class PreviewRequest(BaseModel):
+    limit: int = 100
+    offset: int = 0
+
+
 class CreateDatasetRequest(BaseModel):
     name: str
     description: Optional[str] = None
@@ -101,5 +109,81 @@ def delete_dataset(dataset_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Dataset not found")
         
     db.delete(ds)
+    db.delete(ds)
     db.commit()
     return {"status": "success", "message": "Dataset deleted"}
+
+@router.patch("/{dataset_id}", response_model=DatasetResponse)
+def update_dataset(dataset_id: str, req: UpdateDatasetRequest, db: Session = Depends(get_db)):
+    ds = db.query(Dataset).get(dataset_id)
+    if not ds:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+    
+    ds.feature_config_json = req.feature_config
+    db.commit()
+    db.refresh(ds)
+    
+    return DatasetResponse(
+        dataset_id=ds.dataset_id,
+        name=ds.name,
+        description=ds.description,
+        created_utc=ds.created_utc,
+        sources=ds.sources_json or [],
+        feature_config=ds.feature_config_json or []
+    )
+
+@router.post("/{dataset_id}/preview")
+def preview_dataset(dataset_id: str, req: PreviewRequest, db: Session = Depends(get_db)):
+    ds = db.query(Dataset).get(dataset_id)
+    if not ds: raise HTTPException(404, "Dataset not found")
+    
+    if not ds.sources_json or len(ds.sources_json) == 0:
+        return {"columns": [], "data": []}
+        
+    # Use first source to sample data
+    source = ds.sources_json[0]
+    run_id = source.get("run_id")
+    symbol = source.get("symbol")
+    timeframe = source.get("timeframe")
+    
+    # Logic similar to bars.py but simpler for preview
+    from src.database.models import RunSeries, Bar, MarketSeries, MarketBar
+    
+    # 1. Try RunSeries
+    series = db.query(RunSeries).filter(
+        RunSeries.run_id == run_id,
+        RunSeries.symbol == symbol,
+        RunSeries.timeframe == timeframe
+    ).first()
+    
+    query = None
+    if series:
+        query = db.query(Bar).filter(Bar.series_id == series.series_id)
+    else:
+         # 2. Try MarketSeries
+         m_series = db.query(MarketSeries).filter(
+            MarketSeries.symbol == symbol,
+            MarketSeries.timeframe == timeframe
+        ).first()
+         if m_series:
+             query = db.query(MarketBar).filter(MarketBar.series_id == m_series.series_id)
+             
+    if not query:
+        return {"columns": [], "data": [], "message": "No data found for source"}
+        
+    # Order desc to show latest data usually, or asc for beginning
+    bars = query.order_by(query.column_descriptions[0]['type'].ts_utc.desc()).offset(req.offset).limit(req.limit).all()
+    
+    # Format for frontend grid
+    if not bars: return {"columns": [], "data": []}
+    
+    # Infer columns from first bar object + custom logic if needed
+    # Default columns for Bar/MarketBar
+    base_cols = ["ts_utc", "open", "high", "low", "close", "volume"]
+    
+    data = []
+    for b in bars:
+        row = {c: getattr(b, c) for c in base_cols}
+        data.append(row)
+        
+    return {"columns": base_cols, "data": data}

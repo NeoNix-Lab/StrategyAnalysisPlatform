@@ -140,7 +140,17 @@ def create_session(req: TrainingSessionCreate, db: Session = Depends(get_db)):
 def list_sessions(db: Session = Depends(get_db)):
     objs = db.query(models.MlTrainingSession).all()
     # Simple list, maybe expand relationships if needed
-    return [{"session_id": s.session_id, "name": s.name, "status": s.status, "created_utc": s.created_utc} for s in objs]
+    return [
+        {
+            "session_id": s.session_id, 
+            "name": s.name, 
+            "status": s.status, 
+            "created_at": s.created_utc, # Alignment with frontend
+            "algorithm": s.model.name if s.model else "Unknown",
+            "dataset_name": s.iterations[-1].dataset.name if s.iterations and s.iterations[-1].dataset else "N/A"
+        } 
+        for s in objs
+    ]
 
 @router.get("/sessions/{sid}")
 def get_session(sid: str, db: Session = Depends(get_db)):

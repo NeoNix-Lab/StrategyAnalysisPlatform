@@ -1,45 +1,42 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, HelpCircle } from 'lucide-react';
+import { Play, Brain, Layers, Zap, ArrowRight, ExternalLink, Database } from 'lucide-react';
+import '../Dashboard.css';
 
 const MlCompose = () => {
     const navigate = useNavigate();
-
-    // Form State
-    const [sessionName, setSessionName] = useState('');
     const [functions, setFunctions] = useState([]);
     const [models, setModels] = useState([]);
     const [processes, setProcesses] = useState([]);
+    const [datasets, setDatasets] = useState([]);
 
+    const [sessionName, setSessionName] = useState('');
     const [selectedFunction, setSelectedFunction] = useState('');
     const [selectedModel, setSelectedModel] = useState('');
     const [selectedProcess, setSelectedProcess] = useState('');
+    const [selectedDataset, setSelectedDataset] = useState('');
 
-    // Load available options
     useEffect(() => {
-        const loadData = async () => {
-            try {
-                const [fRes, mRes, pRes] = await Promise.all([
-                    fetch('http://localhost:8000/api/ml/studio/functions'),
-                    fetch('http://localhost:8000/api/ml/studio/models'),
-                    fetch('http://localhost:8000/api/ml/studio/processes')
-                ]);
-
-                setFunctions(await fRes.json());
-                setModels(await mRes.json());
-                setProcesses(await pRes.json());
-            } catch (err) {
-                console.error("Failed to load options", err);
-            }
-        };
-        loadData();
+        // Load all options
+        Promise.all([
+            fetch('/api/ml/studio/functions').then(res => res.json()),
+            fetch('/api/ml/studio/models').then(res => res.json()),
+            fetch('/api/ml/studio/processes').then(res => res.json()),
+            fetch('/api/datasets').then(res => res.json())
+        ]).then(([f, m, p, d]) => {
+            setFunctions(f);
+            setModels(m);
+            setProcesses(p);
+            setDatasets(d);
+        }).catch(console.error);
     }, []);
 
-    const handleSave = async () => {
-        if (!sessionName || !selectedFunction || !selectedModel || !selectedProcess) return;
+    const handleCreate = async () => {
+        if (!sessionName || !selectedFunction || !selectedModel || !selectedProcess || !selectedDataset) return;
 
         try {
-            const res = await fetch('http://localhost:8000/api/ml/studio/sessions', {
+            // 1. Create Session
+            const sessRes = await fetch('/api/ml/studio/sessions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -50,127 +47,149 @@ const MlCompose = () => {
                 })
             });
 
-            if (res.ok) {
-                navigate('/ml/studio');
+            if (sessRes.ok) {
+                const sessData = await sessRes.json();
+
+                // 2. Create Initial Iteration (Bind Dataset)
+                const iterRes = await fetch('/api/ml/studio/iterations', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        session_id: sessData.session_id,
+                        dataset_id: selectedDataset,
+                        name: 'Initial Run',
+                        split_config: { train: 0.7, test: 0.2, work: 0.1 }
+                    })
+                });
+
+                if (iterRes.ok) {
+                    const iterData = await iterRes.json();
+                    navigate(`/ml/studio/session/${sessData.session_id}/run/${iterData.iteration_id}`);
+                } else {
+                    alert("Session created, but failed to create initial iteration.");
+                    navigate(`/ml/studio/session/${sessData.session_id}`);
+                }
             } else {
                 alert("Failed to create session");
             }
-        } catch (err) {
-            console.error(err);
+        } catch (e) {
+            console.error(e);
         }
     };
 
     return (
-        <div className="p-8 text-slate-200 max-w-4xl mx-auto">
-            <button
-                onClick={() => navigate('/ml/studio')}
-                className="flex items-center gap-2 text-slate-400 hover:text-slate-200 mb-6 transition-colors"
-            >
-                <ArrowLeft size={18} /> Back to Studio
-            </button>
-
-            <header className="mb-8 border-b border-slate-700 pb-6">
-                <h1 className="text-3xl font-bold mb-2">Compose Training Session</h1>
-                <p className="text-slate-400">Combine a Reward Function, Model Architecture, and Training Process into a reusable Session.</p>
-            </header>
-
-            <div className="space-y-8">
-                {/* Name */}
-                <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
-                    <label className="block text-sm font-medium text-slate-400 mb-2">Session Name</label>
-                    <input
-                        type="text"
-                        className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-                        placeholder="e.g. BTC Trend Follower v1"
-                        value={sessionName}
-                        onChange={e => setSessionName(e.target.value)}
-                    />
+        <div className="dashboard-container" style={{ padding: '0', maxWidth: '1000px', margin: '0 auto' }}>
+            <div className="card" style={{ marginTop: '2rem', padding: '2rem' }}>
+                <div style={{ marginBottom: '2rem', textAlign: 'center' }}>
+                    <h2 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>Compose New Experiment</h2>
+                    <p style={{ color: '#94a3b8' }}>Assemble your strategy blueprint and bind it to a dataset.</p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {/* Function Selection */}
-                    <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="font-semibold text-lg flex items-center gap-2">
-                                <span className="w-6 h-6 rounded-full bg-red-500/20 text-red-500 flex items-center justify-center text-xs font-bold">1</span>
-                                Reward Function
-                            </h3>
-                            {/* <button className="text-xs text-blue-400">+ New</button> */}
-                        </div>
-                        <select
-                            className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-slate-200 mb-2"
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                    {/* Session Name */}
+                    <div>
+                        <label style={{ display: 'block', marginBottom: '0.5rem', color: '#cbd5e1' }}>Experiment Name</label>
+                        <input
+                            type="text"
+                            className="bg-slate-900 border border-slate-700 rounded p-3 text-white w-full focus:ring-2 focus:ring-blue-500 outline-none"
+                            placeholder="e.g. BTC Breakout V1"
+                            value={sessionName}
+                            onChange={e => setSessionName(e.target.value)}
+                        />
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                        {/* Row 1: Dataset & Reward */}
+                        <SelectionBox
+                            title="Target Dataset"
+                            icon={Database}
+                            options={datasets}
+                            value={selectedDataset}
+                            onChange={setSelectedDataset}
+                            linkTo="/datasets"
+                            idKey="dataset_id"
+                        />
+                        <SelectionBox
+                            title="Reward Function"
+                            icon={Brain}
+                            options={functions}
                             value={selectedFunction}
-                            onChange={(e) => setSelectedFunction(e.target.value)}
-                        >
-                            <option value="" disabled>Select Function...</option>
-                            {functions.map(f => (
-                                <option key={f.function_id} value={f.function_id}>{f.name}</option>
-                            ))}
-                        </select>
-                        <p className="text-xs text-slate-500">Defines how the agent is rewarded for its actions.</p>
-                    </div>
+                            onChange={setSelectedFunction}
+                            linkTo="/ml/studio/rewards"
+                            idKey="function_id"
+                        />
 
-                    {/* Model Selection */}
-                    <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="font-semibold text-lg flex items-center gap-2">
-                                <span className="w-6 h-6 rounded-full bg-blue-500/20 text-blue-500 flex items-center justify-center text-xs font-bold">2</span>
-                                Model Architecture
-                            </h3>
-                            {/* <button className="text-xs text-blue-400">+ New</button> */}
-                        </div>
-                        <select
-                            className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-slate-200 mb-2"
+                        {/* Row 2: Model & Process */}
+                        <SelectionBox
+                            title="Model Architecture"
+                            icon={Layers}
+                            options={models}
                             value={selectedModel}
-                            onChange={(e) => setSelectedModel(e.target.value)}
-                        >
-                            <option value="" disabled>Select Model...</option>
-                            {models.map(m => (
-                                <option key={m.model_id} value={m.model_id}>{m.name}</option>
-                            ))}
-                        </select>
-                        <p className="text-xs text-slate-500">Neural Network layers and configuration.</p>
-                    </div>
-
-                    {/* Process Selection */}
-                    <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="font-semibold text-lg flex items-center gap-2">
-                                <span className="w-6 h-6 rounded-full bg-green-500/20 text-green-500 flex items-center justify-center text-xs font-bold">3</span>
-                                Training Process
-                            </h3>
-                            {/* <button className="text-xs text-blue-400">+ New</button> */}
-                        </div>
-                        <select
-                            className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-slate-200 mb-2"
+                            onChange={setSelectedModel}
+                            linkTo="/ml/studio/models"
+                            idKey="model_id"
+                        />
+                        <SelectionBox
+                            title="Training Config"
+                            icon={Zap}
+                            options={processes}
                             value={selectedProcess}
-                            onChange={(e) => setSelectedProcess(e.target.value)}
-                        >
-                            <option value="" disabled>Select Process...</option>
-                            {processes.map(p => (
-                                <option key={p.process_id} value={p.process_id}>{p.name}</option>
-                            ))}
-                        </select>
-                        <p className="text-xs text-slate-500">Hyperparameters and Training loop settings.</p>
+                            onChange={setSelectedProcess}
+                            linkTo="/ml/studio/processes"
+                            idKey="process_id"
+                        />
                     </div>
-                </div>
 
-                <div className="flex justify-end pt-6 border-t border-slate-700">
-                    <button
-                        onClick={handleSave}
-                        disabled={!sessionName || !selectedFunction || !selectedModel || !selectedProcess}
-                        className={`flex items-center gap-2 px-6 py-3 rounded-lg font-bold transition-all shadow-lg
-                            ${(!sessionName || !selectedFunction || !selectedModel || !selectedProcess)
-                                ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
-                                : 'bg-green-600 hover:bg-green-500 text-white shadow-green-500/20'}
-                        `}
-                    >
-                        <Save size={20} /> Create Session
-                    </button>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '2rem', paddingTop: '2rem', borderTop: '1px solid #334155' }}>
+                        <button
+                            onClick={handleCreate}
+                            disabled={!sessionName || !selectedFunction || !selectedModel || !selectedProcess || !selectedDataset}
+                            style={{
+                                background: 'linear-gradient(135deg, #4f46e5, #3b82f6)',
+                                color: 'white',
+                                padding: '0.75rem 2rem',
+                                borderRadius: '8px',
+                                border: 'none',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                opacity: (!sessionName || !selectedFunction || !selectedModel || !selectedProcess || !selectedDataset) ? 0.5 : 1,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem'
+                            }}
+                        >
+                            <Play size={18} /> Launch Experiment
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
     );
 };
+
+const SelectionBox = ({ title, icon: Icon, options, value, onChange, linkTo, idKey }) => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#cbd5e1', fontWeight: 500 }}>
+                <Icon size={16} color="#94a3b8" /> {title}
+            </label>
+            <a href={linkTo} style={{ fontSize: '0.75rem', color: '#60a5fa', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                Manage <ExternalLink size={10} />
+            </a>
+        </div>
+        <select
+            value={value}
+            onChange={e => onChange(e.target.value)}
+            className="bg-slate-900 border border-slate-700 rounded p-3 text-slate-200 w-full focus:ring-2 focus:ring-blue-500 outline-none appearance-none"
+            style={{ backgroundImage: 'none' }} // Remove default arrow if customized
+        >
+            <option value="">Select...</option>
+            {options.map(opt => (
+                <option key={opt[idKey]} value={opt[idKey]}>{opt.name}</option>
+            ))}
+        </select>
+        {value && <div style={{ fontSize: '0.75rem', color: '#64748b' }}>selected ID: {value.substring(0, 8)}...</div>}
+    </div>
+);
 
 export default MlCompose;
