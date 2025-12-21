@@ -7,15 +7,23 @@ import uuid
 
 from ...database.connection import get_db
 from ...database import models
+from ...database.models import Dataset, RunSeries, Bar, MarketSeries, MarketBar
 
 router = APIRouter(prefix="/ml/studio", tags=["ml-studio"])
 
 # --- Schemas ---
 
+class ValidateRewardRequest(BaseModel):
+    code: str
+    dataset_id: str
+    metadata_json: Optional[Dict[str, Any]] = None
+
+
 class RewardFunctionCreate(BaseModel):
     name: str
     code: str
     description: Optional[str] = None
+    metadata_json: Optional[Dict[str, Any]] = None
 
 class ModelArchitectureCreate(BaseModel):
     name: str
@@ -49,13 +57,123 @@ class IterationCreate(BaseModel):
 
 # --- Endpoints: Reward Functions ---
 
+@router.post("/functions/validate")
+def validate_reward(req: ValidateRewardRequest, db: Session = Depends(get_db)):
+    """
+    Dry-run a reward function against a sample row from the selected dataset.
+    """
+    from ...database.models import Dataset, RunSeries, Bar, MarketSeries, MarketBar
+
+    # 1. Fetch Dataset & Sample Data
+    ds = db.query(Dataset).get(req.dataset_id)
+    if not ds: return {"valid": False, "error": "Dataset not found"}
+
+    if not ds.sources_json or len(ds.sources_json) == 0:
+         return {"valid": False, "error": "Dataset has no sources defined"}
+
+    source = ds.sources_json[0]
+
+    # Helper to get bar
+    bar_data = None
+
+    # Try RunSeries
+    series = db.query(RunSeries).filter(
+        RunSeries.run_id == source.get("run_id"),
+        RunSeries.symbol == source.get("symbol"),
+        RunSeries.timeframe == source.get("timeframe")
+    ).first()
+
+    if series:
+        bar = db.query(Bar).filter(Bar.series_id == series.series_id).order_by(Bar.ts_utc.desc()).first()
+        if bar: bar_data = bar
+
+    if not bar_data:
+        m_series = db.query(MarketSeries).filter(
+            MarketSeries.symbol == source.get("symbol"),
+            MarketSeries.timeframe == source.get("timeframe")
+        ).first()
+        if m_series:
+             bar = db.query(MarketBar).filter(MarketBar.series_id == m_series.series_id).order_by(MarketBar.ts_utc.desc()).first()
+             if bar: bar_data = bar
+
+    if not bar_data:
+        return {"valid": False, "error": "No data found in dataset source"}
+
+    # 2. Construct 'obs'
+    obs = {
+        "open": getattr(bar_data, 'open', 0),
+        "high": getattr(bar_data, 'high', 0),
+        "low": getattr(bar_data, 'low', 0),
+        "close": getattr(bar_data, 'close', 0),
+        "volume": getattr(bar_data, 'volume', 0),
+    }
+
+    # 3. Execute Code
+    class MockEnv:
+        def __init__(self, current_price, action_labels=None, status_labels=None):
+            self.position = 1 # Default to LONG for testing
+            self.entry_price = current_price * 0.99 # Mock 1% profit
+            self.qty = 1.0
+            self.balance = 10000.0
+            self.unrealized_pnl = (current_price - self.entry_price) * self.qty
+            self.last_reward = 0.0
+            self.data = obs # Access to raw data if needed via env.data
+            
+            # Namespace Injection
+            self.action_labels = action_labels or ["HOLD", "BUY", "SELL"]
+            self.status_labels = status_labels or ["FLAT", "LONG", "SHORT"]
+            
+            # Create Enum-like objects dynamically
+            class Namespace: pass
+            
+            self.actions = Namespace()
+            for idx, label in enumerate(self.action_labels):
+                setattr(self.actions, label.upper(), idx)
+                
+            self.status = Namespace()
+            for idx, label in enumerate(self.status_labels):
+                setattr(self.status, label.upper(), idx)
+
+    # Extract metadata from request
+    meta = req.metadata_json or {}
+    mock_env = MockEnv(
+        obs['close'], 
+        action_labels=meta.get("action_labels"),
+        status_labels=meta.get("status_labels")
+    )
+    
+    local_scope = {"obs": obs, "env": mock_env}
+    
+    try:
+        exec(req.code, {}, local_scope)
+        if "reward" in local_scope:
+            result = local_scope["reward"]
+            try:
+                float_res = float(result)
+                return {
+                    "valid": True, 
+                    "result": float_res,
+                    "env_state": {
+                        "pos": mock_env.position,
+                        "pnl": mock_env.unrealized_pnl
+                    }
+                }
+            except:
+                return {"valid": False, "error": f"Result 'reward' is not a number: {type(result)}"}
+        else:
+             return {"valid": False, "error": "Code must assign 'reward' variable"}
+             
+    except Exception as e:
+        return {"valid": False, "error": str(e)}
+
 @router.post("/functions", response_model=Dict)
 def create_function(req: RewardFunctionCreate, db: Session = Depends(get_db)):
     obj = models.MlRewardFunction(
         function_id=str(uuid.uuid4()),
         name=req.name,
         code=req.code,
-        description=req.description
+        description=req.description,
+        metadata_json=req.metadata_json or {}
     )
     db.add(obj)
     db.commit()
@@ -70,7 +188,13 @@ def list_functions(db: Session = Depends(get_db)):
 def get_function(fid: str, db: Session = Depends(get_db)):
     obj = db.query(models.MlRewardFunction).filter(models.MlRewardFunction.function_id == fid).first()
     if not obj: raise HTTPException(404, "Function not found")
-    return {"function_id": obj.function_id, "name": obj.name, "code": obj.code, "description": obj.description}
+    return {
+        "function_id": obj.function_id, 
+        "name": obj.name, 
+        "code": obj.code, 
+        "description": obj.description,
+        "metadata_json": obj.metadata_json
+    }
 
 # --- Endpoints: Model Architectures ---
 

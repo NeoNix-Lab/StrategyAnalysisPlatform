@@ -441,6 +441,9 @@ class MlRewardFunction(Base):
     code = Column(Text, nullable=False) # Python source code or JSON logic
     description = Column(String, nullable=True)
     created_utc = Column(DateTime, default=datetime.utcnow)
+    
+    # Metadata for configuration (Action Space, Status Space, etc.)
+    metadata_json = Column(JSON, nullable=True)
 
 class MlModelArchitecture(Base):
     __tablename__ = 'ml_model_architectures'
