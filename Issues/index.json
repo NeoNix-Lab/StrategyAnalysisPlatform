@@ -121,5 +121,14 @@
     "last_action": "opened",
     "last_updated": "2025-12-21T10:04:01.458626Z",
     "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/27"
+  },
+  "28": {
+    "title": "Create a ML Dedicated Unit Test",
+    "state": "open",
+    "labels": [],
+    "assignees": [],
+    "last_action": "opened",
+    "last_updated": "2025-12-21T10:04:51.898098Z",
+    "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/28"
   }
 }
