@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
@@ -189,7 +189,7 @@ def create_iteration(req: IterationCreate, db: Session = Depends(get_db)):
     return {"iteration_id": obj.iteration_id, "name": obj.name, "status": obj.status}
 
 @router.get("/iterations/{iid}/run")
-def run_iteration(iid: str, db: Session = Depends(get_db)):
+def run_iteration(iid: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """
     Trigger the actual training for an iteration.
     This effectively replaces the old /training/start endpoint logic but uses the defined entities.
@@ -201,17 +201,48 @@ def run_iteration(iid: str, db: Session = Depends(get_db)):
     if not session_obj.function or not session_obj.model or not session_obj.process:
          raise HTTPException(400, "Session is incomplete (missing function, model, or process)")
          
-    # Here we would construct the payload and call the Training Node Microservice
-    # For now, we update status to mimic start
-    iter_obj.status = "RUNNING"
-    iter_obj.start_utc = datetime.utcnow()
+    # Mark as QUEUED immediately
+    iter_obj.status = "QUEUED"
     db.commit()
     
-    # TODO: Call microservice with:
-    # - Architecture: session_obj.model.layers_json
-    # - Hyperparams: session_obj.process.*
-    # - Reward Function: session_obj.function.code
-    # - Data: iter_obj.dataset_id + split_config
+    # Add to background tasks
+    background_tasks.add_task(background_training_wrapper, iid)
     
-    return {"status": "RUNNING", "iteration_id": iid}
+    return {"status": "QUEUED", "iteration_id": iid}
+
+def background_training_wrapper(iteration_id: str):
+    """
+    Wrapper to run training in a separate thread with its own DB session.
+    """
+    from ...database.connection import SessionLocal
+    from ...training_node.runner import TrainingRunner
+    
+    db = SessionLocal()
+    try:
+        runner = TrainingRunner(db, iteration_id)
+        # Use a longer timeout or specific logic if needed
+        runner.run()
+    except Exception as e:
+        print(f"Background Training Failed: {e}")
+        # In case of catastrophe, try to log it to DB (though runner does this too)
+    finally:
+        db.close()
+
+@router.post("/iterations/{iid}/stop")
+def stop_iteration(iid: str, db: Session = Depends(get_db)):
+    """
+    Signals a running iteration to stop gracefully.
+    """
+    iter_obj = db.query(models.MlIteration).filter(models.MlIteration.iteration_id == iid).first()
+    if not iter_obj: raise HTTPException(404, "Iteration not found")
+    
+    if iter_obj.status not in ["RUNNING", "QUEUED", "PENDING"]:
+        # Already stopped or finished, just return status
+        return {"status": iter_obj.status, "message": "Iteration is not running"}
+        
+    iter_obj.status = "CANCELLING"
+    db.commit()
+    
+    return {"status": "CANCELLING", "iteration_id": iid}
+
 

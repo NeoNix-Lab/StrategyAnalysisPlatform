@@ -51,8 +51,18 @@ const MlTrainingRun = () => {
     const handleStart = async () => {
         try {
             await fetch(`http://localhost:8000/api/ml/studio/iterations/${iterationId}/run`);
-            setStatus('RUNNING');
+            setStatus('RUNNING'); // Optimistic update
             setLogs(prev => [...prev, "Command sent: Start Training..."]);
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    const handleStop = async () => {
+        try {
+            await fetch(`http://localhost:8000/api/ml/studio/iterations/${iterationId}/stop`, { method: 'POST' });
+            // Don't optimistic update status here, wait for poll (or do CANCELLING)
+            setLogs(prev => [...prev, "Command sent: Stop Training..."]);
         } catch (err) {
             console.error(err);
         }
@@ -79,7 +89,8 @@ const MlTrainingRun = () => {
                 </div>
                 <div className="flex items-center gap-4">
                     <div className={`px-3 py-1 rounded-full text-sm font-medium ${status === 'RUNNING' ? 'bg-blue-500/10 text-blue-400 animate-pulse' :
-                            status === 'COMPLETED' ? 'bg-green-500/10 text-green-400' :
+                        status === 'COMPLETED' ? 'bg-green-500/10 text-green-400' :
+                            status === 'CANCELLED' || status === 'CANCELLING' ? 'bg-red-500/10 text-red-400' :
                                 'bg-slate-700 text-slate-400'
                         }`}>
                         {status}
@@ -90,6 +101,14 @@ const MlTrainingRun = () => {
                             className="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 shadow-lg shadow-green-500/20 transition-all"
                         >
                             <Play size={16} fill="currentColor" /> Start Run
+                        </button>
+                    )}
+                    {(status === 'RUNNING' || status === 'QUEUED') && (
+                        <button
+                            onClick={handleStop}
+                            className="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 shadow-lg shadow-red-500/20 transition-all"
+                        >
+                            <div className="w-3 h-3 bg-white rounded-sm" /> Stop
                         </button>
                     )}
                 </div>

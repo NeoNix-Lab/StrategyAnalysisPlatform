@@ -45,6 +45,7 @@ function App() {
                 <Route path="analysis/efficiency" element={<Efficiency />} />
                 <Route path="analysis/stress-test" element={<StressTest />} />
 
+                <Route path="ml" element={<MachineLearning />} />
                 <Route path="ml/studio" element={<MlDashboard />} />
                 <Route path="ml/studio/compose" element={<MlCompose />} />
                 <Route path="ml/studio/session/:sessionId" element={<MlSessionDetail />} />
