@@ -3,6 +3,7 @@ import time
 import json
 import os
 import numpy as np
+import traceback
 from datetime import datetime
 from sqlalchemy.orm import Session
 from src.database.models import (
@@ -44,11 +45,24 @@ class TrainingRunner:
         
         # Logging
         self.logs = []
+        self.log_dir = os.path.join(os.getcwd(), "logs", "ml")
+        os.makedirs(self.log_dir, exist_ok=True)
+        self.log_path = os.path.join(self.log_dir, f"{self.iteration_id}.log")
         
     def log(self, message: str):
+        timestamp = datetime.utcnow().isoformat()
+        log_entry = f"{timestamp} - {message}"
         print(f"[Run {self.iteration_id}] {message}")
-        self.logs.append(f"{datetime.utcnow().isoformat()} - {message}")
-        # Ideally, we push logs to DB periodically or to a file
+        
+        # Write to file
+        with open(self.log_path, "a") as f:
+            f.write(log_entry + "\n")
+            f.flush()
+        
+        # Keep a few in memory for status updates if needed
+        self.logs.append(log_entry)
+        if len(self.logs) > 100:
+            self.logs.pop(0)
 
     def run(self):
         """
@@ -61,33 +75,51 @@ class TrainingRunner:
             self._training_loop()
             self._finish_run(status="COMPLETED")
         except Exception as e:
+            tb_str = traceback.format_exc()
             self.log(f"CRITICAL ERROR: {str(e)}")
-            self._finish_run(status="FAILED", error_msg=str(e))
+            self.log(f"Traceback:\n{tb_str}")
+            self._finish_run(status="FAILED", error_msg=str(e) + "\n" + tb_str)
             raise e
 
     def _start_run(self):
         self.log("Starting Training Run...")
+        self.log(f"[VERBOSE] Run ID: {self.iteration_id}")
+        self.log(f"[VERBOSE] Process Configuration: {self.process.name}")
+        self.log(f"[VERBOSE] Model Architecture: {self.model_arch.name}")
+        
         self.iteration.status = "RUNNING"
         self.iteration.start_utc = datetime.utcnow()
-        self.iteration.logs_json = json.dumps(self.logs) # Initial log
         self.db.commit()
 
     def _setup_environment(self):
         self.log("Loading Dataset...")
         df_data = load_dataset_as_dataframe(self.db, self.iteration.dataset_id)
+        self.log(f"[VERBOSE] Dataset Loaded. Shape: {df_data.shape}")
+        self.log(f"[VERBOSE] Columns: {list(df_data.columns)}")
         
         self.log("Compiling Reward Function...")
         reward_fn = get_reward_function(self.db, self.reward_func_record.function_id)
         
         self.log("Initializing Environment...")
+        
+        # Extract metadata for custom namespaces
+        rf_meta = self.reward_func_record.metadata_json or {}
+        action_labels = rf_meta.get("action_labels")
+        status_labels = rf_meta.get("status_labels")
+        
         self.env = EnvFlex(
             df_data=df_data,
             reward_function=reward_fn,
             window_size=self.process.window_size,
             fees=0.01, # Could be config
-            initial_balance=100000.0 # Could be config
+            initial_balance=100000.0, # Could be config
+            action_labels=action_labels,
+            status_labels=status_labels
         )
         self.log(f"Environment Ready. Data Steps: {len(df_data)}")
+        self.log(f"[VERBOSE] Observation Space: {self.env.observation_space.shape}")
+        self.log(f"[VERBOSE] Action Space: {self.env.action_space.n}")
+        if action_labels: self.log(f"[VERBOSE] Action Labels: {action_labels}")
 
     def _build_agent(self):
         if not tf:
@@ -97,6 +129,9 @@ class TrainingRunner:
         self.log("Building Neural Networks...")
         input_shape = self.env.observation_space.shape
         layers_config = self.model_arch.layers_json
+        
+        self.log(f"[VERBOSE] Input Shape: {input_shape}")
+        self.log(f"[VERBOSE] Layer Config: {json.dumps(layers_config)}")
         
         self.main_network = build_keras_model(layers_config, input_shape)
         # Compile model
@@ -109,13 +144,18 @@ class TrainingRunner:
         self.target_network = tf.keras.models.clone_model(self.main_network)
         self.target_network.set_weights(self.main_network.get_weights())
         
+        self.log("[VERBOSE] Models compiled (Main & Target)")
         self.replay_buffer = ReplayBuffer(capacity=50000) # Configurable?
+        self.log(f"[VERBOSE] Replay Buffer Initialized (Capacity: 50000)")
 
     def _training_loop(self):
         epochs = self.process.epochs
         batch_size = self.process.batch_size
         gamma = self.process.gamma
         tau = self.process.tau
+        
+        self.log(f"Starting Training Loop for {epochs} episodes...")
+        self.log(f"[VERBOSE] Parameters: Gamma={gamma}, Tau={tau}, Batch={batch_size}, Epsilon={self.epsilon}")
         
         for episode in range(epochs):
             state = self.env.reset()
@@ -154,7 +194,11 @@ class TrainingRunner:
                     self._train_step(batch_size, gamma)
             
             # End of Episode
-            self.log(f"Episode {episode+1}/{epochs} finished. Reward: {total_reward:.2f}, Balance: {self.env.current_balance:.2f}")
+            # End of Episode
+            if (episode + 1) % 10 == 0:
+                 self.log(f"Episode {episode+1}/{epochs} | Reward: {total_reward:.2f} | Balance: {self.env.current_balance:.2f} | Epsilon: {self.epsilon:.4f}")
+            else:
+                 self.log(f"[VERBOSE] Episode {episode+1} Done. Reward: {total_reward:.2f}")
             
             # Decay Epsilon
             if self.epsilon > self.process.epsilon_end:
@@ -215,6 +259,10 @@ class TrainingRunner:
         for i in range(len(target_weights)):
             target_weights[i] = tau * weights[i] + (1 - tau) * target_weights[i]
         self.target_network.set_weights(target_weights)
+        # self.log(f"[VERBOSE] Soft Target Update (Tau={tau})") # Too frequent if every step?
+        # Maybe log only if tau is 1.0 (Hard update) or just skip for soft updates to avoid spam.
+        if tau == 1.0:
+            self.log("[VERBOSE] Hard Target Network Update")
 
     def _update_metrics(self, episode, reward):
         # Update iteration record with latest progress
@@ -227,7 +275,6 @@ class TrainingRunner:
         metrics["current_balance"] = self.env.current_balance
         
         self.iteration.metrics_json = metrics
-        self.iteration.logs_json = json.dumps(self.logs[-50:]) # Keep last 50 logs in DB to save space
         self.db.commit()
 
     def _finish_run(self, status, error_msg=None):

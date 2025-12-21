@@ -206,8 +206,8 @@ const MlRewardFunctions = () => {
                                     padding: '1rem',
                                     borderBottom: '1px solid #1e293b',
                                     cursor: 'pointer',
-                                    background: selectedId === f.function_id ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
-                                    borderLeft: selectedId === f.function_id ? '3px solid #60a5fa' : '3px solid transparent'
+                                    background: selectedId === f.function_id ? 'rgba(147, 51, 234, 0.1)' : 'transparent',
+                                    borderLeft: selectedId === f.function_id ? '3px solid #d8b4fe' : '3px solid transparent'
                                 }}
                             >
                                 <div style={{ fontWeight: 500, color: '#f1f5f9' }}>{f.name}</div>

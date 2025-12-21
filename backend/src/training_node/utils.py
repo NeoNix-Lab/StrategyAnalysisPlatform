@@ -4,7 +4,7 @@ import json
 import numpy as np
 from typing import List, Dict, Any, Callable
 from sqlalchemy.orm import Session
-from src.database.models import Dataset, Bar, RunSeries, MlRewardFunction
+from src.database.models import Dataset, Bar, RunSeries, MlRewardFunction, MarketSeries, MarketBar
 
 # Try importing tensorflow, but don't crash if missing (allows server to list files etc)
 try:
@@ -33,33 +33,41 @@ def load_dataset_as_dataframe(db: Session, dataset_id: str) -> pd.DataFrame:
     
     for source in sources:
         run_id = source.get("run_id")
-        # Optional: time filtering
-        # start_time = source.get("start_time")
-        # end_time = source.get("end_time")
+        symbol = source.get("symbol")
+        timeframe = source.get("timeframe")
         
-        # 1. Find the Series for this run (assuming 1 main series for now or specific logic)
-        # For MVP, we take the first series found for the run, or filter by symbol/timeframe if provided in source
-        # Ideally source should specify series_id or symbol/timeframe
+        # Strategy 1: Context is a Strategy Run
+        bars_found = []
         
-        series_query = db.query(RunSeries).filter(RunSeries.run_id == run_id)
-        # if "symbol" in source: series_query = series_query.filter(RunSeries.symbol == source["symbol"])
-        
-        series_list = series_query.all()
-        if not series_list:
-            continue
+        if run_id:
+            series_query = db.query(RunSeries).filter(RunSeries.run_id == run_id)
+            if symbol: series_query = series_query.filter(RunSeries.symbol == symbol)
+            if timeframe: series_query = series_query.filter(RunSeries.timeframe == timeframe)
             
-        # Merge all series? Or just take the first one?
-        # A dataset usually implies a coherent stream. Let's assume 1 primary series per run for this MVP.
-        target_series = series_list[0] 
+            series_list = series_query.all()
+            if series_list:
+                for s in series_list:
+                    b_list = db.query(Bar).filter(Bar.series_id == s.series_id).order_by(Bar.ts_utc).all()
+                    if b_list: 
+                        bars_found.extend(b_list)
+                        break # Assume we want the first matching series for this source entry
         
-        bars = db.query(Bar).filter(Bar.series_id == target_series.series_id).order_by(Bar.ts_utc).all()
-        
-        if not bars:
+        # Strategy 2: Context is Market Data (Fallback if no Run data found)
+        if not bars_found and symbol and timeframe:
+             m_series = db.query(MarketSeries).filter(
+                 MarketSeries.symbol == symbol,
+                 MarketSeries.timeframe == timeframe
+             ).first()
+             
+             if m_series:
+                 bars_found = db.query(MarketBar).filter(MarketBar.series_id == m_series.series_id).order_by(MarketBar.ts_utc).all()
+
+        if not bars_found:
             continue
             
         # Convert to Dict
         data = []
-        for b in bars:
+        for b in bars_found:
             row = {
                 "ts_utc": b.ts_utc,
                 "open": b.open,
@@ -68,9 +76,6 @@ def load_dataset_as_dataframe(db: Session, dataset_id: str) -> pd.DataFrame:
                 "close": b.close,
                 "volume": b.volume
             }
-            # Add volumetric data features if needed
-            # if b.volumetric_json: ...
-            
             data.append(row)
             
         df = pd.DataFrame(data)

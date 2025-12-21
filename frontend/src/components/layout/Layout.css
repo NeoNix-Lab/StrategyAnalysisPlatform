@@ -216,6 +216,15 @@
     color: var(--accent);
 }
 
+.sidebar.quant-mode .nav-item.active {
+    background-color: rgba(147, 51, 234, 0.15);
+    color: #d8b4fe;
+}
+
+.sidebar.quant-mode .nav-item:hover {
+    color: #e9d5ff;
+}
+
 /* Footer */
 .sidebar-footer {
     padding: 1rem;

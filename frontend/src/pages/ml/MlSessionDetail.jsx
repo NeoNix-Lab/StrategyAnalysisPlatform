@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Play, Box, Database, Clock, Plus } from 'lucide-react';
+import { ArrowLeft, Play, Box, Database, Clock, Plus, Zap, Layers } from 'lucide-react';
 
 const MlSessionDetail = () => {
     const { sessionId } = useParams();
@@ -13,6 +13,73 @@ const MlSessionDetail = () => {
     const [showNewIter, setShowNewIter] = useState(false);
     const [selectedDataset, setSelectedDataset] = useState('');
     const [splitConfig, setSplitConfig] = useState({ train: 0.7, test: 0.2, work: 0.1 });
+
+    // Validation State
+    const [validating, setValidating] = useState(false);
+    const [validationResult, setValidationResult] = useState(null); // { valid: bool, error: str, result: float }
+    const [rewardCode, setRewardCode] = useState(null);
+    const [previewData, setPreviewData] = useState(null); // { columns: [], data: [] }
+
+    // Fetch Reward Code when session is loaded
+    useEffect(() => {
+        if (session && session.function && session.function.id) {
+            fetch(`http://localhost:8000/api/ml/studio/functions/${session.function.id}`)
+                .then(res => res.json())
+                .then(data => setRewardCode(data.code))
+                .catch(err => console.error("Failed to fetch reward code", err));
+        }
+    }, [session]);
+
+    // Validate when dataset is selected and we have code
+    useEffect(() => {
+        if (selectedDataset && rewardCode) {
+            validateRewardOnDataset();
+        } else {
+            setValidationResult(null);
+        }
+
+        if (selectedDataset) {
+            fetchDatasetPreview();
+        } else {
+            setPreviewData(null);
+        }
+    }, [selectedDataset, rewardCode]);
+
+    const fetchDatasetPreview = async () => {
+        try {
+            const res = await fetch(`http://localhost:8000/api/datasets/${selectedDataset}/preview`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ limit: 5, offset: 0 })
+            });
+            const data = await res.json();
+            setPreviewData(data);
+        } catch (err) {
+            console.error("Preview fetch failed", err);
+        }
+    };
+
+    const validateRewardOnDataset = async () => {
+        setValidating(true);
+        setValidationResult(null);
+        try {
+            const res = await fetch('http://localhost:8000/api/ml/studio/functions/validate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    code: rewardCode,
+                    dataset_id: selectedDataset,
+                })
+            });
+            const data = await res.json();
+            setValidationResult(data);
+        } catch (err) {
+            console.error(err);
+            setValidationResult({ valid: false, error: "Validation request failed" });
+        } finally {
+            setValidating(false);
+        }
+    };
 
     useEffect(() => {
         Promise.all([
@@ -27,6 +94,7 @@ const MlSessionDetail = () => {
 
     const handleCreateIteration = async () => {
         if (!selectedDataset) return;
+        if (validationResult && !validationResult.valid) return;
 
         try {
             const res = await fetch('http://localhost:8000/api/ml/studio/iterations', {
@@ -56,127 +124,266 @@ const MlSessionDetail = () => {
         <div className="p-8 text-slate-200">
             <button
                 onClick={() => navigate('/ml/studio')}
-                className="flex items-center gap-2 text-slate-400 hover:text-slate-200 mb-6 transition-colors"
+                className="flex items-center gap-2 text-slate-400 hover:text-purple-400 mb-6 transition-colors"
+                style={{ fontSize: '0.9rem', fontWeight: 500 }}
             >
                 <ArrowLeft size={18} /> Back to Studio
             </button>
 
-            {/* Header */}
-            <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 mb-8">
-                <div className="flex justify-between items-start">
+            {/* Header Card */}
+            <div className="relative overflow-hidden rounded-xl border border-slate-700 mb-8 shadow-2xl"
+                style={{
+                    background: 'linear-gradient(145deg, #0f172a 0%, #1e293b 100%)',
+                }}>
+                <div className="absolute top-0 right-0 p-32 bg-purple-600/10 blur-[100px] rounded-full pointer-events-none"></div>
+
+                <div className="relative p-8 flex justify-between items-start">
                     <div>
-                        <h1 className="text-3xl font-bold mb-2">{session.name}</h1>
-                        <div className="flex gap-4 text-sm text-slate-400">
-                            <span className="flex items-center gap-1"><Box size={14} /> Model: {session.model?.name}</span>
-                            <span className="flex items-center gap-1"><Clock size={14} /> Process: {session.process?.name}</span>
+                        <div className="flex items-center gap-3 mb-3">
+                            <div className="p-3 bg-purple-500/10 rounded-lg border border-purple-500/20">
+                                <Zap className="text-purple-400" size={24} />
+                            </div>
+                            <div>
+                                <h1 className="text-3xl font-bold text-white tracking-tight">{session.name}</h1>
+                                <div className="text-xs text-purple-400 font-mono mt-1 opacity-70">ID: {session.session_id}</div>
+                            </div>
+                        </div>
+
+                        <div className="flex gap-6 text-sm text-slate-400 mt-6">
+                            <div className="flex items-center gap-2 px-4 py-2 bg-[#0b1121] rounded-lg border border-slate-800">
+                                <Layers size={14} className="text-blue-400" />
+                                <span className="text-slate-500">Model:</span>
+                                <span className="text-slate-200 font-medium">{session.model?.name}</span>
+                            </div>
+                            <div className="flex items-center gap-2 px-4 py-2 bg-[#0b1121] rounded-lg border border-slate-800">
+                                <Clock size={14} className="text-green-400" />
+                                <span className="text-slate-500">Process:</span>
+                                <span className="text-slate-200 font-medium">{session.process?.name}</span>
+                            </div>
                         </div>
                     </div>
-                    <div className="px-3 py-1 bg-slate-700 rounded text-sm text-slate-300">
-                        {session.status}
+
+                    <div className="flex flex-col items-end gap-3">
+                        <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${session.status === 'PLANNED' ? 'bg-slate-700 text-slate-300' :
+                            session.status === 'ACTIVE' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' :
+                                'bg-slate-700 text-slate-300'
+                            }`}>
+                            {session.status}
+                        </span>
+                        <div className="text-xs text-slate-500">Created: {new Date(session.created_at).toLocaleDateString()}</div>
                     </div>
                 </div>
             </div>
 
-            {/* Iterations List */}
+            {/* Iterations Section */}
             <div className="mb-6 flex justify-between items-center">
-                <h2 className="text-xl font-semibold">Iterations</h2>
+                <h2 className="text-xl font-bold flex items-center gap-2">
+                    <Database size={20} className="text-purple-400" />
+                    Iterations History
+                </h2>
                 <button
                     onClick={() => setShowNewIter(!showNewIter)}
-                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium"
+                    style={{
+                        background: 'linear-gradient(135deg, #7c3aed, #a855f7)',
+                        boxShadow: '0 4px 6px -1px rgba(124, 58, 237, 0.3)'
+                    }}
+                    className="flex items-center gap-2 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity"
                 >
-                    <Plus size={16} /> New Iteration
+                    <Plus size={18} strokeWidth={2.5} /> New Iteration
                 </button>
             </div>
 
-            {/* New Iteration Form */}
+            {/* New Iteration Form Card */}
             {showNewIter && (
-                <div className="bg-slate-800/50 border border-slate-700 p-6 rounded-xl mb-8 animate-in fade-in slide-in-from-top-4">
-                    <h3 className="font-semibold mb-4">Launch New Iteration</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+                <div className="bg-[#0f172a] border border-purple-500/30 p-6 rounded-xl mb-8 animate-in fade-in slide-in-from-top-4 shadow-xl">
+                    <h3 className="font-semibold mb-6 flex items-center gap-2 text-purple-300">
+                        <Play size={16} className="fill-purple-300" /> Launch Configuration
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-6">
                         <div>
-                            <label className="block text-sm text-slate-400 mb-1">Select Dataset</label>
+                            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Target Dataset</label>
                             <select
-                                className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm text-slate-200"
+                                className="w-full bg-[#0b1121] border border-slate-700 rounded-lg p-3 text-sm text-slate-200 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition-all"
                                 value={selectedDataset}
                                 onChange={(e) => setSelectedDataset(e.target.value)}
                             >
-                                <option value="" disabled>Choose a dataset...</option>
+                                <option value="" disabled>Select a dataset to train on...</option>
                                 {datasets.map(d => (
-                                    <option key={d.dataset_id} value={d.dataset_id}>{d.name}</option>
+                                    <option key={d.dataset_id} value={d.dataset_id}>{d.name} ({d.symbol} {d.timeframe})</option>
                                 ))}
                             </select>
+
+                            {/* Validation Status */}
+                            {selectedDataset && (
+                                <div className="mt-3">
+                                    {validating && <div className="text-xs text-purple-400 flex items-center gap-2 animate-pulse"><Clock size={12} /> Validating Reward Function...</div>}
+                                    {!validating && validationResult && (
+                                        <div className={`p-3 rounded-lg border text-xs ${validationResult.valid
+                                            ? 'bg-green-500/10 border-green-500/30 text-green-300'
+                                            : 'bg-red-500/10 border-red-500/30 text-red-300'
+                                            }`}>
+                                            {validationResult.valid ? (
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-1.5 h-1.5 rounded-full bg-green-400"></div>
+                                                    <span>Compatible (Dry Run: {validationResult.result?.toFixed(4)})</span>
+                                                </div>
+                                            ) : (
+                                                <div className="flex flex-col gap-1">
+                                                    <div className="flex items-center gap-2 font-bold">
+                                                        <div className="w-1.5 h-1.5 rounded-full bg-red-400"></div>
+                                                        <span>Incompatible Dataset</span>
+                                                    </div>
+                                                    <span className="opacity-80 font-mono">{validationResult.error}</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Dataset Preview */}
+                            {previewData && previewData.data && previewData.data.length > 0 && (
+                                <div className="mt-4">
+                                    <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-2 flex justify-between">
+                                        <span>Data Preview (Last 5 rows)</span>
+                                        <span className="text-purple-400 cursor-pointer hover:underline" onClick={() => setPreviewData(null)}>Hide</span>
+                                    </div>
+                                    <div className="overflow-x-auto rounded-lg border border-slate-700 bg-[#0f172a]">
+                                        <table className="w-full text-xs text-left text-slate-400">
+                                            <thead className="bg-slate-800 text-slate-300 font-mono">
+                                                <tr>
+                                                    {previewData.columns.map(col => (
+                                                        <th key={col} className="px-3 py-2 border-b border-slate-700 font-medium">{col}</th>
+                                                    ))}
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-800 font-mono">
+                                                {previewData.data.slice(0, 5).map((row, i) => (
+                                                    <tr key={i} className="hover:bg-slate-800/30">
+                                                        {previewData.columns.map(col => (
+                                                            <td key={col} className="px-3 py-1.5 whitespace-nowrap">
+                                                                {col === 'ts_utc' ? new Date(row[col]).toLocaleString() :
+                                                                    typeof row[col] === 'number' ? row[col].toFixed(4) : row[col]}
+                                                            </td>
+                                                        ))}
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                         <div>
-                            <label className="block text-sm text-slate-400 mb-1">Data Split (Train/Test/Work)</label>
-                            <div className="flex gap-2">
-                                <input type="number" step="0.1" className="w-[33%] bg-slate-900 border border-slate-600 rounded p-2 text-sm" value={splitConfig.train} onChange={e => setSplitConfig({ ...splitConfig, train: parseFloat(e.target.value) })} />
-                                <input type="number" step="0.1" className="w-[33%] bg-slate-900 border border-slate-600 rounded p-2 text-sm" value={splitConfig.test} onChange={e => setSplitConfig({ ...splitConfig, test: parseFloat(e.target.value) })} />
-                                <input type="number" step="0.1" className="w-[33%] bg-slate-900 border border-slate-600 rounded p-2 text-sm" value={splitConfig.work} onChange={e => setSplitConfig({ ...splitConfig, work: parseFloat(e.target.value) })} />
+                            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Data Split Policy (Train / Test / Work)</label>
+                            <div className="flex gap-4 items-center bg-[#0b1121] p-2 rounded-lg border border-slate-700">
+                                <div className="flex-1 flex flex-col items-center border-r border-slate-800">
+                                    <span className="text-[10px] text-slate-500 mb-1">TRAIN</span>
+                                    <input
+                                        type="number" step="0.1"
+                                        className="w-full bg-transparent text-center font-mono text-green-400 focus:outline-none"
+                                        value={splitConfig.train}
+                                        onChange={e => setSplitConfig({ ...splitConfig, train: parseFloat(e.target.value) })}
+                                    />
+                                </div>
+                                <div className="flex-1 flex flex-col items-center border-r border-slate-800">
+                                    <span className="text-[10px] text-slate-500 mb-1">TEST</span>
+                                    <input
+                                        type="number" step="0.1"
+                                        className="w-full bg-transparent text-center font-mono text-blue-400 focus:outline-none"
+                                        value={splitConfig.test}
+                                        onChange={e => setSplitConfig({ ...splitConfig, test: parseFloat(e.target.value) })}
+                                    />
+                                </div>
+                                <div className="flex-1 flex flex-col items-center">
+                                    <span className="text-[10px] text-slate-500 mb-1">WORK</span>
+                                    <input
+                                        type="number" step="0.1"
+                                        className="w-full bg-transparent text-center font-mono text-yellow-400 focus:outline-none"
+                                        value={splitConfig.work}
+                                        onChange={e => setSplitConfig({ ...splitConfig, work: parseFloat(e.target.value) })}
+                                    />
+                                </div>
                             </div>
                         </div>
                     </div>
-                    <div className="flex justify-end">
+                    <div className="flex justify-end pt-4 border-t border-slate-800">
+                        <button
+                            onClick={() => setShowNewIter(false)}
+                            className="mr-4 px-4 py-2 text-slate-400 hover:text-white text-sm font-medium transition-colors"
+                        >
+                            Cancel
+                        </button>
                         <button
                             onClick={handleCreateIteration}
-                            disabled={!selectedDataset}
-                            className={`px-4 py-2 rounded font-medium ${!selectedDataset ? 'bg-slate-700 text-slate-500' : 'bg-green-600 hover:bg-green-500 text-white'}`}
+                            disabled={!selectedDataset || validating || (validationResult && !validationResult.valid)}
+                            className={`px-6 py-2 rounded-lg font-semibold text-sm transition-all shadow-lg ${!selectedDataset || validating || (validationResult && !validationResult.valid)
+                                ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                                : 'bg-green-600 hover:bg-green-500 text-white hover:shadow-green-500/20'
+                                }`}
                         >
-                            Create & Run
+                            Start Training Session
                         </button>
                     </div>
                 </div>
             )}
 
             {/* List */}
-            {/* Fetching iterations is missing in GET /sessions/{id}, I need to ensure it returns them or fetch separately. 
-                 The current backend implementation of get_session DOES return "iterations_count", but not the list.
-                 I should probably update the backend or fetch them. 
-                 Wait, I will update the frontend to assume empty for now or fix backend. 
-                 Let's fix backend to return iterations list in `get_session`.
-             */}
-            <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+            <div className="bg-[#0f172a] rounded-xl border border-slate-700 overflow-hidden shadow-sm">
                 <table className="w-full text-left text-sm text-slate-400">
-                    <thead className="bg-slate-900/50 text-slate-200 uppercase text-xs">
+                    <thead className="bg-[#1e293b] text-slate-200 uppercase text-xs tracking-wider font-semibold">
                         <tr>
-                            <th className="px-6 py-3">Iteration ID</th>
-                            <th className="px-6 py-3">Dataset</th>
-                            <th className="px-6 py-3">Status</th>
-                            <th className="px-6 py-3">Created</th>
-                            <th className="px-6 py-3 text-right">Action</th>
+                            <th className="px-6 py-4 border-b border-slate-700">Iteration ID</th>
+                            <th className="px-6 py-4 border-b border-slate-700">Dataset</th>
+                            <th className="px-6 py-4 border-b border-slate-700">Status</th>
+                            <th className="px-6 py-4 border-b border-slate-700 text-right">Age</th>
+                            <th className="px-6 py-4 border-b border-slate-700 text-right">Actions</th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-700">
-                        {/* 
-                         TODO: Iterate over session.iterations
-                         For now, placeholder.
-                        */}
+                    <tbody className="divide-y divide-slate-800">
                         {session.iterations?.map(iter => (
-                            <tr key={iter.iteration_id} className="hover:bg-slate-700/30 transition-colors">
-                                <td className="px-6 py-4 font-mono text-xs">{iter.iteration_id.slice(0, 8)}...</td>
-                                <td className="px-6 py-4">{iter.dataset_name || 'Dataset'}</td>
+                            <tr key={iter.iteration_id} className="hover:bg-slate-800/50 transition-colors group">
+                                <td className="px-6 py-4 font-mono text-xs text-purple-300 opactiy-80 group-hover:opacity-100">
+                                    {iter.iteration_id.slice(0, 8)}...
+                                </td>
+                                <td className="px-6 py-4 text-slate-300 font-medium">
+                                    {iter.dataset_name || 'Unknown Dataset'}
+                                </td>
                                 <td className="px-6 py-4">
-                                    <span className={`px-2 py-1 rounded-full text-xs ${iter.status === 'COMPLETED' ? 'bg-green-500/10 text-green-400' :
-                                            iter.status === 'RUNNING' ? 'bg-blue-500/10 text-blue-400 animate-pulse' :
-                                                'bg-slate-700 text-slate-400'
+                                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border ${iter.status === 'COMPLETED' ? 'bg-green-500/10 text-green-400 border-green-500/20' :
+                                        iter.status === 'RUNNING' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20 animate-pulse' :
+                                            iter.status === 'FAILED' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
+                                                'bg-slate-700/50 text-slate-400 border-slate-600'
                                         }`}>
-                                        {iter.status}
+                                        {iter.status || 'PENDING'}
                                     </span>
                                 </td>
-                                <td className="px-6 py-4">{new Date().toLocaleDateString()}</td>
+                                <td className="px-6 py-4 text-right text-xs">
+                                    {new Date().toLocaleDateString()}
+                                </td>
                                 <td className="px-6 py-4 text-right">
                                     <button
                                         onClick={() => navigate(`/ml/studio/session/${sessionId}/run/${iter.iteration_id}`)}
-                                        className="text-blue-400 hover:text-blue-300 font-medium"
+                                        className="text-purple-400 hover:text-purple-300 font-medium text-xs flex items-center justify-end gap-1 ml-auto group-hover:translate-x-1 transition-transform"
                                     >
-                                        Open &rarr;
+                                        Console <ArrowLeft size={12} className="rotate-180" />
                                     </button>
                                 </td>
                             </tr>
                         ))}
                         {(!session.iterations || session.iterations.length === 0) && (
                             <tr>
-                                <td colSpan="5" className="px-6 py-8 text-center text-slate-500">
-                                    No iterations yet. Launch one above.
+                                <td colSpan="5" className="px-6 py-12 text-center">
+                                    <div className="flex flex-col items-center justify-center text-slate-500 gap-2">
+                                        <Database size={32} className="opacity-20" />
+                                        <p>No iterations found for this session.</p>
+                                        <button
+                                            onClick={() => setShowNewIter(true)}
+                                            className="text-purple-400 hover:text-purple-300 text-xs font-medium mt-2"
+                                        >
+                                            Launch your first run
+                                        </button>
+                                    </div>
                                 </td>
                             </tr>
                         )}

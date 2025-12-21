@@ -20,7 +20,9 @@ class EnvFlex(gym.Env):
                  reward_function: Callable[[Any, int], None], 
                  window_size: int = 20, 
                  fees: float = 0.01, 
-                 initial_balance: float = 100000.0):
+                 initial_balance: float = 100000.0,
+                 action_labels: List[str] = None,
+                 status_labels: List[str] = None):
         
         super(EnvFlex, self).__init__()
         
@@ -29,6 +31,21 @@ class EnvFlex(gym.Env):
         self.window_size = window_size
         self.fees = fees
         self.initial_balance = initial_balance
+        
+        # Namespace Injection
+        self.action_labels = action_labels or ["HOLD", "BUY", "SELL"]
+        self.status_labels = status_labels or ["FLAT", "LONG", "SHORT"]
+        
+        # Create Enum-like objects dynamically
+        class Namespace: pass
+        
+        self.actions = Namespace()
+        for idx, label in enumerate(self.action_labels):
+            setattr(self.actions, label.upper(), idx)
+            
+        self.status = Namespace()
+        for idx, label in enumerate(self.status_labels):
+            setattr(self.status, label.upper(), idx)
         
         # State Variables
         self.current_step = 0
@@ -53,13 +70,21 @@ class EnvFlex(gym.Env):
 
         self.reset()
 
+    @property
+    def position(self):
+        """
+        Returns the current position status index.
+        Matches env.status constants (e.g. FLAT=0, LONG=1, SHORT=2).
+        """
+        return self._position_idx
+
     def reset(self):
         """Resets the environment to the beginning of the episode."""
         self.current_step = 0
         self.current_balance = self.initial_balance
         self.done = False
         self.last_action_name = 'wait'
-        self.last_position_status = 'flat'
+        self._position_idx = 0 # 0=FLAT default
         self.last_reward = 0.0
         
         # Initialize Observation DataFrame
@@ -95,22 +120,24 @@ class EnvFlex(gym.Env):
         self.last_action_name = action_name
         
         # 2. Update Position Status based on Action (Simplified logic)
-        # This logic needs to match the complexity of the original if needed
-        # Original: Wait -> Keep, Long -> Long, Short -> Short
+        # Assumes Actions: 0=HOLD, 1=LONG, 2=SHORT
+        # Assumes Status: 0=FLAT, 1=LONG, 2=SHORT
         if action == 1: # Long
-            self.last_position_status = 'long'
+            self._position_idx = 1
         elif action == 2: # Short
-            self.last_position_status = 'short'
-        elif action == 0: # Wait
-             # Keep previous status? Or is 'Wait' actually 'Close'? 
-             # In many RL setups Wait means Hold. 
-             # Let's assume Wait = Hold current position.
+            self._position_idx = 2
+        elif action == 0: # Wait/Hold
              pass 
 
         # 3. Calculate Reward using the injected strategy
         # The strategy function is responsible for updating self.last_reward
         # and potentially modifying self.current_balance or done status
-        self.reward_function(self, action)
+        try:
+            self.reward_function(self, action)
+        except AttributeError as e:
+            # Fallback/Helpful error
+            print(f"Reward Function Error: {e}")
+            raise e
         
         # 4. Check Termination
         if self.current_step >= len(self.data) - 1:
@@ -121,7 +148,7 @@ class EnvFlex(gym.Env):
         self.observation_dataframe.at[idx, 'balance'] = self.current_balance
         self.observation_dataframe.at[idx, 'action'] = action
         self.observation_dataframe.at[idx, 'reward'] = self.last_reward
-        # self.observation_dataframe.at[idx, 'position_status'] = ... (encode status)
+        self.observation_dataframe.at[idx, 'position_status'] = self._position_idx
 
         # 6. Advance Step
         self.current_step += 1

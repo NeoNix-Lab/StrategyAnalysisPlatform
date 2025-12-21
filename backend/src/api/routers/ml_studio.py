@@ -4,6 +4,8 @@ from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 from datetime import datetime
 import uuid
+import os
+import json
 
 from ...database.connection import get_db
 from ...database import models
@@ -374,8 +376,38 @@ def background_training_wrapper(iteration_id: str):
         # Use a longer timeout or specific logic if needed
         runner.run()
     except Exception as e:
+        import traceback
+        import json
+        from ...database.models import MlIteration
+        
         print(f"Background Training Failed: {e}")
-        # In case of catastrophe, try to log it to DB (though runner does this too)
+        # Capture critical failure in DB if not already handled
+        try:
+            iter_obj = db.query(MlIteration).filter(MlIteration.iteration_id == iteration_id).first()
+            if iter_obj:
+                iter_obj.status = "FAILED"
+                tb_str = traceback.format_exc()
+                
+                # Update metrics
+                metrics = iter_obj.metrics_json or {}
+                if isinstance(metrics, str): metrics = json.loads(metrics)
+                metrics["error"] = f"Startup Failed: {str(e)}\n{tb_str}"
+                iter_obj.metrics_json = metrics
+                
+                # Update logs
+                logs = []
+                if iter_obj.logs_json:
+                    try:
+                        logs = json.loads(iter_obj.logs_json) if isinstance(iter_obj.logs_json, str) else iter_obj.logs_json
+                    except: pass
+                
+                logs.append(f"CRITICAL SYSTEM ERROR: {str(e)}")
+                logs.append(tb_str)
+                iter_obj.logs_json = json.dumps(logs)
+                
+                db.commit()
+        except Exception as db_e:
+            print(f"Failed to write error to DB: {db_e}")
     finally:
         db.close()
 
@@ -397,3 +429,31 @@ def stop_iteration(iid: str, db: Session = Depends(get_db)):
     return {"status": "CANCELLING", "iteration_id": iid}
 
 
+@router.get("/iterations/{iid}/logs")
+def get_iteration_logs(iid: str, db: Session = Depends(get_db)):
+    """
+    Fetches logs for a specific iteration from the file system.
+    """
+    iter_obj = db.query(models.MlIteration).filter(models.MlIteration.iteration_id == iid).first()
+    if not iter_obj: 
+        raise HTTPException(404, "Iteration not found")
+    
+    log_path = os.path.join(os.getcwd(), "logs", "ml", f"{iid}.log")
+    
+    if os.path.exists(log_path):
+        try:
+            with open(log_path, "r") as f:
+                # For now, return all lines. In future, implement tailing/offsets.
+                lines = f.readlines()
+                return [line.strip() for line in lines]
+        except Exception as e:
+            return [f"SYSTEM: Error reading log file: {str(e)}"]
+    
+    # Fallback to DB logs (e.g. for startup errors)
+    if iter_obj.logs_json:
+        try:
+            return json.loads(iter_obj.logs_json) if isinstance(iter_obj.logs_json, str) else iter_obj.logs_json
+        except:
+            return [str(iter_obj.logs_json)]
+            
+    return []

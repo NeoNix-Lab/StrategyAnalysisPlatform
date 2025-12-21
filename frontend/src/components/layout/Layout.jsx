@@ -17,7 +17,7 @@ const Layout = () => {
 
     return (
         <div className={`app-layout ${isCollapsed ? 'collapsed' : ''}`}>
-            <aside className="sidebar">
+            <aside className={`sidebar ${userWorkspace === 'QUANT' ? 'quant-mode' : ''}`}>
                 {/* --- LEFT RAIL (Workspace Activity Bar) --- */}
                 <div className="sidebar-rail">
                     <div className="rail-group">

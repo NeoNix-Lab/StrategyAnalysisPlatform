@@ -72,7 +72,7 @@ const MlDashboard = () => {
                 <button
                     onClick={() => navigate('/ml/studio/compose')}
                     style={{
-                        background: 'linear-gradient(135deg, #4f46e5, #3b82f6)',
+                        background: 'linear-gradient(135deg, #7c3aed, #a855f7)',
                         color: 'white',
                         border: 'none',
                         padding: '0.6rem 1.25rem',
@@ -82,7 +82,7 @@ const MlDashboard = () => {
                         display: 'flex',
                         alignItems: 'center',
                         gap: '0.5rem',
-                        boxShadow: '0 4px 6px -1px rgba(59, 130, 246, 0.2)'
+                        boxShadow: '0 4px 6px -1px rgba(124, 58, 237, 0.3)'
                     }}
                 >
                     <Plus size={18} /> New Experiment
@@ -97,9 +97,9 @@ const MlDashboard = () => {
                     <div className="metric-value">{stats.total}</div>
                 </div>
                 <div className="card">
-                    <div className="card-icon"><Activity size={24} color="#38bdf8" /></div>
+                    <div className="card-icon"><Activity size={24} color="#d8b4fe" /></div>
                     <h3>Active Runs</h3>
-                    <div className="metric-value" style={{ color: stats.active > 0 ? '#38bdf8' : 'inherit' }}>
+                    <div className="metric-value" style={{ color: stats.active > 0 ? '#d8b4fe' : 'inherit' }}>
                         {stats.active}
                     </div>
                 </div>
@@ -134,8 +134,8 @@ const MlDashboard = () => {
                             <AreaChart data={activityData}>
                                 <defs>
                                     <linearGradient id="colorRuns" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
-                                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                                        <stop offset="5%" stopColor="#a855f7" stopOpacity={0.3} />
+                                        <stop offset="95%" stopColor="#a855f7" stopOpacity={0} />
                                     </linearGradient>
                                 </defs>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.3} />
@@ -144,7 +144,7 @@ const MlDashboard = () => {
                                 <Tooltip
                                     contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: '#fff', borderRadius: '8px' }}
                                 />
-                                <Area type="monotone" dataKey="runs" stroke="#8b5cf6" strokeWidth={2} fillOpacity={1} fill="url(#colorRuns)" />
+                                <Area type="monotone" dataKey="runs" stroke="#a855f7" strokeWidth={2} fillOpacity={1} fill="url(#colorRuns)" />
                             </AreaChart>
                         </ResponsiveContainer>
                     </div>
@@ -159,7 +159,7 @@ const MlDashboard = () => {
                         style={{
                             background: 'transparent',
                             border: 'none',
-                            color: '#3b82f6',
+                            color: '#a855f7',
                             cursor: 'pointer',
                             display: 'flex',
                             alignItems: 'center',
@@ -220,8 +220,8 @@ const MlDashboard = () => {
                                         </td>
                                         <td style={{ padding: '1rem', textAlign: 'right' }}>
                                             <button
-                                                onClick={(e) => { e.stopPropagation(); navigate(`/ ml / studio / run / ${session.session_id} `); }}
-                                                style={{ padding: '0.5rem', background: 'rgba(59, 130, 246, 0.1)', color: '#60a5fa', border: 'none', borderRadius: '4px', cursor: 'pointer', marginRight: '0.5rem' }}
+                                                onClick={(e) => { e.stopPropagation(); navigate(`/ml/studio/session/${session.session_id}`); }}
+                                                style={{ padding: '0.5rem', background: 'rgba(147, 51, 234, 0.15)', color: '#d8b4fe', border: 'none', borderRadius: '4px', cursor: 'pointer', marginRight: '0.5rem' }}
                                                 title="Run/Console"
                                             >
                                                 <Play size={14} />
@@ -250,7 +250,7 @@ const StatusBadge = ({ status }) => {
     let bg = 'rgba(148, 163, 184, 0.1)';
     const s = status?.toLowerCase();
 
-    if (s === 'running') { color = '#60a5fa'; bg = 'rgba(59, 130, 246, 0.15)'; }
+    if (s === 'running') { color = '#a855f7'; bg = 'rgba(168, 85, 247, 0.15)'; }
     else if (s === 'completed') { color = '#4ade80'; bg = 'rgba(74, 222, 128, 0.15)'; }
     else if (s === 'failed') { color = '#f87171'; bg = 'rgba(248, 113, 113, 0.15)'; }
 

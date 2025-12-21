@@ -149,30 +149,35 @@ def preview_dataset(dataset_id: str, req: PreviewRequest, db: Session = Depends(
     # Logic similar to bars.py but simpler for preview
     from src.database.models import RunSeries, Bar, MarketSeries, MarketBar
     
-    # 1. Try RunSeries
-    series = db.query(RunSeries).filter(
-        RunSeries.run_id == run_id,
-        RunSeries.symbol == symbol,
-        RunSeries.timeframe == timeframe
-    ).first()
-    
+    # 1. Try RunSeries (Strategy Data)
     query = None
-    if series:
-        query = db.query(Bar).filter(Bar.series_id == series.series_id)
-    else:
-         # 2. Try MarketSeries
+    model_class = None
+    
+    if run_id:
+        series_query = db.query(RunSeries).filter(RunSeries.run_id == run_id)
+        if symbol: series_query = series_query.filter(RunSeries.symbol == symbol)
+        if timeframe: series_query = series_query.filter(RunSeries.timeframe == timeframe)
+        series = series_query.first()
+        
+        if series:
+            query = db.query(Bar).filter(Bar.series_id == series.series_id)
+            model_class = Bar
+
+    # 2. Try MarketSeries (Fallback)
+    if not query and symbol and timeframe:
          m_series = db.query(MarketSeries).filter(
             MarketSeries.symbol == symbol,
             MarketSeries.timeframe == timeframe
         ).first()
          if m_series:
              query = db.query(MarketBar).filter(MarketBar.series_id == m_series.series_id)
+             model_class = MarketBar
              
     if not query:
         return {"columns": [], "data": [], "message": "No data found for source"}
-        
-    # Order desc to show latest data usually, or asc for beginning
-    bars = query.order_by(query.column_descriptions[0]['type'].ts_utc.desc()).offset(req.offset).limit(req.limit).all()
+    
+    # Order by latest
+    bars = query.order_by(model_class.ts_utc.desc()).offset(req.offset).limit(req.limit).all()
     
     # Format for frontend grid
     if not bars: return {"columns": [], "data": []}
