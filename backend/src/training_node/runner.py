@@ -4,6 +4,7 @@ import json
 import os
 import numpy as np
 import traceback
+import sys
 from datetime import datetime
 from sqlalchemy.orm import Session
 from src.database.models import (
@@ -19,6 +20,7 @@ try:
     import tensorflow as tf
 except ImportError:
     tf = None
+# tf = None
 
 class TrainingRunner:
     def __init__(self, db: Session, iteration_id: str):
@@ -84,6 +86,8 @@ class TrainingRunner:
     def _start_run(self):
         self.log("Starting Training Run...")
         self.log(f"[VERBOSE] Run ID: {self.iteration_id}")
+        self.log(f"[VERBOSE] Python: {sys.executable}")
+        self.log(f"[VERBOSE] Version: {sys.version}")
         self.log(f"[VERBOSE] Process Configuration: {self.process.name}")
         self.log(f"[VERBOSE] Model Architecture: {self.model_arch.name}")
         
@@ -157,6 +161,9 @@ class TrainingRunner:
         self.log(f"Starting Training Loop for {epochs} episodes...")
         self.log(f"[VERBOSE] Parameters: Gamma={gamma}, Tau={tau}, Batch={batch_size}, Epsilon={self.epsilon}")
         
+        # Metrics History
+        history = []
+        
         for episode in range(epochs):
             state = self.env.reset()
             # Reshape state for Keras input (1, window, features)
@@ -165,6 +172,8 @@ class TrainingRunner:
             done = False
             total_reward = 0
             step_count = 0
+            episode_loss = 0
+            train_steps = 0
             
             while not done:
                 # 1. Action Selection (Epsilon Greedy)
@@ -191,12 +200,16 @@ class TrainingRunner:
                 
                 # 4. Train
                 if tf and self.replay_buffer and len(self.replay_buffer) > batch_size:
-                    self._train_step(batch_size, gamma)
+                    loss = self._train_step(batch_size, gamma)
+                    if loss is not None:
+                        episode_loss += loss
+                        train_steps += 1
             
             # End of Episode
-            # End of Episode
+            avg_loss = episode_loss / train_steps if train_steps > 0 else 0
+            
             if (episode + 1) % 10 == 0:
-                 self.log(f"Episode {episode+1}/{epochs} | Reward: {total_reward:.2f} | Balance: {self.env.current_balance:.2f} | Epsilon: {self.epsilon:.4f}")
+                 self.log(f"Episode {episode+1}/{epochs} | Reward: {total_reward:.2f} | Loss: {avg_loss:.4f} | Epsilon: {self.epsilon:.4f}")
             else:
                  self.log(f"[VERBOSE] Episode {episode+1} Done. Reward: {total_reward:.2f}")
             
@@ -204,8 +217,15 @@ class TrainingRunner:
             if self.epsilon > self.process.epsilon_end:
                 self.epsilon *= self.process.epsilon_decay
                 
-            # Periodic Update to DB (e.g. every episode)
-            self._update_metrics(episode, total_reward)
+            # Periodic Update to DB (e.g. every epoch)
+            metrics_entry = {
+                "epoch": episode + 1,
+                "reward": float(total_reward),
+                "loss": float(avg_loss),
+                "epsilon": float(self.epsilon)
+            }
+            history.append(metrics_entry)
+            self._update_metrics(history)
             
             # Check for cancellation
             if self._check_cancellation():
@@ -223,11 +243,26 @@ class TrainingRunner:
             return True
         return False
 
+    def _update_metrics(self, history: list):
+        """
+        Updates the iteration metrics in the database.
+        """
+        try:
+            # We overwrite the JSON with the full history + current summary
+            current_metrics = {
+                "history": history,
+                "final": history[-1] if history else {}
+            }
+            self.iteration.metrics_json = current_metrics
+            self.db.commit()
+        except Exception as e:
+            self.log(f"Error updating metrics: {e}")
+
     def _train_step(self, batch_size, gamma):
-        if not tf: return
+        if not tf: return None
         
         batch = self.replay_buffer.sample(batch_size)
-        if not batch: return
+        if not batch: return None
         
         states, actions, rewards, next_states, dones = batch
         # Fix shapes if needed. sample returns stacked numpy arrays.
@@ -243,6 +278,20 @@ class TrainingRunner:
         
         # Create full target matrix
         q_values = self.main_network.predict(states, verbose=0)
+        
+        # We need to compute loss. Keras train_on_batch returns scalar loss.
+        # We need to construct target vector for the specific actions taken
+        
+        # This is a bit inefficient with Keras high level API for DQN but works.
+        # Better: use GradientTape for custom training loop.
+        # For MVP: We update the Q-values for the taken actions to the target
+        
+        # Update q_values with targets
+        batch_indices = np.arange(batch_size)
+        q_values[batch_indices, actions] = targets
+        
+        loss = self.main_network.train_on_batch(states, q_values)
+        return float(loss)
         
         # Update only the Q-value for the taken action
         indices = np.arange(batch_size)
@@ -264,18 +313,7 @@ class TrainingRunner:
         if tau == 1.0:
             self.log("[VERBOSE] Hard Target Network Update")
 
-    def _update_metrics(self, episode, reward):
-        # Update iteration record with latest progress
-        metrics = self.iteration.metrics_json or {}
-        if not isinstance(metrics, dict): metrics = {}
-        
-        metrics["last_episode"] = episode
-        metrics["last_reward"] = reward
-        metrics["current_epsilon"] = self.epsilon
-        metrics["current_balance"] = self.env.current_balance
-        
-        self.iteration.metrics_json = metrics
-        self.db.commit()
+
 
     def _finish_run(self, status, error_msg=None):
         self.iteration.status = status

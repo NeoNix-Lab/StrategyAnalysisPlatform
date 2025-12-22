@@ -10,6 +10,7 @@ import json
 from ...database.connection import get_db
 from ...database import models
 from ...database.models import Dataset, RunSeries, Bar, MarketSeries, MarketBar
+from ...training_node.runner import TrainingRunner
 
 router = APIRouter(prefix="/ml/studio", tags=["ml-studio"])
 
@@ -341,6 +342,24 @@ def create_iteration(req: IterationCreate, db: Session = Depends(get_db)):
     db.commit()
     return {"iteration_id": obj.iteration_id, "name": obj.name, "status": obj.status}
 
+@router.get("/iterations/{iid}")
+def get_iteration(iid: str, db: Session = Depends(get_db)):
+    obj = db.query(models.MlIteration).filter(models.MlIteration.iteration_id == iid).first()
+    if not obj: raise HTTPException(404, "Iteration not found")
+    
+    return {
+        "iteration_id": obj.iteration_id,
+        "session_id": obj.session_id,
+        "dataset_id": obj.dataset_id,
+        "name": obj.name,
+        "status": obj.status,
+        "split_config": obj.split_config_json,
+        "metrics_json": obj.metrics_json,
+        "start_utc": obj.start_utc,
+        "end_utc": obj.end_utc,
+        "dataset_name": obj.dataset.name if obj.dataset else "Unknown"
+    }
+
 @router.get("/iterations/{iid}/run")
 def run_iteration(iid: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """
@@ -368,7 +387,6 @@ def background_training_wrapper(iteration_id: str):
     Wrapper to run training in a separate thread with its own DB session.
     """
     from ...database.connection import SessionLocal
-    from ...training_node.runner import TrainingRunner
     
     db = SessionLocal()
     try:

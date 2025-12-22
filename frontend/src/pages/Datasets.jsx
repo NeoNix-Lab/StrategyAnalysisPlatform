@@ -541,7 +541,7 @@ const DataExplorer = ({ dataset, onUpdate }) => {
                                             className="hover:bg-slate-700/50"
                                         >
                                             <div style={{
-                                                width: '14px', height: '14px', borderRadius: '3px', border: '1px solid #475569',
+                                                width: '14px', height: '14px', borderRadius: '3px',
                                                 background: activeColumns.includes(col) ? '#8b5cf6' : 'transparent', border: activeColumns.includes(col) ? 'none' : '1px solid #475569',
                                                 display: 'flex', alignItems: 'center', justifyContent: 'center'
                                             }}>

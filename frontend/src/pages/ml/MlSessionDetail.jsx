@@ -213,6 +213,14 @@ const MlSessionDetail = () => {
                                 ))}
                             </select>
 
+                            <div className="mt-2 p-2 bg-blue-500/10 border border-blue-500/20 rounded-lg text-[10px] text-blue-300 flex items-start gap-2">
+                                <div className="mt-0.5">ℹ️</div>
+                                <div>
+                                    <strong className="block mb-0.5">Input Feature Policy</strong>
+                                    Non-numeric columns (e.g. timestamps) are automatically excluded from the model input. Future updates will allow custom encoding strategies.
+                                </div>
+                            </div>
+
                             {/* Validation Status */}
                             {selectedDataset && (
                                 <div className="mt-3">

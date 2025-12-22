@@ -65,7 +65,9 @@ class EnvFlex(gym.Env):
         
         # Observation Space: Defined dynamically based on dataframe columns
         # We'll use a Box space for now, assuming normalized features
-        n_features = len(self.data.columns) + 5 # features + internal stateCols
+        # Only count numeric columns because _get_state() filters out others (like ts_utc)
+        numeric_cols = self.data.select_dtypes(include=[np.number]).columns
+        n_features = len(numeric_cols) + 5 # features + internal stateCols
         self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(window_size, n_features), dtype=np.float32)
 
         self.reset()

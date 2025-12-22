@@ -15,6 +15,9 @@ except ImportError:
     tf = None
     keras = None
     layers = None
+# tf = None
+# keras = None
+# layers = None
 
 def load_dataset_as_dataframe(db: Session, dataset_id: str) -> pd.DataFrame:
     """

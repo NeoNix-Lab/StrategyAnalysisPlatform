@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Play, Activity, Clock, ArrowLeft, Terminal } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import TrainingCharts from './components/TrainingCharts';
 
 const MlTrainingRun = () => {
     const { sessionId, iterationId } = useParams();
@@ -15,20 +15,27 @@ const MlTrainingRun = () => {
     const [iteration, setIteration] = useState(null);
     const [status, setStatus] = useState('LOADING');
     const [logs, setLogs] = useState([]);
-    const [chartData, setChartData] = useState([]);
+
+    // Chart Data Source (Real Metrics)
+    const [historyMetrics, setHistoryMetrics] = useState([]);
 
     const fetchStatus = async () => {
         try {
-            const res = await fetch(`http://localhost:8000/api/ml/studio/sessions/${sessionId}`);
-            const data = await res.json();
-            const iter = data.iterations.find(i => i.iteration_id === iterationId);
-            if (iter) {
-                setIteration(iter);
-                setStatus(iter.status);
+            // Fetch specific iteration details (including metrics)
+            const res = await fetch(`http://localhost:8000/api/ml/studio/iterations/${iterationId}`);
+            if (!res.ok) throw new Error("Failed to fetch iteration");
 
-                // Parse metrics for error
-                if (iter.metrics_json && iter.metrics_json.error) {
+            const iter = await res.json();
+            setIteration(iter);
+            setStatus(iter.status);
+
+            // Parse metrics for error and history
+            if (iter.metrics_json) {
+                if (iter.metrics_json.error) {
                     setErrorMsg(iter.metrics_json.error);
+                }
+                if (iter.metrics_json.history) {
+                    setHistoryMetrics(iter.metrics_json.history);
                 }
             }
 
@@ -44,28 +51,15 @@ const MlTrainingRun = () => {
     };
 
     useEffect(() => {
+        // Initial fetch
         fetchStatus();
-        const interval = setInterval(fetchStatus, 2000); // Poll faster
-        return () => clearInterval(interval);
-    }, [sessionId, iterationId]);
 
-    // ... (keep chart logic but remove fake log generation if real logs exist) ...
-    // Note: The previous chart mock data effect was generating fake logs. We should disable that if we have real logs.
-    // For now, I will keep the chart mock but remove the log generation part of it.
-
-    useEffect(() => {
-        if (status === 'RUNNING') {
-            const interval = setInterval(() => {
-                setChartData(prev => {
-                    const epoch = prev.length + 1;
-                    const loss = Math.max(0.1, 2.0 * Math.exp(-0.1 * epoch) + (Math.random() * 0.1));
-                    return [...prev, { epoch, loss }];
-                });
-                // REMOVED FAKE LOG GENERATION
-            }, 1000);
+        // Poll only if active
+        if (status === 'RUNNING' || status === 'QUEUED' || status === 'LOADING' || status === 'PENDING') {
+            const interval = setInterval(fetchStatus, 2000);
             return () => clearInterval(interval);
         }
-    }, [status]);
+    }, [sessionId, iterationId, status]);
 
 
     const handleStart = async () => {
@@ -158,23 +152,23 @@ const MlTrainingRun = () => {
                 {/* Main Chart Area */}
                 <div className="lg:col-span-2 bg-slate-800 rounded-xl border border-slate-700 p-4 flex flex-col">
                     <h3 className="text-sm font-medium text-slate-400 mb-4 flex items-center gap-2">
-                        <Activity size={16} /> Live Metrics (Loss)
+                        <Activity size={16} className="text-blue-400" />
+                        Live Metrics
                     </h3>
-                    <div className="flex-1 bg-slate-900/50 rounded-lg p-2">
-                        {/* Chart Component (Keep existing) */}
-                        <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={chartData}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                                <XAxis dataKey="epoch" stroke="#94a3b8" />
-                                <YAxis stroke="#94a3b8" />
-                                <Tooltip
-                                    contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155' }}
-                                    itemStyle={{ color: '#e2e8f0' }}
-                                />
-                                <Line type="monotone" dataKey="loss" stroke="#8b5cf6" strokeWidth={2} dot={false} />
-                            </LineChart>
-                        </ResponsiveContainer>
-                    </div>
+
+                    {/* Charts Component */}
+                    <TrainingCharts data={historyMetrics} />
+
+                    {/* If no data yet */}
+                    {historyMetrics.length === 0 && (
+                        <div className="flex-1 bg-slate-900/50 rounded-lg border border-slate-700/50 flex items-center justify-center relative overflow-hidden h-[300px]">
+                            <div className="text-center z-10">
+                                <Activity size={48} className="text-slate-600 mx-auto mb-2" />
+                                <p className="text-slate-500 text-sm">Waiting for first epoch data...</p>
+                                <p className="text-slate-600 text-xs mt-1">Metrics update every epoch</p>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Sidebar Logs */}
