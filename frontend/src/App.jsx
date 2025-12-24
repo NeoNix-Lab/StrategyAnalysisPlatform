@@ -25,6 +25,7 @@ import MlStudioLayout from './pages/ml/MlStudioLayout'
 import MlRewardFunctions from './pages/ml/MlRewardFunctions'
 import MlModelArchitectures from './pages/ml/MlModelArchitectures'
 import MlTrainingProcesses from './pages/ml/MlTrainingProcesses'
+import MlModelRegistry from './pages/ml/MlModelRegistry'
 import './App.css'
 
 function App() {
@@ -59,6 +60,7 @@ function App() {
                 <Route path="ml/studio" element={<MlStudioLayout />}>
                     <Route index element={<MlDashboard />} />
                     <Route path="compose" element={<MlCompose />} />
+                    <Route path="registry" element={<MlModelRegistry />} />
                     <Route path="rewards" element={<MlRewardFunctions />} />
                     <Route path="models" element={<MlModelArchitectures />} />
                     <Route path="processes" element={<MlTrainingProcesses />} />

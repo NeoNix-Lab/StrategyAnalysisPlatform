@@ -1,25 +1,41 @@
-from src.database.connection import SessionLocal
-from src.database.models import MlIteration
-import json
+
 import sys
+import os
 
-# Ensure we can print utf-8
-sys.stdout.reconfigure(encoding='utf-8')
+# Add src to path
+sys.path.append(os.getcwd())
 
-db = SessionLocal()
-iterations = db.query(MlIteration).filter(MlIteration.status == "RUNNING").all()
+from src.database.connection import SessionLocal
+from src.services.analytics import StandardAnalyzer
+import traceback
 
-print(f"Found {len(iterations)} running iterations.")
-
-for iter in iterations:
-    print(f"Iteration: {iter.iteration_id}")
-    print(f"Metrics JSON Type: {type(iter.metrics_json)}")
+def test_metrics(run_id):
+    db = SessionLocal()
     try:
-        # Dump to string to see exact content
-        print("Metrics JSON Content:")
-        print(json.dumps(iter.metrics_json, indent=2))
+        print(f"Testing metrics for Run ID: {run_id}")
+        analyzer = StandardAnalyzer(db)
+        metrics = analyzer.calculate_portfolio_metrics(run_id=run_id)
+        print("Metrics calculated successfully:")
+        print(metrics)
+        
+        import json
+        print("Testing JSON Serialization...")
+        # FastAPI might fail on numpy types if not handled
+        json.dumps(metrics) 
+        print("JSON Serialization SUCCESS")
+    except TypeError as te:
+        print(f"JSON Serialization FAILED: {te}")
     except Exception as e:
-        print(f"Error dumping json: {e}")
-        print(f"Raw content: {iter.metrics_json}")
+        print("CRASHED:")
+        traceback.print_exc()
+    finally:
+        db.close()
+
+if __name__ == "__main__":
+    # Use the ID from the logs: 758c4c9b-fb58-41ac-bd5b-1bab64210107
+    # Or just grab the last run
+    run_id = "758c4c9b-fb58-41ac-bd5b-1bab64210107"
+    if len(sys.argv) > 1:
+        run_id = sys.argv[1]
     
-db.close()
+    test_metrics(run_id)

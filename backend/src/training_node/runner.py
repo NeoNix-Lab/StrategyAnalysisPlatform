@@ -50,6 +50,10 @@ class TrainingRunner:
         self.log_dir = os.path.join(os.getcwd(), "logs", "ml")
         os.makedirs(self.log_dir, exist_ok=True)
         self.log_path = os.path.join(self.log_dir, f"{self.iteration_id}.log")
+
+        # Artifacts
+        self.artifact_dir = os.path.join(os.getcwd(), "models", "ml_artifacts")
+        os.makedirs(self.artifact_dir, exist_ok=True)
         
     def log(self, message: str):
         timestamp = datetime.utcnow().isoformat()
@@ -95,12 +99,86 @@ class TrainingRunner:
         self.iteration.start_utc = datetime.utcnow()
         self.db.commit()
 
+        # [NEW] If Test Mode (Backtest), ensure we have a StrategyRun structure for the Analyst
+        # Check if we are in test mode (need access to split_config early, or check it here)
+        split_config = self.iteration.split_config_json or {}
+        if split_config.get("test_only", False):
+            self._ensure_strategy_run_structure()
+
+    def _ensure_strategy_run_structure(self):
+        """
+        Creates Strategy -> Instance -> Run hierarchy so Analyst can see metrics/trades.
+        Uses iteration_id as the run_id.
+        """
+        from src.database.models import Strategy, StrategyInstance, StrategyRun, RunType, RunStatus
+        import uuid
+        
+        # 1. Ensure "ML Models" Strategy exists
+        strat = self.db.query(Strategy).filter(Strategy.name == "ML Models").first()
+        if not strat:
+            strat = Strategy(
+                strategy_id=str(uuid.uuid4()),
+                name="ML Models",
+                notes="Container for ML Training/Inference runs"
+            )
+            self.db.add(strat)
+            self.db.flush()
+            
+        # 2. Ensure Instance exists for this Session (or Process/Model combo)
+        # We use the Session Name as the Instance Name
+        instance_name = self.session_config.name
+        instance = self.db.query(StrategyInstance).filter(
+            StrategyInstance.strategy_id == strat.strategy_id,
+            StrategyInstance.instance_name == instance_name
+        ).first()
+        
+        if not instance:
+            instance = StrategyInstance(
+                instance_id=str(uuid.uuid4()),
+                strategy_id=strat.strategy_id,
+                instance_name=instance_name,
+                parameters_json={},
+                symbol="MULTI", # Unknown until data loaded? Or generic.
+                timeframe="N/A"
+            )
+            self.db.add(instance)
+            self.db.flush()
+            
+        # 3. Create StrategyRun (if not exists - iteration_id is the key)
+        # Note: iteration_id is used as run_id
+        run_obj = self.db.query(StrategyRun).get(self.iteration.iteration_id)
+        if not run_obj:
+            run_obj = StrategyRun(
+                run_id=self.iteration.iteration_id, # Link ML Iteration to Strategy Run 1:1
+                instance_id=instance.instance_id,
+                run_type=RunType.BACKTEST,
+                status=RunStatus.RUNNING,
+                start_utc=datetime.utcnow(),
+                metrics_json={}
+            )
+            self.db.add(run_obj)
+            self.db.commit()
+            self.log(f"Created StrategyRun for Analyst Integration (RunID: {self.iteration.iteration_id})")
+
     def _setup_environment(self):
         self.log("Loading Dataset...")
         df_data = load_dataset_as_dataframe(self.db, self.iteration.dataset_id)
         self.log(f"[VERBOSE] Dataset Loaded. Shape: {df_data.shape}")
         self.log(f"[VERBOSE] Columns: {list(df_data.columns)}")
         
+        # [NEW] Dataset Splitting Logic
+        split_config = self.iteration.split_config_json or {}
+        is_test_mode = split_config.get("test_only", False)
+        
+        if is_test_mode:
+             self.log(f"Test Mode: Using full dataset for inference ({len(df_data)} rows).")
+        else:
+             # Training: Slice by train_ratio
+             train_ratio = split_config.get("train", 0.7)
+             cutoff = int(len(df_data) * train_ratio)
+             self.log(f"Training Mode: Using first {train_ratio*100:.1f}% of data ({cutoff} rows).")
+             df_data = df_data.iloc[:cutoff].copy()
+
         self.log("Compiling Reward Function...")
         reward_fn = get_reward_function(self.db, self.reward_func_record.function_id)
         
@@ -144,6 +222,38 @@ class TrainingRunner:
         
         self.main_network.compile(optimizer=optimizer_name, loss=loss_fn)
         
+        # Check for pre-trained weights
+        split_config = self.iteration.split_config_json or {}
+        # Explicit check for test mode to enforce loading
+        is_test_mode = split_config.get("test_only", False)
+        
+        load_source_id = split_config.get("load_from_iteration_id")
+        source_path = split_config.get("source_model_path")
+
+        if load_source_id and source_path:
+            self.log(f"Attempting to load weights from: {source_path}")
+            
+            # Resolve absolute path if just a filename is stored
+            if not os.path.isabs(source_path):
+                # Assume it's in our artifact bucket
+                source_path = os.path.join(self.artifact_dir, os.path.basename(source_path))
+
+            try:
+                if os.path.exists(source_path):
+                    self.main_network.load_weights(source_path)
+                    self.log(f"Weights loaded successfully from {source_path}")
+                else:
+                    msg = f"Source model file not found at {source_path}"
+                    if is_test_mode:
+                        self.log(f"CRITICAL: {msg}. Aborting Test because model is missing.")
+                        raise FileNotFoundError(msg)
+                    else:
+                         self.log(f"WARNING: {msg}. Starting training from scratch.")
+            except Exception as e:
+                self.log(f"ERROR loading weights: {e}")
+                if is_test_mode:
+                    raise e
+        
         # Target Network
         self.target_network = tf.keras.models.clone_model(self.main_network)
         self.target_network.set_weights(self.main_network.get_weights())
@@ -153,12 +263,25 @@ class TrainingRunner:
         self.log(f"[VERBOSE] Replay Buffer Initialized (Capacity: 50000)")
 
     def _training_loop(self):
+        from src.database.models import Trade, Side, StrategyRun, RunStatus
+        import uuid
+
+        # Check test mode
+        split_config = self.iteration.split_config_json or {}
+        is_test_mode = split_config.get("test_only", False)
+        
         epochs = self.process.epochs
         batch_size = self.process.batch_size
         gamma = self.process.gamma
         tau = self.process.tau
+
+        if is_test_mode:
+            self.epsilon = 0.0
+            self.process.epsilon_end = 0.0
+            self.log("[TEST MODE] Epsilon set to 0. Training disabled.")
+            epochs = 1 # Single pass for evaluation default
         
-        self.log(f"Starting Training Loop for {epochs} episodes...")
+        self.log(f"Starting {'Testing' if is_test_mode else 'Training'} Loop for {epochs} episodes...")
         self.log(f"[VERBOSE] Parameters: Gamma={gamma}, Tau={tau}, Batch={batch_size}, Epsilon={self.epsilon}")
         
         # Metrics History
@@ -175,6 +298,9 @@ class TrainingRunner:
             episode_loss = 0
             train_steps = 0
             
+            # [Test Mode] Trade Tracking State
+            open_position = None # {entry_price, entry_step, side, qty}
+            
             while not done:
                 # 1. Action Selection (Epsilon Greedy)
                 if tf and np.random.rand() < self.epsilon:
@@ -185,10 +311,72 @@ class TrainingRunner:
                 else:
                     action = np.random.randint(3) # Simulation
 
+                # Capture State BEFORE Step
+                prev_pos_idx = self.env.position
+                prev_step_idx = self.env.current_step # This index matches df_data index for timestamps? 
+                
                 # 2. Step
                 next_state_raw, reward, done, _ = self.env.step(action)
                 next_state = np.expand_dims(next_state_raw, axis=0)
                 
+                # Check for Position Change (Trade Event)
+                if is_test_mode:
+                    curr_pos_idx = self.env.position
+                    
+                    # Logic 1: Opened a Position (Flat -> Long/Short)
+                    if prev_pos_idx == 0 and curr_pos_idx != 0:
+                        open_position = {
+                            "entry_price": self.env.entry_price,
+                            "entry_step": prev_step_idx, # The step where decision was made
+                            "side": Side.BUY if curr_pos_idx == 1 else Side.SELL, 
+                            "qty": self.env.qty,
+                            "ts": getattr(self.env.observation_dataframe.iloc[prev_step_idx], 'ts_utc', datetime.utcnow())
+                        }
+                    
+                    # Logic 2: Closed a Position (Long/Short -> Flat)
+                    elif prev_pos_idx != 0 and curr_pos_idx == 0:
+                        if open_position:
+                            exit_price = self.env.data.at[prev_step_idx, 'close'] # Close at current step price?
+                            # Re-verify logic: env.step updates current_step. 
+                            # If action closed it, it executed at price of 'prev_step_idx' (current bar).
+                            
+                            # Calculate PnL
+                            pnl = 0
+                            if open_position['side'] == Side.BUY:
+                                pnl = (exit_price - open_position['entry_price']) * open_position['qty']
+                            else:
+                                pnl = (open_position['entry_price'] - exit_price) * open_position['qty']
+                                
+                            # Save Trade
+                            try:
+                                t = Trade(
+                                    trade_id=str(uuid.uuid4()),
+                                    run_id=self.iteration.iteration_id,
+                                    symbol="N/A", # Need symbol from Env or Dataset!
+                                    side=open_position['side'],
+                                    entry_time=open_position['ts'], # Use TS from DF
+                                    exit_time=getattr(self.env.observation_dataframe.iloc[prev_step_idx], 'ts_utc', datetime.utcnow()),
+                                    entry_price=open_position['entry_price'],
+                                    exit_price=exit_price,
+                                    quantity=open_position['qty'],
+                                    pnl_net=pnl,
+                                    pnl_gross=pnl,
+                                    commission=0.0
+                                )
+                                self.db.add(t)
+                                self.db.commit() # Commit trade
+                            except Exception as te:
+                                self.log(f"Error saving trade: {te}")
+                            
+                            open_position = None
+
+                    # Logic 3: Reversal (Long -> Short or Short -> Long)
+                    # Not handled in simple env logic usually (goes to flat first), but good to keep in mind.
+
+                # [DEBUG] Log first 10 steps
+                if step_count < 10:
+                     self.log(f"[DEBUG] Step {step_count} | Action: {action} ({['HOLD','BUY','SELL'][action]}) | Pos: {self.env.position} | Reward: {reward:.4f}")
+
                 total_reward += reward
                 
                 # 3. Store Experience
@@ -199,12 +387,52 @@ class TrainingRunner:
                 step_count += 1
                 
                 # 4. Train
-                if tf and self.replay_buffer and len(self.replay_buffer) > batch_size:
+                if not is_test_mode and tf and self.replay_buffer and len(self.replay_buffer) > batch_size:
                     loss = self._train_step(batch_size, gamma)
                     if loss is not None:
                         episode_loss += loss
                         train_steps += 1
             
+            # Force Close Open Position at End of Episode
+            if is_test_mode and open_position:
+                # Use last known price
+                last_step_idx = self.env.current_step - 1
+                try:
+                    exit_price = self.env.data.at[last_step_idx, 'close']
+                except:
+                    # Fallback if index issue
+                    exit_price = open_position['entry_price'] 
+                
+                # Calculate PnL
+                pnl = 0
+                if open_position['side'] == Side.BUY:
+                    pnl = (exit_price - open_position['entry_price']) * open_position['qty']
+                else:
+                    pnl = (open_position['entry_price'] - exit_price) * open_position['qty']
+                
+                # Save Trade
+                try:
+                    t = Trade(
+                        trade_id=str(uuid.uuid4()),
+                        run_id=self.iteration.iteration_id,
+                        symbol="Backtest", # Placeholder
+                        side=open_position['side'],
+                        entry_time=open_position['ts'],
+                        exit_time=datetime.utcnow(), # Or dataset end time
+                        entry_price=open_position['entry_price'],
+                        exit_price=exit_price,
+                        quantity=open_position['qty'],
+                        pnl_net=pnl,
+                        pnl_gross=pnl,
+                        commission=0.0,
+                        extra_json={"note": "Force Closed at End of Backtest"}
+                    )
+                    self.db.add(t)
+                    self.db.commit()
+                    self.log(f"Force closed remaining position. PnL: {pnl:.2f}")
+                except Exception as te:
+                    self.log(f"Error saving force-close trade: {te}")
+
             # End of Episode
             avg_loss = episode_loss / train_steps if train_steps > 0 else 0
             
@@ -214,24 +442,31 @@ class TrainingRunner:
                  self.log(f"[VERBOSE] Episode {episode+1} Done. Reward: {total_reward:.2f}")
             
             # Decay Epsilon
-            if self.epsilon > self.process.epsilon_end:
+            if not is_test_mode and self.epsilon > self.process.epsilon_end:
                 self.epsilon *= self.process.epsilon_decay
                 
-            # Periodic Update to DB (e.g. every epoch)
             metrics_entry = {
                 "epoch": episode + 1,
                 "reward": float(total_reward),
                 "loss": float(avg_loss),
-                "epsilon": float(self.epsilon)
+                "epsilon": float(self.epsilon),
+                "balance": float(total_reward) 
             }
             history.append(metrics_entry)
             self._update_metrics(history)
             
-            # Check for cancellation
             if self._check_cancellation():
                 self.log("Training cancelled by user.")
                 self._finish_run(status="CANCELLED")
                 return
+
+        # If Test Mode, Mark StrategyRun as COMPLETED
+        if is_test_mode:
+            strat_run = self.db.query(StrategyRun).get(self.iteration.iteration_id)
+            if strat_run:
+                strat_run.status = RunStatus.COMPLETED
+                strat_run.end_utc = datetime.utcnow()
+                self.db.commit()
 
     def _check_cancellation(self) -> bool:
         """
@@ -326,9 +561,14 @@ class TrainingRunner:
         # Save Model Artifact
         if status == "COMPLETED" and self.main_network:
             filename = f"model_{self.iteration_id}.h5"
-            # In a real app, save to a dedicated artifacts folder
-            # self.main_network.save(filename)
-            self.iteration.model_artifact_path = filename
-            self.log(f"Model saved to {filename}")
+            full_path = os.path.join(self.artifact_dir, filename)
+            
+            try:
+                self.main_network.save(full_path)
+                self.iteration.model_artifact_path = filename # Store relative filename or absolute?
+                # Probably better to store just filename if we always re-construct self.artifact_dir
+                self.log(f"Model saved to {full_path}")
+            except Exception as e:
+                self.log(f"Error saving model: {e}")
 
         self.db.commit()

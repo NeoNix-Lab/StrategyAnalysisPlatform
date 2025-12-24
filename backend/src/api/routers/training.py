@@ -8,14 +8,12 @@ import pandas as pd
 import json
 
 from src.database.connection import get_db
-from src.database.models import StrategyRun, StrategyInstance, MarketSeries, MarketBar
+from src.database.models import StrategyRun, StrategyInstance, MarketSeries, MarketBar, MlIteration, MlTrainingSession, MlTrainingProcess, MlModelArchitecture, Dataset
+from src.training_node.job_manager import job_manager
 
 router = APIRouter(
     tags=["Training Service"]
 )
-
-# Should be loaded from env
-TRAINING_SERVICE_URL = os.getenv("TRAINING_SERVICE_URL", "http://localhost:5000")
 
 # --- Schemas ---
 # Match Training Node Schemas
@@ -42,107 +40,109 @@ class StartTrainingRequest(BaseModel):
 @router.post("/start")
 async def start_training(request: StartTrainingRequest, db: Session = Depends(get_db)):
     """
-    Orchestrates the training job:
-    1. Fetches data for the given dataset_id from DB.
-    2. Constructs the payload.
-    3. Proxies to Training Node.
+    Starts a training job using the local JobManager (Multiprocessing).
     """
-    # 1. Fetch Dataset
-    from src.database.models import Dataset
+    # 1. Validation
     dataset = db.query(Dataset).get(request.dataset_id)
     if not dataset:
         raise HTTPException(status_code=404, detail="Dataset not found")
+
+    # 2. Create DB Records (Session, Process, Model, Iteration)
+    # This replaces the need for the "Proxy Payload" since we share the DB.
     
-    sources = dataset.sources_json
-    if not sources:
-        raise HTTPException(status_code=400, detail="Dataset has no sources")
-
-    all_data = []
-
-    # 2. Iterate Sources and Accumulate Data
-    for src in sources:
-        run_id = src.get("run_id")
-        symbol = src.get("symbol")
-        timeframe = src.get("timeframe")
-
-        if not symbol or not timeframe:
-            # Try to fetch from Run if missing in JSON (redundancy)
-            run = db.query(StrategyRun).get(run_id)
-            if run and run.instance:
-                symbol = run.instance.symbol
-                timeframe = run.instance.timeframe
-        
-        if not symbol or not timeframe:
-            print(f"Skipping source {run_id}: Missing symbol/timeframe")
-            continue
-
-        # Find Market Series
-        m_series = db.query(MarketSeries).filter(
-            MarketSeries.symbol == symbol,
-            MarketSeries.timeframe == timeframe
-        ).first()
-
-        if not m_series:
-             # Skip or error? Warn and skip for robustness.
-             print(f"Warning: Market data not found for {symbol} {timeframe}")
-             continue
-
-        # Load Bars
-        # Optional: Apply time range filter if dataset supports it (future)
-        stmt = db.query(MarketBar).filter(MarketBar.series_id == m_series.series_id).order_by(MarketBar.ts_utc.asc()).statement
-        df_bars = pd.read_sql(stmt, db.connection())
-
-        if df_bars.empty:
-             continue
-
-        keep_cols = ['open', 'high', 'low', 'close', 'volume']
-        # Ensure cols exist
-        available_cols = [c for c in keep_cols if c in df_bars.columns]
-        
-        df_clean = df_bars[available_cols].copy()
-        
-        # Add to accumulator
-        # We might want to add a 'reset' flag or similar if the env supports it, 
-        # but for now we just concat.
-        all_data.extend(df_clean.to_dict(orient='records'))
-
-    if not all_data:
-        raise HTTPException(status_code=400, detail="No data could be fetched for this dataset")
-
-    # 3. Construct Proxy Payload
-    # We use dataset_id as the run_id for the microservice context
-    proxy_payload = {
-        "run_id": request.dataset_id, 
-        "model_architecture": [l.dict() for l in request.model_architecture],
-        "training_params": request.training_params.dict(),
-        "data": all_data 
-    }
+    # 2a. Process Config
+    process = MlTrainingProcess(
+        process_id=f"proc_{int(pd.Timestamp.utcnow().timestamp())}",
+        name=f"Process {request.dataset_id[:8]}",
+        batch_size=request.training_params.batch_size,
+        epochs=request.training_params.epochs,
+        gamma=request.training_params.gamma,
+        tau=request.training_params.tau,
+        epsilon_start=request.training_params.epsilon_start,
+        epsilon_end=request.training_params.epsilon_end,
+        learning_rate=request.training_params.learning_rate,
+        window_size=request.training_params.window_size
+    )
+    db.add(process)
     
-    # 4. Send
-    async with httpx.AsyncClient() as client:
-        try:
-            # high timeout for large datasets
-            response = await client.post(f"{TRAINING_SERVICE_URL}/train", json=proxy_payload, timeout=60.0)
-            response.raise_for_status()
-            
-            result = response.json()
-            # result contains {"job_id": "...", "status": "PENDING"}
-            return result
-            
-        except httpx.ConnectError:
-            raise HTTPException(status_code=503, detail="Training Service unavailable")
-        except httpx.TimeoutException:
-            raise HTTPException(status_code=504, detail="Training Service timeout (data too large?)")
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Proxy Error: {str(e)}")
+    # 2b. Model Architecture
+    model = MlModelArchitecture(
+        model_id=f"arch_{int(pd.Timestamp.utcnow().timestamp())}",
+        name="Custom Arch",
+        layers_json=[l.dict() for l in request.model_architecture]
+    )
+    db.add(model)
+    
+    # 2c. Session
+    session = MlTrainingSession(
+        session_id=f"sess_{int(pd.Timestamp.utcnow().timestamp())}",
+        name=f"Session {pd.Timestamp.utcnow()}",
+        model=model,
+        process=process,
+        status="ACTIVE"
+    )
+    db.add(session)
+    
+    # 2d. Iteration (The actual run)
+    iteration_id = f"iter_{int(pd.Timestamp.utcnow().timestamp())}"
+    iteration = MlIteration(
+        iteration_id=iteration_id,
+        session=session,
+        dataset_id=dataset.dataset_id,
+        name="Iteration 1",
+        status="PENDING",
+        split_config_json={"train_ratio": 0.8}, # Default
+        start_utc=pd.Timestamp.utcnow()
+    )
+    db.add(iteration)
+    db.commit()
+    
+    # 3. Start Job via Manager
+    try:
+        pid = job_manager.start_job(iteration_id)
+        return {"job_id": iteration_id, "pid": pid, "status": "PENDING"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/status/{job_id}")
-async def check_status(job_id: str):
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.get(f"{TRAINING_SERVICE_URL}/status/{job_id}")
-            return response.json()
-        except httpx.ConnectError:
-            raise HTTPException(status_code=503, detail="Training Service unavailable")
-        except Exception as e:
-             raise HTTPException(status_code=500, detail=str(e))
+async def check_status(job_id: str, db: Session = Depends(get_db)):
+    # Check DB first for truth
+    iteration = db.query(MlIteration).get(job_id)
+    if not iteration:
+        raise HTTPException(status_code=404, detail="Job not found")
+        
+    # Check Process Manager for liveness
+    manager_status = job_manager.get_job_status(job_id)
+    
+    # If DB says RUNNING but Manager says STOPPED, it might have crashed without updating DB
+    # or it finished very quickly.
+    # We trust DB status if it's COMPLETED or FAILED.
+    # If DB is RUNNING and Manager is STOPPED, we might need to flag it? 
+    # For now strict return.
+    
+    return {
+        "job_id": job_id,
+        "status": iteration.status,
+        "process_status": manager_status,
+        "metrics": iteration.metrics_json,
+        "logs": [] # Frontend uses file polling usually, or we could tail memory logs
+    }
+
+@router.post("/stop/{job_id}")
+async def stop_training(job_id: str, db: Session = Depends(get_db)):
+    # 1. Check DB
+    iteration = db.query(MlIteration).get(job_id)
+    if not iteration:
+        raise HTTPException(status_code=404, detail="Job not found")
+        
+    # 2. Update DB to help runner exit gracefully
+    iteration.status = "CANCELLING"
+    db.commit()
+    
+    # 3. Force Kill via Manager
+    was_running = job_manager.stop_job(job_id)
+    
+    return {"status": "CANCELED", "was_running": was_running}
+

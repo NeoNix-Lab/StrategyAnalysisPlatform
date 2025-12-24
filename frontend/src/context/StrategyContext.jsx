@@ -58,6 +58,12 @@ export const StrategyProvider = ({ children }) => {
         fetchInstances()
     }, [selectedStrategy])
 
+    // Track selectedRun without triggering strict dependency loops
+    const selectedRunRef = React.useRef(selectedRun)
+    useEffect(() => {
+        selectedRunRef.current = selectedRun
+    }, [selectedRun])
+
     // Fetch Runs
     useEffect(() => {
         if (!selectedInstance) {
@@ -72,8 +78,13 @@ export const StrategyProvider = ({ children }) => {
                 // Sort descending by start_utc
                 const sorted = res.data.sort((a, b) => new Date(b.start_utc) - new Date(a.start_utc))
                 setRuns(sorted)
+
                 if (sorted.length > 0) {
-                    setSelectedRun(sorted[0].run_id)
+                    // [FIX] Only auto-select default if current selection is invalid for this instance
+                    const currentIsValid = sorted.some(r => r.run_id === selectedRunRef.current)
+                    if (!currentIsValid) {
+                        setSelectedRun(sorted[0].run_id)
+                    }
                 } else {
                     setSelectedRun(null)
                 }

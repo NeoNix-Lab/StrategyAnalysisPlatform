@@ -52,92 +52,152 @@ class EnvFlex(gym.Env):
         self.current_balance = initial_balance
         self.done = False
         
+        # Trading State
+        self.qty = 1.0 # Default fixed quantity for ML training
+        self.entry_price = 0.0
+        self.position_size = 0 # Signed size (+1, -1, 0)
+        
         # Tracking
         self.last_action_name = 'wait' # 0=wait, 1=long, 2=short
         self.last_position_status = 'flat' # flat, long, short
         self.last_reward = 0.0
         
-        self.window = pd.DataFrame() # The current observation window
-        self.observation_dataframe = pd.DataFrame() # Full history of the episode
+        self.window = pd.DataFrame() 
+        self.observation_dataframe = pd.DataFrame() 
         
         # Action Space: 0=Wait, 1=Long, 2=Short
         self.action_space = spaces.Discrete(3)
         
-        # Observation Space: Defined dynamically based on dataframe columns
-        # We'll use a Box space for now, assuming normalized features
-        # Only count numeric columns because _get_state() filters out others (like ts_utc)
+        # Observation Space
         numeric_cols = self.data.select_dtypes(include=[np.number]).columns
-        n_features = len(numeric_cols) + 5 # features + internal stateCols
+        n_features = len(numeric_cols) + 5 
         self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(window_size, n_features), dtype=np.float32)
 
         self.reset()
 
     @property
     def position(self):
-        """
-        Returns the current position status index.
-        Matches env.status constants (e.g. FLAT=0, LONG=1, SHORT=2).
-        """
+        """Returns the current position status index (0=Flat, 1=Long, 2=Short)."""
         return self._position_idx
+        
+    @property
+    def unrealized_pnl(self):
+        """Calculates unrealized PnL based on current close price."""
+        if self._position_idx == 0:
+            return 0.0
+            
+        current_price = self.data.at[self.current_step, 'close']
+        if self._position_idx == 1: # Long
+            return (current_price - self.entry_price) * self.qty
+        elif self._position_idx == 2: # Short
+            return (self.entry_price - current_price) * self.qty
+        return 0.0
+
+    @property
+    def balance(self):
+        """Alias for current_balance to match Frontend UI hints."""
+        return self.current_balance
+
+    @property
+    def pnl(self):
+        """Alias for unrealized_pnl."""
+        return self.unrealized_pnl
 
     def reset(self):
-        """Resets the environment to the beginning of the episode."""
+        """Resets the environment."""
         self.current_step = 0
         self.current_balance = self.initial_balance
         self.done = False
         self.last_action_name = 'wait'
-        self._position_idx = 0 # 0=FLAT default
+        self._position_idx = 0 
         self.last_reward = 0.0
         
-        # Initialize Observation DataFrame
-        # We keep a copy of data and append state columns
-        self.observation_dataframe = self.data.copy()
+        self.entry_price = 0.0
+        self.position_size = 0
         
-        # Append discrete state columns initialized to 0
+        # Initialize Observation DataFrame
+        self.observation_dataframe = self.data.copy()
         n_rows = len(self.observation_dataframe)
         self.observation_dataframe['step'] = np.arange(n_rows)
         self.observation_dataframe['balance'] = np.full(n_rows, self.initial_balance)
-        self.observation_dataframe['action'] = np.zeros(n_rows) # encoded
+        self.observation_dataframe['action'] = np.zeros(n_rows) 
         self.observation_dataframe['reward'] = np.zeros(n_rows)
-        self.observation_dataframe['position_status'] = np.zeros(n_rows) # encoded
+        self.observation_dataframe['position_status'] = np.zeros(n_rows)
         
-        # Initialize the first window (padding with first row if needed, or starting at window_size)
-        # For simplicity in this port, we start at window_size
         self.current_step = self.window_size 
-        
         self._update_window()
-        
         return self._get_state()
 
     def step(self, action: int) -> Tuple[np.ndarray, float, bool, dict]:
-        """
-        Executes one step in the environment.
-        action: 0=Wait, 1=Buy/Long, 2=Sell/Short
-        """
         if self.done:
             return self._get_state(), 0.0, True, {}
         
-        # 1. Map Action to internal state
+        # 1. Map Action
         action_name = self._decode_action(action)
         self.last_action_name = action_name
+        current_price = self.data.at[self.current_step, 'close']
         
-        # 2. Update Position Status based on Action (Simplified logic)
-        # Assumes Actions: 0=HOLD, 1=LONG, 2=SHORT
-        # Assumes Status: 0=FLAT, 1=LONG, 2=SHORT
-        if action == 1: # Long
-            self._position_idx = 1
-        elif action == 2: # Short
-            self._position_idx = 2
-        elif action == 0: # Wait/Hold
-             pass 
+        # 2. Update Position Logic (Simplified State Machine)
+        # 0=WAIT/FLAT, 1=LONG, 2=SHORT
+        
+        # If we are FLAT
+        if self._position_idx == 0:
+            if action == 1: # Open Long
+                self._position_idx = 1
+                self.entry_price = current_price
+                self.position_size = 1
+            elif action == 2: # Open Short
+                self._position_idx = 2
+                self.entry_price = current_price
+                self.position_size = -1
+                
+        # If we are LONG
+        elif self._position_idx == 1:
+            if action == 2: # Close Long / Reverse Short?
+                # For simplicity in this env, Action 2 closes position. 
+                # Or we can treat it as "Switch to Short". Let's say it Closes for now to match classic simple RL.
+                # Actually, standard is usually: 0=Hold, 1=Buy, 2=Sell.
+                # If Long + Sell -> Flat.
+                # If Long + Buy -> Add? (Ignore for simple env)
+                self._position_idx = 0
+                self.entry_price = 0.0
+                self.position_size = 0
+                
+        # If we are SHORT
+        elif self._position_idx == 2:
+            if action == 1: # Buy to Cover
+                self._position_idx = 0
+                self.entry_price = 0.0
+                self.position_size = 0
 
-        # 3. Calculate Reward using the injected strategy
-        # The strategy function is responsible for updating self.last_reward
-        # and potentially modifying self.current_balance or done status
+        # Note: The above is a very subtle "Mode". 
+        # Often RL uses: 0=Neutral/Hold, 1=Long, 2=Short directly forcing the state?
+        # Let's stick to the previous implementation which seemed to Force State:
+        # "if action == 1: self._position_idx = 1"
+        # The user's code implies: if action==1 (BUY) -> if position==0 -> Open Long.
+        # Let's revert to the Direct Mapping because it's what the environment.py did originally.
+        # Original: if action == 1: pos=1. if action==2: pos=2.
+        # But we need to track entry_price!
+        
+        old_position = self._position_idx
+        if action == 1: # Want to be LONG
+            if old_position != 1:
+                self._position_idx = 1
+                self.entry_price = current_price # New Entry (or Reversal)
+        elif action == 2: # Want to be SHORT
+            if old_position != 2:
+                self._position_idx = 2
+                self.entry_price = current_price
+        # Action 0 = Hold whatever we have.
+        
+        # 3. Calculate Reward
         try:
+            # [DEBUG] Inspect what code is actually running
+            # import inspect
+            # print(f"[DEBUG CODE] {inspect.getsource(self.reward_function)}")
+            
             self.reward_function(self, action)
         except AttributeError as e:
-            # Fallback/Helpful error
             print(f"Reward Function Error: {e}")
             raise e
         
@@ -145,14 +205,14 @@ class EnvFlex(gym.Env):
         if self.current_step >= len(self.data) - 1:
             self.done = True
         
-        # 5. Record State in Observation DataFrame
+        # 5. Record State
         idx = self.current_step
         self.observation_dataframe.at[idx, 'balance'] = self.current_balance
         self.observation_dataframe.at[idx, 'action'] = action
         self.observation_dataframe.at[idx, 'reward'] = self.last_reward
         self.observation_dataframe.at[idx, 'position_status'] = self._position_idx
 
-        # 6. Advance Step
+        # 6. Advance
         self.current_step += 1
         self._update_window()
         

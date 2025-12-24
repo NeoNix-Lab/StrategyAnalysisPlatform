@@ -49,7 +49,7 @@ class StandardAnalyzer:
         
         self.db.commit()
 
-    def calculate_portfolio_metrics(self, strategy_id: str, run_id: str = None) -> dict:
+    def calculate_portfolio_metrics(self, strategy_id: str = None, run_id: str = None) -> dict:
         """
         Calculates aggregate metrics for a strategy or run.
         Includes Phase 1 (Core) and Phase 2 (Risk) metrics.
@@ -103,7 +103,7 @@ class StandardAnalyzer:
         gross_profit = winning_trades['pnl_net'].sum()
         gross_loss = abs(losing_trades['pnl_net'].sum())
         
-        profit_factor = gross_profit / gross_loss if gross_loss > 0 else float('inf')
+        profit_factor = gross_profit / gross_loss if gross_loss > 0 else (gross_profit if gross_profit > 0 else 0.0)
         
         avg_trade = df['pnl_net'].mean()
         net_profit = df['pnl_net'].sum()
@@ -144,9 +144,19 @@ class StandardAnalyzer:
         max_consecutive_losses = streaks[streak_types == False].max() if not streaks[streak_types == False].empty else 0
 
         # [NEW] Fee & Volume Analysis
-        total_fees = sum([e.fee for e in executions]) if executions else 0.0
-        # Simple volume calc: price * qty
-        total_volume = sum([e.price * e.quantity for e in executions]) if executions else 0.0
+        # Fallback to Trade data if Executions are missing (common in ML/Backtest)
+        if executions:
+            total_fees = sum([e.fee for e in executions])
+            total_volume = sum([e.price * e.quantity for e in executions])
+        else:
+            # Estimate from Trades
+            total_fees = df['commission'].sum() if 'commission' in df else 0.0
+            # Volume = Entry Volume + Exit Volume (roughly 2x notional?)
+            # Usually Volume is sum of separate executions. 
+            # If we only have trade summary: (EntryPrice * Qty) + (ExitPrice * Qty)
+            entry_vol = (df['entry_price'] * df['quantity']).sum() if 'entry_price' in df else 0.0
+            exit_vol = (df['exit_price'] * df['quantity']).sum() if 'exit_price' in df else 0.0
+            total_volume = entry_vol + exit_vol
 
         # [NEW] Execution Metrics (Level 5)
         # We need Orders to compare against
@@ -188,41 +198,47 @@ class StandardAnalyzer:
         return {
             # P0
             "total_trades": int(total_trades),
-            "total_fees": round(total_fees, 2),
-            "total_volume": round(total_volume, 2),
+            "total_fees": self._safe_float(total_fees),
+            "total_volume": self._safe_float(total_volume),
             # Level 5
-            "avg_fill_latency": round(avg_fill_latency, 3), # seconds
-            "fill_ratio": round(fill_ratio, 2), # % or ratio
-            "win_rate": round(win_rate * 100, 2),
-            "profit_factor": round(profit_factor, 2),
-            "average_trade": round(avg_trade, 2),
-            "net_profit": round(net_profit, 2),
+            "avg_fill_latency": self._safe_float(avg_fill_latency, 3), 
+            "fill_ratio": self._safe_float(fill_ratio, 2), 
+            "win_rate": self._safe_float(win_rate * 100, 2),
+            "profit_factor": self._safe_float(profit_factor, 2),
+            "average_trade": self._safe_float(avg_trade, 2),
+            "net_profit": self._safe_float(net_profit, 2),
             
             # P1
-            "max_drawdown": round(max_drawdown, 2),
-            "expectancy": round(expectancy, 2),
+            "max_drawdown": self._safe_float(max_drawdown, 2),
+            "expectancy": self._safe_float(expectancy, 2),
             "max_consecutive_wins": int(max_consecutive_wins),
             "max_consecutive_losses": int(max_consecutive_losses),
             
             # P2 (Performance Ratios)
-            # P2 (Performance Ratios) - using Annualized Default (252)
-            "sharpe_ratio": round(self._calculate_sharpe(df['pnl_net'], annualized=True), 2),
-            "sortino_ratio": round(self._calculate_sortino(df['pnl_net'], annualized=True), 2),
-            "calmar_ratio": round(self._calculate_calmar(net_profit, max_drawdown), 2),
+            "sharpe_ratio": self._safe_float(self._calculate_sharpe(df['pnl_net'], annualized=True), 2),
+            "sortino_ratio": self._safe_float(self._calculate_sortino(df['pnl_net'], annualized=True), 2),
+            "calmar_ratio": self._safe_float(self._calculate_calmar(net_profit, max_drawdown), 2),
             
             # [NEW] Equity Curve Data (Simplified for storage/api)
-            # Maybe too large for metrics_json? 
-            # Storing summary stats instead.
-            "equity_curve": equity_curve, # Frontend can use this if passed via API
+            "equity_curve": equity_curve, 
             
             # P2 (Execution Analysis)
-            "avg_mae": round(df['mae'].mean(), 2) if 'mae' in df else 0,
-            "avg_mfe": round(df['mfe'].mean(), 2) if 'mfe' in df else 0,
-            "efficiency_ratio": round(self._calculate_efficiency(df), 2),
-            "stability_r2": round(self._calculate_stability(df), 2),
-            "pnl_skew": self._calculate_distribution_stats(df)['skew'],
-            "pnl_kurtosis": self._calculate_distribution_stats(df)['kurtosis']
+            "avg_mae": self._safe_float(df['mae'].mean(), 2) if 'mae' in df else 0.0,
+            "avg_mfe": self._safe_float(df['mfe'].mean(), 2) if 'mfe' in df else 0.0,
+            "efficiency_ratio": self._safe_float(self._calculate_efficiency(df), 2),
+            "stability_r2": self._safe_float(self._calculate_stability(df), 2),
+            "pnl_skew": self._safe_float(self._calculate_distribution_stats(df)['skew'], 2),
+            "pnl_kurtosis": self._safe_float(self._calculate_distribution_stats(df)['kurtosis'], 2)
         }
+
+    def _safe_float(self, val, precision=2) -> float:
+        try:
+            val = float(val)
+            if np.isnan(val) or np.isinf(val):
+                return 0.0 # Or None, but 0.0 is safer for charts
+            return round(val, precision)
+        except:
+            return 0.0
 
     def _calculate_sharpe(self, returns: pd.Series, annualized: bool = False) -> float:
         if returns.empty or returns.std() == 0:

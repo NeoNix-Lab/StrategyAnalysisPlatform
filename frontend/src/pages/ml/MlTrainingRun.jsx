@@ -18,6 +18,7 @@ const MlTrainingRun = () => {
 
     // Chart Data Source (Real Metrics)
     const [historyMetrics, setHistoryMetrics] = useState([]);
+    const [equityData, setEquityData] = useState([]);
 
     const fetchStatus = async () => {
         try {
@@ -30,14 +31,30 @@ const MlTrainingRun = () => {
             setStatus(iter.status);
 
             // Parse metrics for error and history
-            if (iter.metrics_json) {
-                if (iter.metrics_json.error) {
-                    setErrorMsg(iter.metrics_json.error);
+            let rawMetrics = iter.metrics_json;
+            if (typeof rawMetrics === 'string') {
+                try { rawMetrics = JSON.parse(rawMetrics); } catch (e) { console.error("JSON Parse Error", e); }
+            }
+
+            if (rawMetrics) {
+                if (rawMetrics.error) {
+                    setErrorMsg(rawMetrics.error);
                 }
-                if (iter.metrics_json.history) {
-                    setHistoryMetrics(iter.metrics_json.history);
+                if (rawMetrics.history) {
+                    setHistoryMetrics(rawMetrics.history);
                 }
             }
+
+            // [NEW] Fetch Metrics (Equity Curve)
+            try {
+                const metricsRes = await fetch(`http://localhost:8000/api/metrics/run/${iterationId}`);
+                if (metricsRes.ok) {
+                    const metrics = await metricsRes.json();
+                    if (metrics.equity_curve) {
+                        setEquityData(metrics.equity_curve);
+                    }
+                }
+            } catch (ignore) { console.warn("Metrics fetch failed", ignore); }
 
             // Fetch Logs from dedicated endpoint
             const logsRes = await fetch(`http://localhost:8000/api/ml/studio/iterations/${iterationId}/logs`);
@@ -51,6 +68,14 @@ const MlTrainingRun = () => {
     };
 
     useEffect(() => {
+        // Reset State on ID change
+        setIteration(null);
+        setStatus('LOADING');
+        setLogs([]);
+        setHistoryMetrics([]);
+        setEquityData([]);
+        setErrorMsg(null);
+
         // Initial fetch
         fetchStatus();
 
@@ -59,7 +84,7 @@ const MlTrainingRun = () => {
             const interval = setInterval(fetchStatus, 2000);
             return () => clearInterval(interval);
         }
-    }, [sessionId, iterationId, status]);
+    }, [sessionId, iterationId]); // Removed status from dependency to avoid infinite reset loop, verifying logic below
 
 
     const handleStart = async () => {
@@ -82,10 +107,94 @@ const MlTrainingRun = () => {
         }
     };
 
+    // Backtest Modal State
+    const [showBacktestModal, setShowBacktestModal] = useState(false);
+    const [backtestDatasetId, setBacktestDatasetId] = useState("");
+    const [isSubmittingTest, setIsSubmittingTest] = useState(false);
+
+    const handleBacktestClick = () => {
+        // Default to current dataset if not set
+        if (!backtestDatasetId && iteration) {
+            setBacktestDatasetId(iteration.dataset_id);
+        }
+        setShowBacktestModal(true);
+    };
+
+    const handleRunBacktest = async () => {
+        if (!iteration) return;
+        setIsSubmittingTest(true);
+        try {
+            const body = {
+                target_dataset_id: backtestDatasetId,
+                source_iteration_id: iterationId
+            };
+
+            const res = await fetch(`http://localhost:8000/api/ml/studio/test`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+
+            if (!res.ok) throw new Error("Failed to start backtest");
+
+            const newRun = await res.json();
+            // Navigate to the new Test Run (which is just an iteration)
+            navigate(`/ml/studio/session/${iteration.session_id}/run/${newRun.iteration_id}`);
+        } catch (err) {
+            alert("Error starting backtest: " + err.message);
+        } finally {
+            setIsSubmittingTest(false);
+            setShowBacktestModal(false);
+        }
+    };
+
     if (!iteration && status === 'LOADING') return <div className="p-8 text-slate-400">Loading...</div>;
 
     return (
-        <div className="p-6 h-[calc(100vh-64px)] flex flex-col text-slate-200">
+        <div className="p-6 h-[calc(100vh-64px)] flex flex-col text-slate-200 relative">
+            {/* Backtest Modal */}
+            {showBacktestModal && (
+                <div className="absolute inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+                    <div className="bg-slate-900 border border-slate-700 p-6 rounded-xl w-full max-w-md shadow-2xl">
+                        <h3 className="text-xl font-bold text-slate-200 mb-4">Run Backtest</h3>
+                        <p className="text-slate-400 text-sm mb-6">
+                            This will run the trained model (frozen) on the selected dataset to evaluate performance.
+                            The results will be saved as a Strategy Run.
+                        </p>
+
+                        <div className="mb-4">
+                            <label className="block text-xs uppercase text-slate-500 font-bold mb-2">Target Dataset ID</label>
+                            <input
+                                type="text"
+                                value={backtestDatasetId}
+                                onChange={(e) => setBacktestDatasetId(e.target.value)}
+                                className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-slate-200 font-mono text-sm focus:border-blue-500 outline-none"
+                                placeholder="Enter Dataset ID..."
+                            />
+                            <p className="text-[10px] text-slate-500 mt-1">
+                                Currently manually input ID. Future: Dropdown.
+                            </p>
+                        </div>
+
+                        <div className="flex justify-end gap-3 mt-8">
+                            <button
+                                onClick={() => setShowBacktestModal(false)}
+                                className="px-4 py-2 text-slate-400 hover:text-slate-200 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleRunBacktest}
+                                disabled={isSubmittingTest}
+                                className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg font-medium flex items-center gap-2"
+                            >
+                                {isSubmittingTest ? 'Starting...' : 'Launch Backtest'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <button
                 onClick={() => navigate(`/ml/studio/session/${sessionId}`)}
                 className="flex items-center gap-2 text-slate-400 hover:text-slate-200 mb-4 transition-colors w-fit"
@@ -120,7 +229,8 @@ const MlTrainingRun = () => {
                         }`}>
                         {status}
                     </div>
-                    {/* ... (buttons) ... */}
+
+                    {/* ACTION BUTTONS */}
                     {status === 'PENDING' && (
                         <button
                             onClick={handleStart}
@@ -129,6 +239,28 @@ const MlTrainingRun = () => {
                             <Play size={16} fill="currentColor" /> Start Run
                         </button>
                     )}
+
+                    {(status === 'COMPLETED' || status === 'FAILED' || status === 'CANCELLED') && (
+                        <>
+                            <button
+                                onClick={handleStart}
+                                className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 shadow-lg shadow-purple-500/20 transition-all"
+                            >
+                                <Activity size={16} /> Repeat Run
+                            </button>
+
+                            {/* NEW BACKTEST BUTTON */}
+                            {status === 'COMPLETED' && (
+                                <button
+                                    onClick={handleBacktestClick}
+                                    className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 shadow-lg shadow-blue-500/20 transition-all ml-2"
+                                >
+                                    <Activity size={16} /> Run Backtest
+                                </button>
+                            )}
+                        </>
+                    )}
+
                     {(status === 'RUNNING' || status === 'QUEUED') && (
                         <button
                             onClick={handleStop}
@@ -156,17 +288,19 @@ const MlTrainingRun = () => {
                         Live Metrics
                     </h3>
 
-                    {/* Charts Component */}
-                    <TrainingCharts data={historyMetrics} />
+                    {/* Charts Component handles empty states internally */}
+                    <div className="flex-1 min-h-0 relative">
+                        <TrainingCharts data={historyMetrics} equityData={equityData} />
+                    </div>
 
-                    {/* If no data yet */}
-                    {historyMetrics.length === 0 && (
-                        <div className="flex-1 bg-slate-900/50 rounded-lg border border-slate-700/50 flex items-center justify-center relative overflow-hidden h-[300px]">
-                            <div className="text-center z-10">
-                                <Activity size={48} className="text-slate-600 mx-auto mb-2" />
-                                <p className="text-slate-500 text-sm">Waiting for first epoch data...</p>
-                                <p className="text-slate-600 text-xs mt-1">Metrics update every epoch</p>
-                            </div>
+                    {/* DEBUG RAW DATA */}
+                    {verbose && (
+                        <div className="mt-4 p-2 bg-slate-900 rounded border border-slate-700 text-[10px] font-mono whitespace-pre-wrap overflow-auto max-h-40">
+                            <strong>DEBUG DATA STATE:</strong>
+                            <br />History Len: {historyMetrics?.length}
+                            <br />Equity Len: {equityData?.length}
+                            <br />Sample: {JSON.stringify(historyMetrics?.[0] || "No Data")}
+                            <br />Raw Metrics: {JSON.stringify(historyMetrics)}
                         </div>
                     )}
                 </div>

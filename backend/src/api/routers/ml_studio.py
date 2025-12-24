@@ -117,8 +117,11 @@ def validate_reward(req: ValidateRewardRequest, db: Session = Depends(get_db)):
             self.position = 1 # Default to LONG for testing
             self.entry_price = current_price * 0.99 # Mock 1% profit
             self.qty = 1.0
-            self.balance = 10000.0
+            self.current_balance = 10000.0
+            self.balance = 10000.0 # Match EnvFlex alias
             self.unrealized_pnl = (current_price - self.entry_price) * self.qty
+            self.position_size = 1 # Signed size (+1, -1, 0)
+            self.fees = 0.0
             self.last_reward = 0.0
             self.data = obs # Access to raw data if needed via env.data
             
@@ -136,6 +139,9 @@ def validate_reward(req: ValidateRewardRequest, db: Session = Depends(get_db)):
             self.status = Namespace()
             for idx, label in enumerate(self.status_labels):
                 setattr(self.status, label.upper(), idx)
+        
+        @property
+        def pnl(self): return self.unrealized_pnl
 
     # Extract metadata from request
     meta = req.metadata_json or {}
@@ -475,3 +481,77 @@ def get_iteration_logs(iid: str, db: Session = Depends(get_db)):
             return [str(iter_obj.logs_json)]
             
     return []
+
+# --- Endpoints: Inference / Registry ---
+
+@router.get("/trained-models", response_model=List[Dict])
+def list_trained_models(db: Session = Depends(get_db)):
+    """
+    Returns a list of iterations that are COMPLETED and have a valid model artifact.
+    """
+    # Filter for COMPLETED and where model_artifact_path is not null
+    # Note: SQLite checks might be simple
+    iters = db.query(models.MlIteration).filter(
+        models.MlIteration.status == "COMPLETED",
+        models.MlIteration.model_artifact_path != None
+    ).order_by(models.MlIteration.end_utc.desc()).all()
+    
+    results = []
+    for i in iters:
+        metrics = i.metrics_json or {}
+        results.append({
+            "iteration_id": i.iteration_id,
+            "name": i.name,
+            "session_name": i.session.name if i.session else "Unknown",
+            "algorithm": i.session.model.name if i.session and i.session.model else "Unknown",
+            "dataset": i.dataset.name if i.dataset else "Unknown",
+            "metrics": metrics,
+            "created_utc": i.start_utc
+        })
+    return results
+
+class TestRunCreate(BaseModel):
+    source_iteration_id: str
+    target_dataset_id: str
+
+@router.post("/test", response_model=Dict)
+def create_test_run(req: TestRunCreate, db: Session = Depends(get_db)):
+    """
+    Creates a new Iteration configured for Inference/Testing.
+    It links to the same Session as the source, but marks it to load weights from the source.
+    """
+    source_iter = db.query(models.MlIteration).get(req.source_iteration_id)
+    if not source_iter: raise HTTPException(404, "Source iteration not found")
+    
+    session = source_iter.session
+    if not session: raise HTTPException(400, "Source iteration has no session")
+    
+    # Create new iteration
+    new_iter_id = str(uuid.uuid4())
+    new_name = f"Test-{source_iter.name}-{datetime.utcnow().strftime('%H%M')}"
+    
+    # We use split_config_json to pass the instruction to the Runner
+    config = {
+        "test_only": True,
+        "load_from_iteration_id": source_iter.iteration_id,
+        "source_model_path": source_iter.model_artifact_path
+    }
+    
+    obj = models.MlIteration(
+        iteration_id=new_iter_id,
+        session_id=session.session_id,
+        dataset_id=req.target_dataset_id,
+        name=new_name,
+        split_config_json=config, # Runner will look here
+        status="PENDING"
+    )
+    
+    db.add(obj)
+    db.commit()
+    
+    return {
+        "iteration_id": obj.iteration_id,
+        "session_id": obj.session_id,
+        "name": obj.name,
+        "status": obj.status
+    }

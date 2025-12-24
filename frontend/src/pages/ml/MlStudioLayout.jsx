@@ -1,6 +1,6 @@
 import React from 'react';
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
-import { Layers, Brain, Zap, PenTool, LayoutDashboard } from 'lucide-react';
+import { Layers, Brain, Zap, PenTool, LayoutDashboard, Box } from 'lucide-react';
 import '../Dashboard.css'; // Ensure uniformity
 
 const MlStudioLayout = () => {
@@ -9,6 +9,7 @@ const MlStudioLayout = () => {
     const navItems = [
         { path: '/ml/studio', label: 'Dashboard', icon: LayoutDashboard, exact: true },
         { path: '/ml/studio/compose', label: 'Compose Session', icon: PenTool },
+        { path: '/ml/studio/registry', label: 'Model Registry', icon: Box },
         { path: '/ml/studio/rewards', label: 'Reward Functions', icon: Brain },
         { path: '/ml/studio/models', label: 'Architectures', icon: Layers },
         { path: '/ml/studio/processes', label: 'Training Configs', icon: Zap },
