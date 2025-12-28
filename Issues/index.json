@@ -156,5 +156,14 @@
     "last_action": "edited",
     "last_updated": "2025-12-28T16:48:22.622668Z",
     "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/32"
+  },
+  "33": {
+    "title": "Training Node Integration",
+    "state": "open",
+    "labels": [],
+    "assignees": [],
+    "last_action": "opened",
+    "last_updated": "2025-12-28T16:53:08.511868Z",
+    "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/33"
   }
 }
