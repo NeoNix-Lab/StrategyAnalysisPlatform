@@ -130,5 +130,18 @@
     "last_action": "closed",
     "last_updated": "2025-12-21T11:14:58.356703Z",
     "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/28"
+  },
+  "31": {
+    "title": "Strategy Parameter as second Identifier",
+    "state": "open",
+    "labels": [
+      "backend"
+    ],
+    "assignees": [
+      "NeoNix-Lab"
+    ],
+    "last_action": "assigned",
+    "last_updated": "2025-12-28T16:42:32.283820Z",
+    "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/31"
   }
 }
