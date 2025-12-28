@@ -230,5 +230,14 @@
     "last_action": "edited",
     "last_updated": "2025-12-28T17:10:30.200928Z",
     "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/40"
+  },
+  "41": {
+    "title": "DB Migration",
+    "state": "open",
+    "labels": [],
+    "assignees": [],
+    "last_action": "opened",
+    "last_updated": "2025-12-28T17:12:08.231178Z",
+    "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/41"
   }
 }
