@@ -1,0 +1,332 @@
+﻿============================= test session starts =============================
+platform win32 -- Python 3.13.9, pytest-9.0.2, pluggy-1.5.0
+rootdir: D:\Documents\Active\StrategyAnalysisPlatform\Main\backend
+configfile: pytest.ini
+plugins: anyio-4.12.0, cov-7.0.0
+collected 15 items
+
+tests\test_analytics.py .....
+tests\test_gap_filling.py s
+tests\test_integration_flow.py Database inizializzato su sqlite:///:memory:
+Tabelle conosciute: ['users', 'user_settings', 'api_keys', 'datasets', 'strategies', 'strategy_instances', 'strategy_runs', 'orders', 'executions', 'order_oco_groups', 'order_oco_links', 'run_series', 'bars', 'ingest_events', 'market_series', 'market_bars', 'run_subscriptions', 'trades', 'ml_reward_functions', 'ml_model_architectures', 'ml_training_processes', 'ml_training_sessions', 'ml_iterations']
+Database inizializzato su sqlite:///:memory:
+Tabelle conosciute: ['users', 'user_settings', 'api_keys', 'datasets', 'strategies', 'strategy_instances', 'strategy_runs', 'orders', 'executions', 'order_oco_groups', 'order_oco_links', 'run_series', 'bars', 'ingest_events', 'market_series', 'market_bars', 'run_subscriptions', 'trades', 'ml_reward_functions', 'ml_model_architectures', 'ml_training_processes', 'ml_training_sessions', 'ml_iterations']
+--- Starting Integration Flow Test (TestClient) ---
+
+1. Starting Run...
+F
+tests\test_ml_api.py Database inizializzato su sqlite:///:memory:
+Tabelle conosciute: ['users', 'user_settings', 'api_keys', 'datasets', 'strategies', 'strategy_instances', 'strategy_runs', 'orders', 'executions', 'order_oco_groups', 'order_oco_links', 'run_series', 'bars', 'ingest_events', 'market_series', 'market_bars', 'run_subscriptions', 'trades', 'ml_reward_functions', 'ml_model_architectures', 'ml_training_processes', 'ml_training_sessions', 'ml_iterations']
+.Background Training Failed: Iteration dfafab67-aa88-4573-9423-e5478e94a7e9 not found
+.
+tests\test_strategy_run_import.py s
+tests\test_trades.py .
+tests\test_training_node.py ....
+
+================================== FAILURES ===================================
+__________________________________ test_flow __________________________________
+
+self = <sqlalchemy.engine.base.Connection object at 0x0000020E897E8FC0>
+dialect = <sqlalchemy.dialects.sqlite.pysqlite.SQLiteDialect_pysqlite object at 0x0000020E875DDE50>
+context = <sqlalchemy.dialects.sqlite.base.SQLiteExecutionContext object at 0x0000020E897B2750>
+statement = <sqlalchemy.dialects.sqlite.base.SQLiteCompiler object at 0x0000020E86CBBE50>
+parameters = [('TEST_STRAT_INTEGRATION', 1, 0)]
+
+    def _exec_single_context(
+        self,
+        dialect: Dialect,
+        context: ExecutionContext,
+        statement: Union[str, Compiled],
+        parameters: Optional[_AnyMultiExecuteParams],
+    ) -> CursorResult[Any]:
+        """continue the _execute_context() method for a single DBAPI
+        cursor.execute() or cursor.executemany() call.
+    
+        """
+        if dialect.bind_typing is BindTyping.SETINPUTSIZES:
+            generic_setinputsizes = context._prepare_set_input_sizes()
+    
+            if generic_setinputsizes:
+                try:
+                    dialect.do_set_input_sizes(
+                        context.cursor, generic_setinputsizes, context
+                    )
+                except BaseException as e:
+                    self._handle_dbapi_exception(
+                        e, str(statement), parameters, None, context
+                    )
+    
+        cursor, str_statement, parameters = (
+            context.cursor,
+            context.statement,
+            context.parameters,
+        )
+    
+        effective_parameters: Optional[_AnyExecuteParams]
+    
+        if not context.executemany:
+            effective_parameters = parameters[0]
+        else:
+            effective_parameters = parameters
+    
+        if self._has_events or self.engine._has_events:
+            for fn in self.dispatch.before_cursor_execute:
+                str_statement, effective_parameters = fn(
+                    self,
+                    cursor,
+                    str_statement,
+                    effective_parameters,
+                    context,
+                    context.executemany,
+                )
+    
+        if self._echo:
+            self._log_info(str_statement)
+    
+            stats = context._get_cache_stats()
+    
+            if not self.engine.hide_parameters:
+                self._log_info(
+                    "[%s] %r",
+                    stats,
+                    sql_util._repr_params(
+                        effective_parameters,
+                        batches=10,
+                        ismulti=context.executemany,
+                    ),
+                )
+            else:
+                self._log_info(
+                    "[%s] [SQL parameters hidden due to hide_parameters=True]",
+                    stats,
+                )
+    
+        evt_handled: bool = False
+        try:
+            if context.execute_style is ExecuteStyle.EXECUTEMANY:
+                effective_parameters = cast(
+                    "_CoreMultiExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_executemany:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_executemany(
+                        cursor,
+                        str_statement,
+                        effective_parameters,
+                        context,
+                    )
+            elif not effective_parameters and context.no_parameters:
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute_no_params:
+                        if fn(cursor, str_statement, context):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_execute_no_params(
+                        cursor, str_statement, context
+                    )
+            else:
+                effective_parameters = cast(
+                    "_CoreSingleExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+>                   self.dialect.do_execute(
+                        cursor, str_statement, effective_parameters, context
+                    )
+
+D:\Programs\Anaconda\Lib\site-packages\sqlalchemy\engine\base.py:1967: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <sqlalchemy.dialects.sqlite.pysqlite.SQLiteDialect_pysqlite object at 0x0000020E875DDE50>
+cursor = <sqlite3.Cursor object at 0x0000020E8983B3C0>
+statement = 'SELECT strategies.strategy_id AS strategies_strategy_id, strategies.name AS strategies_name, strategies.version AS st...ated_utc, strategies.notes AS strategies_notes \nFROM strategies \nWHERE strategies.strategy_id = ?\n LIMIT ? OFFSET ?'
+parameters = ('TEST_STRAT_INTEGRATION', 1, 0)
+context = <sqlalchemy.dialects.sqlite.base.SQLiteExecutionContext object at 0x0000020E897B2750>
+
+    def do_execute(self, cursor, statement, parameters, context=None):
+>       cursor.execute(statement, parameters)
+E       sqlite3.OperationalError: no such table: strategies
+
+D:\Programs\Anaconda\Lib\site-packages\sqlalchemy\engine\default.py:952: OperationalError
+
+The above exception was the direct cause of the following exception:
+
+client = <starlette.testclient.TestClient object at 0x0000020E87662E40>
+
+    def test_flow(client):
+        if client is None:
+            pytest.skip("API Client not available (likely import error in conftest)")
+    
+        print("--- Starting Integration Flow Test (TestClient) ---")
+    
+        # 1. Start Run
+        print("\n1. Starting Run...")
+        start_payload = {
+            "strategy_id": "TEST_STRAT_INTEGRATION",
+            "parameters": {"param1": 10, "param2": "test"},
+            "data_range": {"symbol": "EURUSD", "timeframe": "M1"}
+        }
+    
+>       resp = client.post("/api/runs/start", json=start_payload)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_integration_flow.py:24: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+D:\Programs\Anaconda\Lib\site-packages\starlette\testclient.py:546: in post
+    return super().post(
+D:\Programs\Anaconda\Lib\site-packages\httpx\_client.py:1144: in post
+    return self.request(
+D:\Programs\Anaconda\Lib\site-packages\starlette\testclient.py:445: in request
+    return super().request(
+D:\Programs\Anaconda\Lib\site-packages\httpx\_client.py:825: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Programs\Anaconda\Lib\site-packages\httpx\_client.py:914: in send
+    response = self._send_handling_auth(
+D:\Programs\Anaconda\Lib\site-packages\httpx\_client.py:942: in _send_handling_auth
+    response = self._send_handling_redirects(
+D:\Programs\Anaconda\Lib\site-packages\httpx\_client.py:979: in _send_handling_redirects
+    response = self._send_single_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Programs\Anaconda\Lib\site-packages\httpx\_client.py:1014: in _send_single_request
+    response = transport.handle_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Programs\Anaconda\Lib\site-packages\starlette\testclient.py:348: in handle_request
+    raise exc
+D:\Programs\Anaconda\Lib\site-packages\starlette\testclient.py:345: in handle_request
+    portal.call(self.app, scope, receive, send)
+D:\Programs\Anaconda\Lib\site-packages\anyio\from_thread.py:326: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Programs\Anaconda\Lib\concurrent\futures\_base.py:456: in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+D:\Programs\Anaconda\Lib\concurrent\futures\_base.py:401: in __get_result
+    raise self._exception
+D:\Programs\Anaconda\Lib\site-packages\anyio\from_thread.py:257: in _call_func
+    retval = await retval_or_awaitable
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Programs\Anaconda\Lib\site-packages\fastapi\applications.py:1135: in __call__
+    await super().__call__(scope, receive, send)
+D:\Programs\Anaconda\Lib\site-packages\starlette\applications.py:107: in __call__
+    await self.middleware_stack(scope, receive, send)
+D:\Programs\Anaconda\Lib\site-packages\starlette\middleware\errors.py:186: in __call__
+    raise exc
+D:\Programs\Anaconda\Lib\site-packages\starlette\middleware\errors.py:164: in __call__
+    await self.app(scope, receive, _send)
+D:\Programs\Anaconda\Lib\site-packages\starlette\middleware\cors.py:85: in __call__
+    await self.app(scope, receive, send)
+D:\Programs\Anaconda\Lib\site-packages\starlette\middleware\exceptions.py:63: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+D:\Programs\Anaconda\Lib\site-packages\starlette\_exception_handler.py:53: in wrapped_app
+    raise exc
+D:\Programs\Anaconda\Lib\site-packages\starlette\_exception_handler.py:42: in wrapped_app
+    await app(scope, receive, sender)
+D:\Programs\Anaconda\Lib\site-packages\fastapi\middleware\asyncexitstack.py:18: in __call__
+    await self.app(scope, receive, send)
+D:\Programs\Anaconda\Lib\site-packages\starlette\routing.py:716: in __call__
+    await self.middleware_stack(scope, receive, send)
+D:\Programs\Anaconda\Lib\site-packages\starlette\routing.py:736: in app
+    await route.handle(scope, receive, send)
+D:\Programs\Anaconda\Lib\site-packages\starlette\routing.py:290: in handle
+    await self.app(scope, receive, send)
+D:\Programs\Anaconda\Lib\site-packages\fastapi\routing.py:117: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+D:\Programs\Anaconda\Lib\site-packages\starlette\_exception_handler.py:53: in wrapped_app
+    raise exc
+D:\Programs\Anaconda\Lib\site-packages\starlette\_exception_handler.py:42: in wrapped_app
+    await app(scope, receive, sender)
+D:\Programs\Anaconda\Lib\site-packages\fastapi\routing.py:103: in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+D:\Programs\Anaconda\Lib\site-packages\fastapi\routing.py:424: in app
+    raw_response = await run_endpoint_function(
+D:\Programs\Anaconda\Lib\site-packages\fastapi\routing.py:312: in run_endpoint_function
+    return await run_in_threadpool(dependant.call, **values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Programs\Anaconda\Lib\site-packages\starlette\concurrency.py:32: in run_in_threadpool
+    return await anyio.to_thread.run_sync(func)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Programs\Anaconda\Lib\site-packages\anyio\to_thread.py:61: in run_sync
+    return await get_async_backend().run_sync_in_worker_thread(
+D:\Programs\Anaconda\Lib\site-packages\anyio\_backends\_asyncio.py:2525: in run_sync_in_worker_thread
+    return await future
+           ^^^^^^^^^^^^
+D:\Programs\Anaconda\Lib\site-packages\anyio\_backends\_asyncio.py:986: in run
+    result = context.run(func, *args)
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+src\api\routers\runs.py:97: in start_run
+    strategy = db.query(Strategy).filter(Strategy.strategy_id == request.strategy_id).first()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Programs\Anaconda\Lib\site-packages\sqlalchemy\orm\query.py:2759: in first
+    return self.limit(1)._iter().first()  # type: ignore
+           ^^^^^^^^^^^^^^^^^^^^^
+D:\Programs\Anaconda\Lib\site-packages\sqlalchemy\orm\query.py:2857: in _iter
+    result: Union[ScalarResult[_T], Result[_T]] = self.session.execute(
+D:\Programs\Anaconda\Lib\site-packages\sqlalchemy\orm\session.py:2351: in execute
+    return self._execute_internal(
+D:\Programs\Anaconda\Lib\site-packages\sqlalchemy\orm\session.py:2249: in _execute_internal
+    result: Result[Any] = compile_state_cls.orm_execute_statement(
+D:\Programs\Anaconda\Lib\site-packages\sqlalchemy\orm\context.py:306: in orm_execute_statement
+    result = conn.execute(
+D:\Programs\Anaconda\Lib\site-packages\sqlalchemy\engine\base.py:1419: in execute
+    return meth(
+D:\Programs\Anaconda\Lib\site-packages\sqlalchemy\sql\elements.py:527: in _execute_on_connection
+    return connection._execute_clauseelement(
+D:\Programs\Anaconda\Lib\site-packages\sqlalchemy\engine\base.py:1641: in _execute_clauseelement
+    ret = self._execute_context(
+D:\Programs\Anaconda\Lib\site-packages\sqlalchemy\engine\base.py:1846: in _execute_context
+    return self._exec_single_context(
+D:\Programs\Anaconda\Lib\site-packages\sqlalchemy\engine\base.py:1986: in _exec_single_context
+    self._handle_dbapi_exception(
+D:\Programs\Anaconda\Lib\site-packages\sqlalchemy\engine\base.py:2363: in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+D:\Programs\Anaconda\Lib\site-packages\sqlalchemy\engine\base.py:1967: in _exec_single_context
+    self.dialect.do_execute(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <sqlalchemy.dialects.sqlite.pysqlite.SQLiteDialect_pysqlite object at 0x0000020E875DDE50>
+cursor = <sqlite3.Cursor object at 0x0000020E8983B3C0>
+statement = 'SELECT strategies.strategy_id AS strategies_strategy_id, strategies.name AS strategies_name, strategies.version AS st...ated_utc, strategies.notes AS strategies_notes \nFROM strategies \nWHERE strategies.strategy_id = ?\n LIMIT ? OFFSET ?'
+parameters = ('TEST_STRAT_INTEGRATION', 1, 0)
+context = <sqlalchemy.dialects.sqlite.base.SQLiteExecutionContext object at 0x0000020E897B2750>
+
+    def do_execute(self, cursor, statement, parameters, context=None):
+>       cursor.execute(statement, parameters)
+E       sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such table: strategies
+E       [SQL: SELECT strategies.strategy_id AS strategies_strategy_id, strategies.name AS strategies_name, strategies.version AS strategies_version, strategies.vendor AS strategies_vendor, strategies.source_ref AS strategies_source_ref, strategies.created_utc AS strategies_created_utc, strategies.notes AS strategies_notes 
+E       FROM strategies 
+E       WHERE strategies.strategy_id = ?
+E        LIMIT ? OFFSET ?]
+E       [parameters: ('TEST_STRAT_INTEGRATION', 1, 0)]
+E       (Background on this error at: https://sqlalche.me/e/20/e3q8)
+
+D:\Programs\Anaconda\Lib\site-packages\sqlalchemy\engine\default.py:952: OperationalError
+============================== warnings summary ===============================
+..\..\..\..\..\Programs\Anaconda\Lib\site-packages\keras\src\export\tf2onnx_lib.py:8
+  D:\Programs\Anaconda\Lib\site-packages\keras\src\export\tf2onnx_lib.py:8: FutureWarning: In the future `np.object` will be defined as the corresponding NumPy scalar.
+    if not hasattr(np, "object"):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_integration_flow.py::test_flow - sqlalchemy.exc.Operational...
+============= 1 failed, 12 passed, 2 skipped, 1 warning in 1.14s ==============

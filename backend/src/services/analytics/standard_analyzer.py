@@ -150,12 +150,12 @@ class StandardAnalyzer:
             total_volume = sum([e.price * e.quantity for e in executions])
         else:
             # Estimate from Trades
-            total_fees = df['commission'].sum() if 'commission' in df else 0.0
+            total_fees = df['commission'].sum() if 'commission' in df.columns else 0.0
             # Volume = Entry Volume + Exit Volume (roughly 2x notional?)
             # Usually Volume is sum of separate executions. 
             # If we only have trade summary: (EntryPrice * Qty) + (ExitPrice * Qty)
-            entry_vol = (df['entry_price'] * df['quantity']).sum() if 'entry_price' in df else 0.0
-            exit_vol = (df['exit_price'] * df['quantity']).sum() if 'exit_price' in df else 0.0
+            entry_vol = (df['entry_price'] * df['quantity']).sum() if ('entry_price' in df.columns and 'quantity' in df.columns) else 0.0
+            exit_vol = (df['exit_price'] * df['quantity']).sum() if ('exit_price' in df.columns and 'quantity' in df.columns) else 0.0
             total_volume = entry_vol + exit_vol
 
         # [NEW] Execution Metrics (Level 5)

@@ -9,13 +9,15 @@ from src.database.models import Trade, Execution
 
 # Mock structures equivalent to database models
 class MockTrade:
-    def __init__(self, pnl_net, exit_time, side='BUY', entry_price=100.0, exit_price=105.0, mae=0.0, mfe=0.0):
+    def __init__(self, pnl_net, exit_time, side='BUY', entry_price=100.0, exit_price=105.0, quantity=1.0, commission=0.0, mae=0.0, mfe=0.0):
         self.pnl_net = pnl_net
         self.exit_time = exit_time
         self.side = MagicMock()
         self.side.name = side
         self.entry_price = entry_price
         self.exit_price = exit_price
+        self.quantity = quantity
+        self.commission = commission
         self.mae = mae
         self.mfe = mfe
         self.run_id = "test_run"
