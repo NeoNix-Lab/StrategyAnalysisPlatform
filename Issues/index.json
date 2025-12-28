@@ -183,5 +183,14 @@
     "last_action": "edited",
     "last_updated": "2025-12-28T17:00:52.785134Z",
     "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/35"
+  },
+  "36": {
+    "title": "ML Studio UX & Dataset Management",
+    "state": "open",
+    "labels": [],
+    "assignees": [],
+    "last_action": "opened",
+    "last_updated": "2025-12-28T17:02:38.516797Z",
+    "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/36"
   }
 }
