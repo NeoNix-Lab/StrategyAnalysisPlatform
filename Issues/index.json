@@ -1,0 +1,134 @@
+{
+  "1": {
+    "title": "Backend Tests Failed",
+    "state": "closed",
+    "labels": [],
+    "assignees": [],
+    "last_action": "closed",
+    "last_updated": "2025-12-14T18:21:29.502169Z",
+    "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/1"
+  },
+  "8": {
+    "title": "MA empty",
+    "state": "closed",
+    "labels": [
+      "bug",
+      "frontend"
+    ],
+    "assignees": [],
+    "last_action": "closed",
+    "last_updated": "2025-12-20T16:25:24.244828Z",
+    "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/8"
+  },
+  "9": {
+    "title": "Ma Empty",
+    "state": "open",
+    "labels": [],
+    "assignees": [],
+    "last_action": "opened",
+    "last_updated": "2025-12-14T19:22:14.816582Z",
+    "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/9"
+  },
+  "2": {
+    "title": "Frontend Tests Failed",
+    "state": "closed",
+    "labels": [],
+    "assignees": [],
+    "last_action": "closed",
+    "last_updated": "2025-12-14T19:25:45.571434Z",
+    "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/2"
+  },
+  "7": {
+    "title": "Verifica Sincronizzazione 2-Vie",
+    "state": "closed",
+    "labels": [
+      "test",
+      "ops"
+    ],
+    "assignees": [],
+    "last_action": "closed",
+    "last_updated": "2025-12-20T16:24:53.345658Z",
+    "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/7"
+  },
+  "10": {
+    "title": "Backtester speed vs API handling",
+    "state": "closed",
+    "labels": [
+      "bug",
+      "backtester",
+      "api"
+    ],
+    "assignees": [],
+    "last_action": "closed",
+    "last_updated": "2025-12-20T16:27:02.874048Z",
+    "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/10"
+  },
+  "12": {
+    "title": "Backtester speed vs API handling",
+    "state": "closed",
+    "labels": [
+      "bug",
+      "backtester",
+      "api"
+    ],
+    "assignees": [],
+    "last_action": "closed",
+    "last_updated": "2025-12-20T16:27:28.489879Z",
+    "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/12"
+  },
+  "21": {
+    "title": "Frontend Tests Failed",
+    "state": "closed",
+    "labels": [],
+    "assignees": [],
+    "last_action": "closed",
+    "last_updated": "2025-12-20T17:28:13.519454Z",
+    "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/21"
+  },
+  "16": {
+    "title": "Incomplete Trade Persistence: Not All Trades Are Saved",
+    "state": "closed",
+    "labels": [
+      "bug",
+      "backend",
+      "database",
+      "data-integrity",
+      "critical"
+    ],
+    "assignees": [],
+    "last_action": "closed",
+    "last_updated": "2025-12-20T18:15:17.991440Z",
+    "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/16"
+  },
+  "26": {
+    "title": "Implement ML Studio Core",
+    "state": "open",
+    "labels": [
+      "enhancement"
+    ],
+    "assignees": [
+      "NeoNix-Lab"
+    ],
+    "last_action": "edited",
+    "last_updated": "2025-12-21T11:13:37.944929Z",
+    "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/26"
+  },
+  "27": {
+    "title": "Createand / Consolidate ML UI Ux",
+    "state": "open",
+    "labels": [],
+    "assignees": [],
+    "last_action": "opened",
+    "last_updated": "2025-12-21T10:04:01.458626Z",
+    "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/27"
+  },
+  "28": {
+    "title": "Create a ML Dedicated Unit Test",
+    "state": "closed",
+    "labels": [],
+    "assignees": [],
+    "last_action": "closed",
+    "last_updated": "2025-12-21T11:14:58.356703Z",
+    "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/28"
+  }
+}
