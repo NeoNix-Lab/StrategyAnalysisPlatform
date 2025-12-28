@@ -5,6 +5,8 @@ venv
 env
 *.db
 *.sqlite
+*.db-shm
+*.db-wal
 *.log
 .vs
 .vscode
@@ -17,20 +19,5 @@ docs/*
 !docs/Workflow.md
 !docs/Metrics.md
 !docs/Metrics_Implementation_Status.md
-# ML Artifacts
-backend/models/ml_artifacts/
-**/models/ml_artifacts/
-*.h5
-*.pth
-*.keras
-*.onnx
-*.weights
-
-# Node
-node_modules/
-npm-debug.log
-
-# Issues (from main)
 Issues/records/
 Issues/index.json
-
