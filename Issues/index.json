@@ -143,5 +143,18 @@
     "last_action": "edited",
     "last_updated": "2025-12-28T16:42:51.070234Z",
     "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/31"
+  },
+  "32": {
+    "title": "**Run Comparison Engine**",
+    "state": "open",
+    "labels": [
+      "backend"
+    ],
+    "assignees": [
+      "NeoNix-Lab"
+    ],
+    "last_action": "labeled",
+    "last_updated": "2025-12-28T16:47:59.912887Z",
+    "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/32"
   }
 }
