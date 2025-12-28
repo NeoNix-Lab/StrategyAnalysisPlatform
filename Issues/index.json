@@ -277,5 +277,20 @@
     "last_action": "closed",
     "last_updated": "2025-12-28T17:39:37.836632Z",
     "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/30"
+  },
+  "45": {
+    "title": "[Epic] ML Studio Microservice Implementation",
+    "state": "open",
+    "labels": [
+      "enhancement",
+      "backend",
+      "ml"
+    ],
+    "assignees": [
+      "NeoNix-Lab"
+    ],
+    "last_action": "assigned",
+    "last_updated": "2025-12-28T17:57:32.289288Z",
+    "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/45"
   }
 }
