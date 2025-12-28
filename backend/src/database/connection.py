@@ -3,13 +3,19 @@ from sqlalchemy.orm import sessionmaker
 from .models import Base
 import os
 
-# Per ora usiamo SQLite locale
-DB_PATH = "trading_data.db"
-DATABASE_URL = f"sqlite:///{DB_PATH}"
+from sqlalchemy.pool import StaticPool
+
+# Default to local SQLite, but allow override via env var (e.g. for tests)
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///trading_data.db")
 
 from sqlalchemy import event
 
-engine = create_engine(DATABASE_URL, echo=False, connect_args={"check_same_thread": False, "timeout": 10})
+# For in-memory SQLite, we must use StaticPool to share the same database across connections
+engine_args = {"echo": False, "connect_args": {"check_same_thread": False, "timeout": 10}}
+if DATABASE_URL == "sqlite:///:memory:":
+    engine_args["poolclass"] = StaticPool
+
+engine = create_engine(DATABASE_URL, **engine_args)
 
 # Enable Write-Ahead Logging (WAL) for better concurrency
 @event.listens_for(engine, "connect")
@@ -25,6 +31,7 @@ def init_db():
     # Crea solo le tabelle mancanti, senza cancellare i dati esistenti
     Base.metadata.create_all(bind=engine)
     print(f"Database inizializzato su {DATABASE_URL}")
+    print(f"Tabelle conosciute: {list(Base.metadata.tables.keys())}")
 
 def get_db():
     """Dependency per ottenere una sessione DB."""

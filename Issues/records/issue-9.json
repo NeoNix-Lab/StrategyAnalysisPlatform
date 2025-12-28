@@ -8,7 +8,7 @@
     "number": 9,
     "title": "Ma Empty",
     "body": "In frontend MA is always zero",
-    "state": "open",
+    "state": "closed",
     "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/9",
     "labels": [
       "bug",

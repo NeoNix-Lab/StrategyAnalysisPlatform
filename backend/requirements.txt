@@ -9,3 +9,6 @@ pytest-cov
 httpx
 passlib[bcrypt]
 python-jose[cryptography]
+numpy
+gym
+tensorflow
