@@ -11,16 +11,17 @@ Every change in the trading lifecycle is sent as an event (strategy/instance/run
 
 ## Repository Layout
 - `backend/`: FastAPI API and ingestion engine backed by SQLite by default (`trading_data.db` in the folder).
-  - `src/api`: FastAPI app (`main.py`), Pydantic schemas, routers (`ingest`, `executions`, `bars`, `strategies`, `runs`, `setups`, `trades`) mounted under `/api`.
-  - `src/database`: SQLAlchemy engine setup and models for strategies, instances, runs, orders, executions, trades, run/market series, bars, and ingest events.
+  - `src/api`: FastAPI app (`main.py`), Pydantic schemas, routers (`ingest`, `executions`, `bars`, `strategies`, `runs`, `setups`, `trades`, `ml_studio`, `training`) mounted under `/api`.
+  - `src/database`: SQLAlchemy engine setup and models for strategies, instances, runs, orders, executions, trades, run/market series, bars, ingest events, and ML entities (RewardFunctions, ModelArchitectures, TrainingSessions).
   - `src/core`: Analytics helpers (`trade_service`, MAE/MFE computations).
   - `src/quantlab`: Metrics engine for reconstructing trades and regime detection utilities.
   - `src/services/analytics`: Pluggable analyzers orchestrated by `AnalyticsRouter` to populate `run.metrics_json`.
+  - `src/training_node`: Core ML logic including `EnvFlex`, `Agent`, `ReplayBuffer`, and training runners.
   - `src/etl`: Import helpers (e.g. `import_sqlite.py`).
   - Utility scripts: `run_server.py` (uvicorn entrypoint), `seed_data.py`, `migrate_db.py`, `check_db*.py`, `populate_dummy_data.py`, etc.
-  - `tests/`: Pytest suite using in-memory SQLite fixtures (integration flow, trades, gap filling).
+  - `tests/`: Pytest suite using in-memory SQLite fixtures (integration flow, trades, gap filling, ML API).
 - `frontend/`: Vite + React dashboard.
-  - `src/pages`: Dashboard widgets, executions monitor, data management, settings, setups, trades and reports views.
+  - `src/pages`: Dashboard widgets, executions monitor, data management, settings, setups, trades, reports, and **ML Studio** (Reward Designer, Model Architect, Training Sessions) views.
   - `src/components`, `src/hooks`, `src/context`: Layout shell, charts (Recharts, lightweight-charts), and shared UI/state helpers.
 - `exporters/`: .NET 8 exporters for pushing events from Quantower.
   - `StrategyExporter/`: Reusable package with DTOs/services, packaged via `build_nuget.bat`.
