@@ -206,9 +206,11 @@
     "title": "Realtime Engine (Sockets & Streaming)",
     "state": "open",
     "labels": [],
-    "assignees": [],
-    "last_action": "opened",
-    "last_updated": "2025-12-28T17:06:24.397119Z",
+    "assignees": [
+      "NeoNix-Lab"
+    ],
+    "last_action": "edited",
+    "last_updated": "2025-12-28T17:06:41.832948Z",
     "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/38"
   }
 }
