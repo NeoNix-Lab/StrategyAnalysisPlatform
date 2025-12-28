@@ -266,5 +266,16 @@
     "last_action": "edited",
     "last_updated": "2025-12-28T17:17:31.253673Z",
     "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/44"
+  },
+  "30": {
+    "title": "CI Failure: Backend Tests",
+    "state": "closed",
+    "labels": [
+      "bug"
+    ],
+    "assignees": [],
+    "last_action": "closed",
+    "last_updated": "2025-12-28T17:39:37.836632Z",
+    "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/30"
   }
 }
