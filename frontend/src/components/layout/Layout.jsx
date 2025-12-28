@@ -94,6 +94,10 @@ const Layout = () => {
                                     <Zap size={20} />
                                     {!isCollapsed && <span>Stress Test</span>}
                                 </Link>
+                                <Link to="/analysis/compare" className={`nav-item ${isActive('/analysis/compare') ? 'active' : ''}`} title="Comparison">
+                                    <List size={20} />
+                                    {!isCollapsed && <span>Comparison</span>}
+                                </Link>
                             </>
                         ) : (
                             <>

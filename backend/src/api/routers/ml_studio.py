@@ -5,7 +5,10 @@ from pydantic import BaseModel
 from datetime import datetime
 import uuid
 import os
+import os
 import json
+import pandas as pd
+import numpy as np
 
 from ...database.connection import get_db
 from ...database import models
@@ -120,10 +123,22 @@ def validate_reward(req: ValidateRewardRequest, db: Session = Depends(get_db)):
             self.current_balance = 10000.0
             self.balance = 10000.0 # Match EnvFlex alias
             self.unrealized_pnl = (current_price - self.entry_price) * self.qty
+            self.pnl = self.unrealized_pnl
             self.position_size = 1 # Signed size (+1, -1, 0)
             self.fees = 0.0
             self.last_reward = 0.0
-            self.data = obs # Access to raw data if needed via env.data
+            self.current_step = 0
+            self.window_size = 10
+            
+            # --- Data Parity with EnvFlex ---
+            # Create a mock DataFrame with 1 row but correct columns
+            self.data = pd.DataFrame([obs])
+            self.observation_dataframe = self.data.copy()
+            # Add helper columns usually present in EnvFlex
+            self.observation_dataframe['balance'] = self.balance
+            self.observation_dataframe['action'] = 0
+            self.observation_dataframe['reward'] = 0
+            self.observation_dataframe['position_status'] = 1
             
             # Namespace Injection
             self.action_labels = action_labels or ["HOLD", "BUY", "SELL"]
@@ -140,8 +155,8 @@ def validate_reward(req: ValidateRewardRequest, db: Session = Depends(get_db)):
             for idx, label in enumerate(self.status_labels):
                 setattr(self.status, label.upper(), idx)
         
-        @property
-        def pnl(self): return self.unrealized_pnl
+        # Removed property pnl as it is now assigned in init for simplicity, 
+        # or kept if we want dynamic update (but mock is static snapshot)
 
     # Extract metadata from request
     meta = req.metadata_json or {}
