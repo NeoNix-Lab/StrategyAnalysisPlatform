@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from src.database.connection import get_db
+from quant_shared.models.connection import get_db
 # Import logic from quantlab if needed, or implement basic query here
 
 router = APIRouter(

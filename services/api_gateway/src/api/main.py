@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from src.database.connection import init_db
+from quant_shared.models.connection import init_db
 import sys
 import asyncio
 
@@ -10,16 +10,16 @@ if sys.platform == 'win32':
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 # Routers
-from src.api.routers import executions
-from src.api.routers import bars
-from src.api.routers import setups
-from src.api.routers import ingest
-from src.api.routers import strategies
-from src.api.routers import runs
-from src.api.routers import trades
-from src.api.routers import metrics
-from src.api.routers import auth
-from src.api.routers import training
+from .routers import executions
+from .routers import bars
+from .routers import setups
+from .routers import ingest
+from .routers import strategies
+from .routers import runs
+from .routers import trades
+from .routers import metrics
+from .routers import auth
+from .routers import training
 
 app = FastAPI(
     title="Strategy Analysis Platform API",

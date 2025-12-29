@@ -4,8 +4,8 @@ import sys
 import os
 import json
 
-# Adjust path to include the service root
-sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+# Adjust path to include the service src directory
+sys.path.append(os.path.join(os.path.dirname(__file__), "../src"))
 
 from main import app
 

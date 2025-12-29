@@ -2,8 +2,8 @@ import sqlite3
 import pytest
 from datetime import datetime, timedelta
 import os
-from src.database.models import Bar
-from src.etl.import_sqlite import SqliteImporter
+from quant_shared.models.models import Bar
+from etl.import_sqlite import SqliteImporter
 
 def create_source_sqlite(path, bars_data):
     if os.path.exists(path):

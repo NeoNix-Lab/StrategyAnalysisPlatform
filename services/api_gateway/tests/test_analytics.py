@@ -4,8 +4,8 @@ from unittest.mock import MagicMock
 from datetime import datetime, timedelta
 import pandas as pd
 import numpy as np
-from src.services.analytics.standard_analyzer import StandardAnalyzer
-from src.database.models import Trade, Execution
+from quant_shared.analytics.standard_analyzer import StandardAnalyzer
+from quant_shared.models.models import Trade, Execution
 
 # Mock structures equivalent to database models
 class MockTrade:

@@ -1,0 +1,19 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "quant_shared"
+version = "0.1.0"
+description = "Shared models and schemas for Strategy Analysis Platform"
+authors = [
+    { name = "NeoNix", email = "neonix@lab.com" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    "sqlalchemy>=2.0.0",
+    "pydantic>=2.0.0"
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]

@@ -1,8 +1,8 @@
 import pytest
 import uuid
 from datetime import datetime, timedelta
-from src.core.trade_service import TradeService
-from src.database.models import Trade, Execution, Order, StrategyRun, StrategyInstance, Side, OrderType, RunType, OrderStatus
+from quant_shared.core.trade_service import TradeService
+from quant_shared.models.models import Trade, Execution, Order, StrategyRun, StrategyInstance, Side, OrderType, RunType, OrderStatus
 
 def test_rebuild_trades(db_session):
     # 1. Setup Test Data

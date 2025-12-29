@@ -5,18 +5,18 @@ from datetime import datetime
 import uuid
 import hashlib
 
-from src.database.connection import get_db
-from src.database.models import (
+from quant_shared.models.connection import get_db
+from quant_shared.models.models import (
     Strategy, StrategyInstance, StrategyRun, 
     Order, Execution, RunSeries, Bar,
     MarketSeries, MarketBar, RunSubscription,
     Side, OrderType, OrderStatus, PositionImpactType, RunType, RunStatus
 )
-from src.api.schemas import (
+from quant_shared.schemas.schemas import (
     StrategyCreate, StrategyInstanceCreate, StrategyRunCreate, StrategyRunUpdate,
     OrderCreate, OrderUpdate, ExecutionCreate, BarCreate, StreamIngestRequest
 )
-from src.core.trade_service import TradeService
+from quant_shared.core.trade_service import TradeService
 
 router = APIRouter()
 logger = logging.getLogger(__name__)

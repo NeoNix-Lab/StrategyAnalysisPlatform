@@ -1,4 +1,4 @@
-from metrics import MetricsEngine
+from quant_shared.quantlab.metrics import MetricsEngine
 from datetime import datetime, timedelta
 
 def test_metrics():

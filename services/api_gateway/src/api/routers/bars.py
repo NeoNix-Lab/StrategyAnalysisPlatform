@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from src.database.connection import get_db
-from src.database.models import Bar, RunSeries
-from src.api.schemas import BarResponse 
+from quant_shared.models.connection import get_db
+from quant_shared.models.models import Bar, RunSeries
+from quant_shared.schemas.schemas import BarResponse 
 from datetime import datetime
 
 router = APIRouter()
@@ -35,7 +35,7 @@ def read_bars(
         return query.order_by(Bar.ts_utc.asc()).limit(limit).all()
 
     # 2. Fallback to Shared Market Data
-    from src.database.models import MarketSeries, MarketBar
+    from quant_shared.models.models import MarketSeries, MarketBar
     
     m_series = db.query(MarketSeries).filter(
         MarketSeries.symbol == symbol,

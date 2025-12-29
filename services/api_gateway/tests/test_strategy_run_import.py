@@ -2,8 +2,8 @@ import os
 import sys
 import sqlite3
 import pytest
-from src.database.models import Order, StrategyRun, Strategy
-from src.etl.import_sqlite import SqliteImporter
+from quant_shared.models.models import Order, StrategyRun, Strategy
+from etl.import_sqlite import SqliteImporter
 
 def create_source_sqlite(filename):
     if os.path.exists(filename):

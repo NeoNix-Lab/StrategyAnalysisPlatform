@@ -8,10 +8,10 @@ from fastapi.testclient import TestClient
 # Add project root to path to ensure imports work
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from src.database.models import Base
+from quant_shared.models.models import Base
 # Try to import app. If fails, client tests will fail but unit tests will pass.
 try:
-    from src.api.main import app
+    from api.main import app
 except ImportError:
     app = None
 

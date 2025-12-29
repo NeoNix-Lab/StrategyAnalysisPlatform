@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from typing import List
-from src.database.connection import get_db
-from src.database.models import Strategy, StrategyInstance
-from src.api.schemas import StrategyResponse, StrategyInstanceResponse
+from quant_shared.models.connection import get_db
+from quant_shared.models.models import Strategy, StrategyInstance
+from quant_shared.schemas.schemas import StrategyResponse, StrategyInstanceResponse
 
 router = APIRouter()
 

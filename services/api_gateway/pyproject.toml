@@ -1,0 +1,30 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "api_gateway"
+version = "0.1.0"
+description = "FastAPI Gateway for Strategy Analysis Platform"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "sqlalchemy",
+    "pydantic",
+    "pydantic-settings",
+    "python-jose[cryptography]",
+    "passlib[bcrypt]",
+    "python-multipart",
+    "tensorflow",
+    "pandas",
+    "numpy",
+    "quant_shared",
+    "ml_core"
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/api", "src/auth", "src/etl"]
+
+[project.scripts]
+start-api = "run_server:main"

@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from src.database.models import Trade, Bar, Side, Execution, Order
+from quant_shared.models.models import Trade, Bar, Side, Execution, Order
 import pandas as pd
 import numpy as np
 
@@ -18,7 +18,7 @@ class StandardAnalyzer:
 
         # Fetch bars covering the trade duration
         # Bar does not have symbol directly, it is on RunSeries
-        from src.database.models import RunSeries
+        from quant_shared.models.models import RunSeries
         
         bars = self.db.query(Bar).join(RunSeries, Bar.series_id == RunSeries.series_id).filter(
             RunSeries.run_id == trade.run_id,
@@ -55,7 +55,7 @@ class StandardAnalyzer:
         Includes Phase 1 (Core) and Phase 2 (Risk) metrics.
         """
         # Join with StrategyRun to filter by strategy_id if needed, or just filter by run_id
-        from src.database.models import StrategyRun
+        from quant_shared.models.models import StrategyRun
         query = self.db.query(Trade).join(StrategyRun, Trade.run_id == StrategyRun.run_id)
         
         if strategy_id:
@@ -63,7 +63,7 @@ class StandardAnalyzer:
             # Or assume run.strategy_id if it existed (it doesn't).
             # We need to join StrategyInstance too?
             # Let's check how runs are linked. Run -> Instance -> Strategy.
-            from src.database.models import StrategyInstance
+            from quant_shared.models.models import StrategyInstance
             query = query.join(StrategyInstance, StrategyRun.instance_id == StrategyInstance.instance_id)\
                          .filter(StrategyInstance.strategy_id == strategy_id)
         

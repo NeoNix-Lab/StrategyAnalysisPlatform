@@ -3,9 +3,9 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
-from src.database.connection import get_db
-from src.auth import service
-from src.database.models import User
+from quant_shared.models.connection import get_db
+from auth import service
+from quant_shared.models.models import User
 
 router = APIRouter(
     tags=["Auth"]

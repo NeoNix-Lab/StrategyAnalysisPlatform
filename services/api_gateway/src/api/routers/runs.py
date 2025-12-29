@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
-from src.database.connection import get_db
-from src.database.models import StrategyRun
-from src.api.schemas import StrategyRunResponse, StartRunRequest
+from quant_shared.models.connection import get_db
+from quant_shared.models.models import StrategyRun
+from quant_shared.schemas.schemas import StrategyRunResponse, StartRunRequest
 
 router = APIRouter()
 
@@ -15,8 +15,8 @@ def get_run(run_id: str, db: Session = Depends(get_db)):
 
     # [NEW] Calculate metrics on the fly using Analytics Service
     # This aggregates existing trades (fast) vs rebuilding from executions (slow)
-    from src.services.analytics import AnalyticsRouter
-    from src.database.models import Strategy
+    from quant_shared.analytics.router import AnalyticsRouter
+    from quant_shared.models.models import Strategy
     
     router = AnalyticsRouter(db)
     
@@ -48,7 +48,7 @@ def stop_run(run_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Run not found")
     
     from datetime import datetime
-    from src.database.models import RunStatus
+    from quant_shared.models.models import RunStatus
     
     run.status = RunStatus.COMPLETED
     run.end_utc = datetime.utcnow()
@@ -61,7 +61,7 @@ def stop_run(run_id: str, db: Session = Depends(get_db)):
 def start_run(request: StartRunRequest, db: Session = Depends(get_db)):
     import uuid
     from datetime import datetime
-    from src.database.models import StrategyInstance, StrategyRun, Strategy
+    from quant_shared.models.models import StrategyInstance, StrategyRun, Strategy
     
     # 1. Check Strategy Exists
     strategy = db.query(Strategy).filter(Strategy.strategy_id == request.strategy_id).first()
@@ -112,8 +112,8 @@ def get_run_trades(run_id: str, db: Session = Depends(get_db)):
     Returns the list of trades for a run.
     Prioritizes persistent 'trades' table. Fallback to on-the-fly reconstruction.
     """
-    from src.database.models import Execution, Order, Trade
-    from src.quantlab.metrics import MetricsEngine
+    from quant_shared.models.models import Execution, Order, Trade
+    from quant_shared.quantlab.metrics import MetricsEngine
     
     # 1. Try fetching from DB
     db_trades = db.query(Trade).filter(Trade.run_id == run_id).all()

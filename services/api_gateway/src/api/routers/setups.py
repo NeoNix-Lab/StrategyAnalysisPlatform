@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from src.database.connection import get_db
-from src.database.models import Execution
+from quant_shared.models.connection import get_db
+from quant_shared.models.models import Execution
 from typing import List
 from pydantic import BaseModel
 

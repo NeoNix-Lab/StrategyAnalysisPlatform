@@ -6,9 +6,9 @@ from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 import uuid
 
-from src.database.connection import get_db
-from src.database.models import User, Role
-from src.auth.crypto import PasswordHasherService
+from quant_shared.models.connection import get_db
+from quant_shared.models.models import User, Role
+from .crypto import PasswordHasherService
 
 # Configuration (Should be in env)
 SECRET_KEY = "CHANGE_THIS_IN_PRODUCTION_SECRET_KEY" 

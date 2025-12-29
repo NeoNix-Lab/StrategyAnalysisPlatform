@@ -1,8 +1,8 @@
 from sqlalchemy.orm import Session
-from src.database.models import Trade, Execution, Order, Side
+from quant_shared.models.models import Trade, Execution, Order, Side
 # Local imports inside methods to assume no circular deps
-from src.quantlab.metrics import MetricsEngine
-from src.quantlab.regime import RegimeDetector
+from quant_shared.quantlab.metrics import MetricsEngine
+from quant_shared.quantlab.regime import RegimeDetector
 import pandas as pd
 import uuid
 import traceback
@@ -16,7 +16,7 @@ class TradeService:
         Helper to fetch market data and calculate regime for a run.
         """
         try:
-            from src.database.models import StrategyRun, StrategyInstance, MarketSeries, MarketBar
+            from quant_shared.models.models import StrategyRun, StrategyInstance, MarketSeries, MarketBar
             
             # Use get() for primary key
             run = self.db.query(StrategyRun).get(run_id)
@@ -140,8 +140,8 @@ class TradeService:
         self.db.commit()
         
         # 4. Trigger Analysis (New Architecture)
-        from src.services.analytics import AnalyticsRouter
-        from src.database.models import StrategyRun, Strategy
+        from quant_shared.analytics.router import AnalyticsRouter
+        from quant_shared.models.models import StrategyRun, Strategy
         
         router = AnalyticsRouter(self.db)
         
