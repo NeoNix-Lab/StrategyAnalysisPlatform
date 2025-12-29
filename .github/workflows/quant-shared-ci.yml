@@ -1,0 +1,49 @@
+name: Shared Core CI
+
+on:
+  push:
+    branches: [ "main", "develop", "version-2" ]
+    paths:
+      - 'packages/quant_shared/**'
+  pull_request:
+    branches: [ "main", "develop", "version-2" ]
+    paths:
+      - 'packages/quant_shared/**'
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  test:
+    name: Test quant_shared
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e packages/quant_shared
+        if [ -f "packages/quant_shared/requirements.txt" ]; then pip install -r packages/quant_shared/requirements.txt; fi
+
+    - name: Test with pytest
+      working-directory: packages/quant_shared
+      run: |
+        pytest -v
+
+    - name: Create Issue on Failure
+      if: failure()
+      uses: dacbd/create-issue-action@v1
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        title: "Test Failure: quant_shared"
+        body: |
+          ### Shared Core Test Failure
+          The tests for `quant_shared` failed on run [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}).

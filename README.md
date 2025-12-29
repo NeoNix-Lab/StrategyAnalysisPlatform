@@ -1,10 +1,10 @@
 # 🌌 Strategy Analysis Platform V2
 ### *High-Performance Quantitative Intelligence & ML Training Ecosystem*
 
-[![Backend CI](https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/actions/workflows/backend-ci.yml/badge.svg)](https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/actions/workflows/backend-ci.yml)
+[![Shared Core CI](https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/actions/workflows/quant-shared-ci.yml/badge.svg)](https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/actions/workflows/quant-shared-ci.yml)
+[![API Gateway CI](https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/actions/workflows/api_gateway-ci.yml/badge.svg)](https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/actions/workflows/api_gateway-ci.yml)
+[![ML Core CI](https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/actions/workflows/ml_core-ci.yml/badge.svg)](https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/actions/workflows/ml_core-ci.yml)
 [![Frontend CI](https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/actions/workflows/frontend-ci.yml/badge.svg)](https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/actions/workflows/frontend-ci.yml)
-[![.NET CI](https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/actions/workflows/dotnet-ci.yml/badge.svg)](https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/actions/workflows/dotnet-ci.yml)
-[![Issue Sync](https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/actions/workflows/issue-upload.yml/badge.svg)](https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/actions/workflows/issue-upload.yml)
 
 **Strategy Analysis Platform V2** is a professional-grade, event-first monorepo designed for institutional-level algorithmic trading analytics. By decoupling high-speed data ingestion from complex quantitative modeling and machine learning workflows, the platform provides a scalable, real-time environment for alpha discovery and strategy optimization.
 
