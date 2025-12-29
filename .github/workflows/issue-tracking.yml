@@ -23,13 +23,13 @@ jobs:
         python-version: '3.10'
 
     - name: Persist issue record
-      run: python Issues/update_issue_record.py
+      run: python Docs/Issues/update_issue_record.py
 
     - name: Commit issue snapshot
       run: |
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
-        git add Issues
+        git add Docs/Issues
         if git diff --cached --quiet; then
           echo "No issue changes detected."
           exit 0

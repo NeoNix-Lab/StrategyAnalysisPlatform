@@ -14,10 +14,22 @@ env
 *.egg-info
 dist
 build
-docs/*
-!docs/Analytics_Service_Refactor.md
-!docs/Workflow.md
-!docs/Metrics.md
-!docs/Metrics_Implementation_Status.md
-Issues/records/
-Issues/index.json
+# Documentation
+Docs/
+!Docs/ARCHITECTURE.md
+!Docs/Workflow.md
+!Docs/Metrics.md
+!Docs/Metrics_Implementation_Status.md
+!Docs/QuantowerExportWorkflowProposto.md
+!Docs/SystemV2_Reference.md
+!Docs/roadmap.md
+!Docs/Issues/
+!Docs/Issues/*.py
+!Docs/Issues/README.md
+!Docs/Issues/tests/
+
+# Issues Data (Local Cache)
+Docs/Issues/records/
+Docs/Issues/index.json
+Docs/Issues/issue-*.json
+Docs/Issues/workflows/issue-events.log

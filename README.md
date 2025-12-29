@@ -1,96 +1,111 @@
-# Strategy Analysis Platform V2
+# 🌌 Strategy Analysis Platform V2
+### *High-Performance Quantitative Intelligence & ML Training Ecosystem*
 
 [![Backend CI](https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/actions/workflows/backend-ci.yml/badge.svg)](https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/actions/workflows/backend-ci.yml)
 [![Frontend CI](https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/actions/workflows/frontend-ci.yml/badge.svg)](https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/actions/workflows/frontend-ci.yml)
 [![.NET CI](https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/actions/workflows/dotnet-ci.yml/badge.svg)](https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/actions/workflows/dotnet-ci.yml)
+[![Issue Sync](https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/actions/workflows/issue-upload.yml/badge.svg)](https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/actions/workflows/issue-upload.yml)
 
-The Strategy Analysis Platform V2 is an event-first monorepo for algorithmic trading analytics. It ingests order-flow events, persists them, reconstructs trades/metrics, and exposes them through a real-time dashboard.
+**Strategy Analysis Platform V2** is a professional-grade, event-first monorepo designed for institutional-level algorithmic trading analytics. By decoupling high-speed data ingestion from complex quantitative modeling and machine learning workflows, the platform provides a scalable, real-time environment for alpha discovery and strategy optimization.
 
-## Core Philosophy: Event-First
-Every change in the trading lifecycle is sent as an event (strategy/instance/run creation, orders, executions, bars). This keeps the system consistent in real time and avoids bulky exports.
+---
 
-## Repository Layout
-- `backend/`: FastAPI API and ingestion engine backed by SQLite by default (`trading_data.db` in the folder).
-  - `src/api`: FastAPI app (`main.py`), Pydantic schemas, routers (`ingest`, `executions`, `bars`, `strategies`, `runs`, `setups`, `trades`, `ml_studio`, `training`) mounted under `/api`.
-  - `src/database`: SQLAlchemy engine setup and models for strategies, instances, runs, orders, executions, trades, run/market series, bars, ingest events, and ML entities (RewardFunctions, ModelArchitectures, TrainingSessions).
-  - `src/core`: Analytics helpers (`trade_service`, MAE/MFE computations).
-  - `src/quantlab`: Metrics engine for reconstructing trades and regime detection utilities.
-  - `src/services/analytics`: Pluggable analyzers orchestrated by `AnalyticsRouter` to populate `run.metrics_json`.
-  - `src/training_node`: Core ML logic including `EnvFlex`, `Agent`, `ReplayBuffer`, and training runners.
-  - `src/etl`: Import helpers (e.g. `import_sqlite.py`).
-  - Utility scripts: `run_server.py` (uvicorn entrypoint), `seed_data.py`, `migrate_db.py`, `check_db*.py`, `populate_dummy_data.py`, etc.
-  - `tests/`: Pytest suite using in-memory SQLite fixtures (integration flow, trades, gap filling, ML API).
-- `frontend/`: Vite + React dashboard.
-  - `src/pages`: Dashboard widgets, executions monitor, data management, settings, setups, trades, reports, and **ML Studio** (Reward Designer, Model Architect, Training Sessions) views.
-  - `src/components`, `src/hooks`, `src/context`: Layout shell, charts (Recharts, lightweight-charts), and shared UI/state helpers.
-- `exporters/`: .NET 8 exporters for pushing events from Quantower.
-  - `StrategyExporter/`: Reusable package with DTOs/services, packaged via `build_nuget.bat`.
-  - `StrategyExporter.Tests/`: Basic unit tests for the exporter library.
-  - `quantower_template/`: Runnable Quantower strategy template; adjust `StartArguments` in the `.csproj` to point to your backend host/port.
-- `docs/`: Architecture, metrics, and exporter workflow references.
+## 💎 Key Features & Capabilities
 
-## Backend (FastAPI) Highlights
-- Entrypoint: `backend/run_server.py` runs `src.api.main:app` on port 8000 with reload for development.
-- Ingestion pipeline under `/api/ingest` handles event and batch endpoints for strategies/instances/runs, orders, executions, and bars. Data is persisted via SQLAlchemy with integrity checks and simple upserts.
-- Analytics flow: `TradeService.rebuild_trades_for_run` reconstructs trades from executions using `quantlab.MetricsEngine`, then `services.analytics` computes P0/P1 metrics into `StrategyRun.metrics_json` with optional per-trade MAE/MFE calculations.
-- Bars and market data: `RunSeries`/`Bar` capture run-scoped bars, `MarketSeries`/`MarketBar` store provider data with subscriptions.
-- REST read endpoints surface executions, bars, strategies, runs, and trades for the frontend.
+### ⚡ Real-Time Event Streaming & Ingestion
+*   **Institutional Connectors**: Native C# exporters for **Quantower** provide sub-millisecond event streaming of orders, executions, and price action directly to the analytics engine.
+*   **Event-First Architecture**: Every movement in the trading lifecycle is captured as a discrete event, ensuring 100% data integrity and eliminating the need for bulky, error-prone manual exports.
 
-## Frontend (React) Highlights
-- Router defined in `frontend/src/App.jsx` with a shared `Layout` shell.
-- Main experiences live in `frontend/src/pages`: `Dashboard` (overview KPIs and charts), `Executions` (table and filters), `DataManagement`, `Settings`, and additional analysis pages (Setups, Trades, Reports, StressTest, Regime, Parameters).
-- Styling is maintained in `App.css` and per-page CSS modules, using Recharts and lightweight-charts for plotting.
+### 🧠 Advanced Quantitative Intelligence
+*   **Precision Trade Reconstruction**: Sophisticated algorithms automatically reconstruct trades from raw execution logs, handling complex scaling, partial fills, and varying lot sizes.
+*   **Professional Metrics Suite**: Instant calculation of institutional-grade KPIs, including:
+    *   **Performance**: Net PnL, Win Rate, Profit Factor, and Sharpe Ratio.
+    *   **Risk**: Dynamic Drawdown analysis and Stability R2 metrics.
+    *   **Efficiency**: Advanced **MAE/MFE** (Maximum Adverse/Favorable Excursion) per-trade analysis to identify optimal stop and target levels.
+*   **Regime Detection**: Integrated quantitative models to identify market states (Trending vs. Ranging), allowing for context-aware performance analysis.
 
-## Exporters (.NET) Highlights
-- `StrategyExporter` library targets `net8.0` and provides DTOs plus HTTP services for posting events to `/api/ingest/...`.
-- `quantower_template` is a ready-to-run strategy project; Visual Studio solution included. Update the `StartArguments` for your backend address and port before running in Quantower.
+### 🧪 ML Studio: The Future of Strategy Development
+*   **Reward Designer**: A visual interface to define complex reward functions based on PnL, risk-adjusted returns, or custom quantitative signals.
+*   **Neuro-Architect**: Design custom neural network architectures (LSTMs, CNNs, MLPs) directly through the platform to power your RL agents.
+*   **Asynchronous Training Node**: A dedicated microservice for high-performance training. Scale horizontally using specialized GPU hardware while maintaining a responsive user experience.
+*   **EnvFlex Environment**: A proprietary, highly flexible RL environment that enables agents to interact with historical market data with realistic execution constraints.
 
+### � Professional-Grade Cockpit
+*   **Dynamic Visualizations**: Real-time equity curves, trade clusters, and distribution charts powered by Recharts and high-performance financial charting libraries.
+*   **Stress Testing**: Integrated modules to evaluate strategy robustness under simulated adverse conditions.
+*   **Setups Analysis**: Visualize entries and exits on top of actual price action to identify behavioral patterns and edge cases.
 
-## Getting Started
+---
+
+## 🏗️ Technical Architecture (Monorepo)
+
+### 📦 The Core Engine (`quant_shared`)
+The bedrock of the platform. A shared Python library implementing the unified data layer (SQLAlchemy), quantitative logic, and schema definitions used by all microservices.
+
+### 🚀 Scalable Microservices
+*   **API Gateway**: The high-performance entry point managing traffic, authentication, and the real-time ingestion pipeline.
+*   **ML Core**: A dedicated microservice built on TensorFlow/Keras, optimized for intensive machine learning training and inference.
+*   **Training Node**: The specialized engine for Reinforcement Learning execution.
+
+### � Modern Frontend
+A high-performance React application built with Vite, offering a lightning-fast UI and an intuitive "ML-Studio" experience for strategy designers.
+
+---
+
+## 🛠️ Getting Started
 
 ### Prerequisites
 - Python 3.10+
 - Node.js 18+
-- .NET 8 SDK (for exporters)
-- Quantower (to run the strategy template)
+- .NET 8 SDK
 
-### Backend
+### 1. Python Environment Setup
+We use a single shared virtual environment at the root of the project to manage all services.
+
 ```bash
-cd backend
+# From the project root (Main/)
 python -m venv .venv
-# Windows: .venv\Scripts\Activate
-pip install -r requirements.txt
-python run_server.py  # FastAPI on http://127.0.0.1:8000
-```
-The default storage is SQLite at `backend/trading_data.db`. Update `src/database/connection.py` if you want PostgreSQL or a different path.
+# Windows: .venv\Scripts\Activate | Linux/macOS: source .venv/bin/activate
 
-### Frontend
+# Install shared package first in editable mode
+pip install -e packages/quant_shared
+
+# Install service dependencies
+pip install -e services/api_gateway
+pip install -e services/ml_core
+```
+
+### 2. Running the Backend
 ```bash
-cd frontend
+# Start the API Gateway
+# Ensure your PYTHONPATH includes the services/api_gateway/src directory
+uvicorn api.main:app --host 0.0.0.0 --port 8000 --app-dir services/api_gateway/src
+```
+Default DB: `trading_data.db` (located at the project root).
+
+### 3. Running the Frontend
+```bash
+cd frontend/quant_frontend
 npm install
-npm run dev  # http://localhost:5173
+npm run dev
 ```
 
-### Exporter Template (Quantower)
-1. Open `exporters/quantower_template/StrategyExporterTemplate.slnx` in Visual Studio.
-2. Restore NuGet packages.
-3. Adjust `StartArguments`/`StartProgram` in the `.csproj` to your Quantower install and backend port.
-4. Build and run the strategy inside Quantower to stream events to the backend.
+---
 
-## Running Tests
-- Backend: `cd backend && pytest`
-- Frontend: `cd frontend && npm test`
-- Exporter library: `cd exporters/StrategyExporter.Tests && dotnet test`
+## 🧪 Testing
+The CI/CD pipeline runs tests for each component using a matrix strategy:
+- **Shared Package**: `pytest packages/quant_shared`
+- **API Gateway**: `pytest services/api_gateway`
+- **ML Core**: `pytest services/ml_core`
+- **Frontend**: `npm test` inside `frontend/quant_frontend`
 
-## Documentation
-Supporting design notes and references live under `docs/`:
-- `ARCHITECTURE.md`, `SystemV2_Reference.md`, `QuantowerExportWorkflowProposto.md`
-- `Metrics.md`, `Analytics_Service_Refactor.md`, `DataManagement_Optimization_Plan.md`, `DBStructureProposto.md`
+## 🤖 Automations & Issues
+- **GitHub Actions**: Automated CI for Python, .NET, and Node.js.
+- **Issue Tracking**: Issues are mirrored locally in `Docs/Issues/` as JSON files for auditability and "Zero Browser" management using `gh` CLI.
+- **Database Status**: Root-level `trading_data.db` is the primary SQLite store for development.
 
-## Issue Tracking Automation
-- `Issues/update_issue_record.py` parses each GitHub `issues` event and writes a per-issue JSON snapshot under `Issues/records`, keeps the `Issues/index.json` summary updated, and logs the event to `Issues/workflows/issue-events.log`.
-- `.github/workflows/issue-tracking.yml` runs on every issue event, commits the generated files back to the repo, and therefore makes the repository its own issue database that workflows (and humans) can consume.
-- The existing CI workflows (Backend, Frontend, .NET) already raise issues on failures; this automation ensures those issues and any manual edits are mirrored inside version control for tracking, audits, and downstream automation.
-
-## GitHub Project Helpers
-- `GitHubProject/` provides tooling for Projects (Beta) boards. `manage_project.py` (requires `GITHUB_TOKEN` and `requests`) can list cards, push issues (e.g., `python GitHubProject/manage_project.py add-issue --issue 1`), add note cards, update single-select/text fields, and sync locally persisted `Issues/records` entries onto the board for manual triage.
+## 📄 Documentation Indices
+Consult `Docs/` for detailed guides:
+- `ARCHITECTURE.md`: Technical overview.
+- `Workflow.md`: Terminal-first management guide.
+- `Metrics_Implementation_Status.md`: Current coverage of analytics.

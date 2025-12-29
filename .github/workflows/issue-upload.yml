@@ -3,7 +3,7 @@ name: Issue Upload
 on:
   push:
     paths:
-      - 'Issues/**.json'
+      - 'Docs/Issues/**.json'
     branches:
       - main
       - develop
@@ -32,9 +32,9 @@ jobs:
       - name: Detect Changed Files
         id: changed-files
         run: |
-          # Get list of added/modified JSON files in Issues/
+          # Get list of added/modified JSON files in Docs/Issues/
           # We purposefully exclude deleted files
-          FILES=$(git diff --name-only --diff-filter=AM ${{ github.event.before }} ${{ github.sha }} | grep '^Issues/.*\.json$' || true)
+          FILES=$(git diff --name-only --diff-filter=AM ${{ github.event.before }} ${{ github.sha }} | grep '^Docs/Issues/.*\.json$' || true)
           # Multiline output to env var
           echo "FILES<<EOF" >> $GITHUB_ENV
           echo "$FILES" >> $GITHUB_ENV
@@ -46,7 +46,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Pass the files as arguments
-          python Issues/sync_upstream.py $FILES
+          python Docs/Issues/sync_upstream.py $FILES
 
       - name: Commit Renames (New Issues)
         if: success()
@@ -57,7 +57,7 @@ jobs:
           # Add any new files (renamed ones) and removing old ones happens via git add -A or standard add of the directory
           # sync_upstream.py deletes the old file and writes the new one.
           
-          git add Issues/
+          git add Docs/Issues/
           
           if git diff --cached --quiet; then
             echo "No file renames to commit."
