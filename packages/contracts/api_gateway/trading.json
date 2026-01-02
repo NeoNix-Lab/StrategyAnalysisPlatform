@@ -92,20 +92,21 @@
       "required": ["trade_id", "run_id", "symbol", "side", "entry_time", "exit_time", "entry_price", "exit_price", "quantity", "pnl_net"],
       "additionalProperties": false
     },
-    "Bar": {
+    "OrderOcoGroup": {
       "type": "object",
       "properties": {
-        "id": { "type": "integer" },
-        "series_id": { "type": "string" },
-        "ts_utc": { "$ref": "common.json#/definitions/Timestamp" },
-        "open": { "type": "number" },
-        "high": { "type": "number" },
-        "low": { "type": "number" },
-        "close": { "type": "number" },
-        "volume": { "type": "number", "default": 0.0 },
-        "volumetric_json": { "type": ["object", "null"] }
+        "oco_group_id": { "$ref": "common.json#/definitions/UUID" },
+        "run_id": { "$ref": "common.json#/definitions/UUID" },
+        "created_utc": { "$ref": "common.json#/definitions/Timestamp" },
+        "label": { "type": ["string", "null"] },
+        "order_ids": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1
+        },
+        "extra_json": { "type": ["object", "null"] }
       },
-      "required": ["id", "series_id", "ts_utc", "open", "high", "low", "close"],
+      "required": ["oco_group_id", "run_id", "order_ids"],
       "additionalProperties": false
     }
   }

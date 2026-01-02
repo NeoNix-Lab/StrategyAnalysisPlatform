@@ -2,7 +2,25 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from typing import List
 import asyncio
 import logging
+import json
+from datetime import datetime
 from quant_shared.utils.logger import attach_queue_handler, get_logger
+# Try to import from contracts, might need path adjustment in dev
+try:
+    from contracts.logging.models import LogRecord
+except ImportError:
+    # If contracts package not installed in env, we might need to add it to sys.path or fail
+    # For now, we assume it's available or we add a mocked fallback for safety if user hasn't installed it yet
+    import sys
+    import os
+    # Try adding standard location relative to this file
+    # d:\Documents\Active\StrategyAnalysisPlatform\Main\services\api_gateway\src\api\routers\system.py
+    # -> ../../../../../packages
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    packages_dir = os.path.abspath(os.path.join(current_dir, "../../../../../packages"))
+    if packages_dir not in sys.path:
+        sys.path.append(packages_dir)
+    from contracts.logging.models import LogRecord
 
 router = APIRouter()
 logger = get_logger("system_router")
@@ -48,27 +66,41 @@ class ConnectionManager:
                 record = await log_queue.get()
                 
                 if not self.active_connections:
-                    # If no one listening, just drain queue effectively or pause?
-                    # For now we keep draining to avoid memory leak if queue gets full (unbounded though)
                     continue
 
-                # Format record
-                # We assume QueueHandler put a LogRecord object
-                # We manually format it to string/JSON
-                log_entry = {
-                    "timestamp": record.asctime if hasattr(record, "asctime") else record.created,
-                    "level": record.levelname,
-                    "name": record.name,
-                    "message": record.getMessage()
-                }
+                # Format record using Contract
+                try:
+                    # Map logging.LogRecord to contracts.LogRecord
+                    # We handle the potential missing fields or differences
+                    contract_record = LogRecord(
+                        timestamp=datetime.fromtimestamp(record.created),
+                        level=record.levelname,
+                        name=record.name,
+                        message=record.getMessage(),
+                        meta={
+                            "filename": record.filename,
+                            "lineno": record.lineno,
+                            "funcName": record.funcName
+                        }
+                    )
+                    
+                    log_entry = json.loads(contract_record.json())
+                    
+                except Exception as e:
+                    # Fallback if contract validation fails
+                    logger.error(f"Failed to convert log to contract: {e}")
+                    log_entry = {
+                        "timestamp": datetime.utcnow().isoformat(),
+                        "level": "ERROR",
+                        "name": "system",
+                        "message": f"Log conversion error: {str(e)}"
+                    }
 
                 # Broadcast
-                # Copy list to avoid modification during iteration
                 for connection in list(self.active_connections):
                     try:
                         await connection.send_json(log_entry)
                     except Exception as e:
-                        # Handle stale connection
                         self.disconnect(connection)
                         
         except asyncio.CancelledError:

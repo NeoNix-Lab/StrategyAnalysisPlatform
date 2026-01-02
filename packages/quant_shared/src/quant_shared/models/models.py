@@ -121,8 +121,7 @@ class StrategyInstance(Base):
     instance_name = Column(String, nullable=True)
     parameters_json = Column(JSON, nullable=False)
     
-    symbol = Column(String, nullable=True)
-    symbols_json = Column(JSON, nullable=True) # Multi-symbol support
+    symbols_json = Column(JSON, nullable=False) # Required array of symbols
     
     timeframe = Column(String, nullable=True)
     account_id = Column(String, nullable=True)
@@ -160,7 +159,7 @@ class StrategyRun(Base):
     # Relationships
     orders = relationship("Order", back_populates="run")
     executions = relationship("Execution", back_populates="run")
-    series_list = relationship("RunSeries", back_populates="run")
+    series_list = relationship("RunSeries", secondary="run_series_run_link", back_populates="runs")
     events = relationship("IngestEvent", back_populates="run")
     oco_groups = relationship("OrderOcoGroup", back_populates="run")
     trades = relationship("Trade", back_populates="run")
@@ -244,59 +243,44 @@ class OrderOcoGroup(Base):
     run_id = Column(String, ForeignKey('strategy_runs.run_id'), nullable=False)
     created_utc = Column(DateTime, default=datetime.utcnow, nullable=False)
     label = Column(String, nullable=True)
+    order_ids = Column(JSON, nullable=False) # Array of order_id strings
     extra_json = Column(JSON, nullable=True)
     
     run = relationship("StrategyRun", back_populates="oco_groups")
-    links = relationship("OrderOcoLink", back_populates="group")
-
-class OrderOcoLink(Base):
-    __tablename__ = 'order_oco_links'
-    
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    run_id = Column(String, ForeignKey('strategy_runs.run_id'), nullable=False)
-    oco_group_id = Column(String, ForeignKey('order_oco_groups.oco_group_id'), nullable=False)
-    order_id = Column(String, nullable=False) # Not FK to id, but logical link
-    
-    oco_role = Column(String, nullable=True) # TP/SL/ENTRY
-    position_impact = Column(Enum(PositionImpactType), default=PositionImpactType.UNKNOWN)
-    
-    group = relationship("OrderOcoGroup", back_populates="links")
-    
-    __table_args__ = (
-        UniqueConstraint('run_id', 'oco_group_id', 'order_id', name='uq_oco_link'),
-        Index('idx_oco_links_order', 'run_id', 'order_id'),
-    )
 
 class RunSeries(Base):
     __tablename__ = 'run_series'
     
     series_id = Column(String, primary_key=True)
-    run_id = Column(String, ForeignKey('strategy_runs.run_id'), nullable=False)
     
     symbol = Column(String, nullable=False)
     timeframe = Column(String, nullable=False)
-    source = Column(String, nullable=True)
+    venue = Column(String, nullable=True)
+    provider = Column(String, nullable=True)
     
-    start_utc = Column(DateTime, nullable=True)
-    end_utc = Column(DateTime, nullable=True)
-    
-    has_volumetric = Column(Boolean, default=False)
     created_utc = Column(DateTime, default=datetime.utcnow, nullable=False)
     
-    run = relationship("StrategyRun", back_populates="series_list")
-    bars = relationship("Bar", back_populates="series")
+    # M:N relationship to StrategyRun via association table
+    runs = relationship("StrategyRun", secondary="run_series_run_link", back_populates="series_list")
+    bars = relationship("RunSeriesBar", back_populates="series")
 
     __table_args__ = (
-        UniqueConstraint('run_id', 'symbol', 'timeframe', name='uq_run_series'),
+        UniqueConstraint('symbol', 'timeframe', 'venue', 'provider', name='uq_run_series_def'),
     )
 
-class Bar(Base):
-    __tablename__ = 'bars'
+class RunSeriesRunLink(Base):
+    __tablename__ = 'run_series_run_link'
     
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    series_id = Column(String, ForeignKey('run_series.series_id'), nullable=False)
+    series_id = Column(String, ForeignKey('run_series.series_id'), primary_key=True)
+    run_id = Column(String, ForeignKey('strategy_runs.run_id'), primary_key=True)
     
-    ts_utc = Column(DateTime, nullable=False)
+    created_utc = Column(DateTime, default=datetime.utcnow)
+
+class RunSeriesBar(Base):
+    __tablename__ = 'run_series_bars'
+    
+    series_id = Column(String, ForeignKey('run_series.series_id'), primary_key=True)
+    ts_utc = Column(DateTime, primary_key=True)
     
     open = Column(Float, nullable=False)
     high = Column(Float, nullable=False)
@@ -304,13 +288,12 @@ class Bar(Base):
     close = Column(Float, nullable=False)
     volume = Column(Float, default=0.0)
     
-    volumetric_json = Column(JSON, nullable=True) # Bid/Ask vol, POC, etc.
+    volumetric_json = Column(JSON, nullable=True)
     
     series = relationship("RunSeries", back_populates="bars")
     
     __table_args__ = (
-        UniqueConstraint('series_id', 'ts_utc', name='uq_series_bar'),
-        Index('idx_bars_series_time', 'series_id', 'ts_utc'),
+        Index('idx_run_series_bars_series_time', 'series_id', 'ts_utc'),
     )
 
 class IngestEvent(Base):
@@ -330,51 +313,6 @@ class IngestEvent(Base):
     __table_args__ = (
         Index('idx_ingest_run_time', 'run_id', 'event_utc'),
     )
-
-class MarketSeries(Base):
-    __tablename__ = 'market_series'
-    
-    series_id = Column(String, primary_key=True) # Hash(symbol, timeframe, venue)
-    
-    symbol = Column(String, nullable=False)
-    timeframe = Column(String, nullable=False)
-    venue = Column(String, nullable=True) # e.g. Binance
-    provider = Column(String, nullable=True) # e.g. Quantower
-    
-    created_utc = Column(DateTime, default=datetime.utcnow)
-    
-    # Relationships
-    bars = relationship("MarketBar", back_populates="series")
-    # Mapping to runs
-    # runs = relationship("StrategyRun", secondary="run_subscriptions")
-
-    __table_args__ = (
-        UniqueConstraint('symbol', 'timeframe', 'venue', 'provider', name='uq_market_series_def'),
-    )
-
-class MarketBar(Base):
-    __tablename__ = 'market_bars'
-    
-    series_id = Column(String, ForeignKey('market_series.series_id'), primary_key=True)
-    ts_utc = Column(DateTime, primary_key=True)
-    
-    open = Column(Float, nullable=False)
-    high = Column(Float, nullable=False)
-    low = Column(Float, nullable=False)
-    close = Column(Float, nullable=False)
-    volume = Column(Float, default=0.0)
-    
-    volumetric_json = Column(JSON, nullable=True)
-    
-    series = relationship("MarketSeries", back_populates="bars")
-
-class RunSubscription(Base):
-    __tablename__ = 'run_subscriptions'
-    
-    run_id = Column(String, ForeignKey('strategy_runs.run_id'), primary_key=True)
-    series_id = Column(String, ForeignKey('market_series.series_id'), primary_key=True)
-    
-    created_utc = Column(DateTime, default=datetime.utcnow)
 
 class Trade(Base):
     __tablename__ = 'trades'

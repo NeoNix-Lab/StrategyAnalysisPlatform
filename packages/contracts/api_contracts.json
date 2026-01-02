@@ -130,17 +130,17 @@
           "strategy_id": { "$ref": "#/definitions/common/UUID" },
           "instance_name": { "type": ["string", "null"] },
           "parameters_json": { "type": "object" },
-          "symbol": { "type": ["string", "null"] },
           "symbols_json": { 
-            "type": ["array", "null"],
-            "items": { "type": "string" }
+            "type": "array",
+            "items": { "$ref": "#/definitions/common/Symbol" },
+            "minItems": 1
           },
           "timeframe": { "type": ["string", "null"] },
           "account_id": { "type": ["string", "null"] },
           "venue": { "type": ["string", "null"] },
           "created_utc": { "$ref": "#/definitions/common/Timestamp" }
         },
-        "required": ["instance_id", "strategy_id", "parameters_json", "created_utc"],
+        "required": ["instance_id", "strategy_id", "parameters_json", "symbols_json", "created_utc"],
         "additionalProperties": false
       },
       "StrategyRun": {
@@ -234,39 +234,45 @@
         "required": ["trade_id", "run_id", "symbol", "side", "entry_time", "exit_time", "entry_price", "exit_price", "quantity", "pnl_net"],
         "additionalProperties": false
       },
-      "Bar": {
+      "OrderOcoGroup": {
         "type": "object",
         "properties": {
-          "id": { "type": "integer" },
-          "series_id": { "type": "string" },
-          "ts_utc": { "$ref": "#/definitions/common/Timestamp" },
-          "open": { "type": "number" },
-          "high": { "type": "number" },
-          "low": { "type": "number" },
-          "close": { "type": "number" },
-          "volume": { "type": "number", "default": 0.0 },
-          "volumetric_json": { "type": ["object", "null"] }
+          "oco_group_id": { "$ref": "#/definitions/common/UUID" },
+          "run_id": { "$ref": "#/definitions/common/UUID" },
+          "created_utc": { "$ref": "#/definitions/common/Timestamp" },
+          "label": { "type": ["string", "null"] },
+          "order_ids": {
+            "type": "array",
+            "items": { "type": "string" },
+            "minItems": 1
+          },
+          "extra_json": { "type": ["object", "null"] }
         },
-        "required": ["id", "series_id", "ts_utc", "open", "high", "low", "close"],
+        "required": ["oco_group_id", "run_id", "order_ids"],
         "additionalProperties": false
       }
     },
 
     "market_data": {
-      "MarketSeries": {
+      "RunSeries": {
         "type": "object",
         "properties": {
           "series_id": { "type": "string" },
-          "symbol": { "type": "string" },
-          "timeframe": { "type": "string" },
+          "symbol": { "$ref": "#/definitions/common/Symbol" },
+          "timeframe": { "$ref": "#/definitions/common/Timeframe" },
           "venue": { "type": ["string", "null"] },
           "provider": { "type": ["string", "null"] },
+          "run_ids": {
+            "type": "array",
+            "items": { "$ref": "#/definitions/common/UUID" },
+            "minItems": 1
+          },
           "created_utc": { "$ref": "#/definitions/common/Timestamp" }
         },
-        "required": ["series_id", "symbol", "timeframe"],
+        "required": ["series_id", "symbol", "timeframe", "run_ids"],
         "additionalProperties": false
       },
-      "MarketBar": {
+      "RunSeriesBar": {
         "type": "object",
         "properties": {
           "series_id": { "type": "string" },

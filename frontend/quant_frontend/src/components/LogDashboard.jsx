@@ -200,9 +200,16 @@ const LogDashboard = () => {
                         <span style={{ color: '#94a3b8', minWidth: '120px', userSelect: 'none' }}>
                             [{log.name}]
                         </span>
-                        <span style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-                            {log.message}
-                        </span>
+                        <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                            <span style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                                {log.message}
+                            </span>
+                            {log.meta && Object.keys(log.meta).length > 0 && (
+                                <span style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '2px' }}>
+                                    {JSON.stringify(log.meta)}
+                                </span>
+                            )}
+                        </div>
                     </div>
                 ))}
                 <div ref={logsEndRef} />

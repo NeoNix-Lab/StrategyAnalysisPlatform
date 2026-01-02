@@ -34,17 +34,17 @@
         "strategy_id": { "$ref": "common.json#/definitions/UUID" },
         "instance_name": { "type": ["string", "null"] },
         "parameters_json": { "type": "object" },
-        "symbol": { "type": ["string", "null"] },
         "symbols_json": {
-          "type": ["array", "null"],
-          "items": { "type": "string" }
+          "type": "array",
+          "items": { "$ref": "common.json#/definitions/Symbol" },
+          "minItems": 1
         },
         "timeframe": { "type": ["string", "null"] },
         "account_id": { "type": ["string", "null"] },
         "venue": { "type": ["string", "null"] },
         "created_utc": { "$ref": "common.json#/definitions/Timestamp" }
       },
-      "required": ["instance_id", "strategy_id", "parameters_json", "created_utc"],
+      "required": ["instance_id", "strategy_id", "parameters_json", "symbols_json", "created_utc"],
       "additionalProperties": false
     },
     "StrategyRun": {
