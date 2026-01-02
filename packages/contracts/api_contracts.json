@@ -1,0 +1,356 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Strategy Analysis Platform - API Contracts",
+  "version": "1.0.0",
+  "description": "JSON Schema definitions for all API contracts and data models",
+  "definitions": {
+    
+    "enums": {
+      "Side": {
+        "type": "string",
+        "enum": ["BUY", "SELL"],
+        "description": "Trade direction"
+      },
+      "OrderType": {
+        "type": "string",
+        "enum": ["MARKET", "LIMIT", "STOP", "STOP_LIMIT", "MIT"],
+        "description": "Type of order"
+      },
+      "OrderStatus": {
+        "type": "string",
+        "enum": ["NEW", "WORKING", "PARTIALLY_FILLED", "FILLED", "CANCELED", "REJECTED", "EXPIRED", "UNKNOWN"],
+        "description": "Current status of an order"
+      },
+      "PositionImpactType": {
+        "type": "string",
+        "enum": ["OPEN", "CLOSE", "REDUCE", "REVERSE", "UNKNOWN"],
+        "description": "How an execution affects the position"
+      },
+      "RunType": {
+        "type": "string",
+        "enum": ["BACKTEST", "LIVE", "PAPER", "REPLAY"],
+        "description": "Type of strategy execution run"
+      },
+      "RunStatus": {
+        "type": "string",
+        "enum": ["RUNNING", "COMPLETED", "FAILED", "CANCELED"],
+        "description": "Current status of a strategy run"
+      },
+      "Role": {
+        "type": "string",
+        "enum": ["ADMIN", "USER", "GUEST"],
+        "description": "User role in the system"
+      }
+    },
+
+    "common": {
+      "Timestamp": {
+        "type": "string",
+        "format": "date-time",
+        "description": "ISO 8601 timestamp in UTC"
+      },
+      "UUID": {
+        "type": "string",
+        "format": "uuid",
+        "description": "Universally unique identifier"
+      },
+      "Currency": {
+        "type": "string",
+        "pattern": "^[A-Z]{3}$",
+        "description": "3-letter currency code (ISO 4217)"
+      },
+      "Symbol": {
+        "type": "string",
+        "description": "Trading symbol identifier (e.g., 'AAPL', 'BTC-USD')"
+      },
+      "Timeframe": {
+        "type": "string",
+        "pattern": "^[0-9]+[mhdwM]$",
+        "description": "Time interval for bars (e.g., '1m', '4h', '1d', '1w', '1M')"
+      }
+    },
+
+    "user": {
+      "User": {
+        "type": "object",
+        "properties": {
+          "user_id": { "$ref": "#/definitions/common/UUID" },
+          "email": { "type": "string", "format": "email" },
+          "role": { "$ref": "#/definitions/enums/Role" },
+          "is_active": { "type": "boolean" },
+          "created_utc": { "$ref": "#/definitions/common/Timestamp" }
+        },
+        "required": ["user_id", "email", "role", "is_active"],
+        "additionalProperties": false
+      },
+      "UserSettings": {
+        "type": "object",
+        "properties": {
+          "setting_id": { "type": "integer" },
+          "user_id": { "$ref": "#/definitions/common/UUID" },
+          "name": { "type": "string" },
+          "payload_json": { "type": "object" },
+          "updated_utc": { "$ref": "#/definitions/common/Timestamp" }
+        },
+        "required": ["setting_id", "user_id", "name", "payload_json"],
+        "additionalProperties": false
+      },
+      "ApiKey": {
+        "type": "object",
+        "properties": {
+          "key_id": { "$ref": "#/definitions/common/UUID" },
+          "user_id": { "$ref": "#/definitions/common/UUID" },
+          "label": { "type": ["string", "null"] },
+          "expires_utc": { "$ref": "#/definitions/common/Timestamp" }
+        },
+        "required": ["key_id", "user_id"],
+        "additionalProperties": false
+      }
+    },
+
+    "strategy": {
+      "Strategy": {
+        "type": "object",
+        "properties": {
+          "strategy_id": { "$ref": "#/definitions/common/UUID" },
+          "name": { "type": "string" },
+          "version": { "type": ["string", "null"] },
+          "vendor": { "type": ["string", "null"] },
+          "source_ref": { "type": ["string", "null"] },
+          "created_utc": { "$ref": "#/definitions/common/Timestamp" },
+          "notes": { "type": ["string", "null"] }
+        },
+        "required": ["strategy_id", "name", "created_utc"],
+        "additionalProperties": false
+      },
+      "StrategyInstance": {
+        "type": "object",
+        "properties": {
+          "instance_id": { "$ref": "#/definitions/common/UUID" },
+          "strategy_id": { "$ref": "#/definitions/common/UUID" },
+          "instance_name": { "type": ["string", "null"] },
+          "parameters_json": { "type": "object" },
+          "symbol": { "type": ["string", "null"] },
+          "symbols_json": { 
+            "type": ["array", "null"],
+            "items": { "type": "string" }
+          },
+          "timeframe": { "type": ["string", "null"] },
+          "account_id": { "type": ["string", "null"] },
+          "venue": { "type": ["string", "null"] },
+          "created_utc": { "$ref": "#/definitions/common/Timestamp" }
+        },
+        "required": ["instance_id", "strategy_id", "parameters_json", "created_utc"],
+        "additionalProperties": false
+      },
+      "StrategyRun": {
+        "type": "object",
+        "properties": {
+          "run_id": { "$ref": "#/definitions/common/UUID" },
+          "instance_id": { "$ref": "#/definitions/common/UUID" },
+          "run_type": { "$ref": "#/definitions/enums/RunType" },
+          "start_utc": { "$ref": "#/definitions/common/Timestamp" },
+          "end_utc": { "$ref": "#/definitions/common/Timestamp" },
+          "status": { "$ref": "#/definitions/enums/RunStatus" },
+          "engine_version": { "type": ["string", "null"] },
+          "data_source": { "type": ["string", "null"] },
+          "initial_balance": { "type": ["number", "null"] },
+          "base_currency": { "type": ["string", "null"] },
+          "metrics_json": { "type": ["object", "null"] },
+          "created_utc": { "$ref": "#/definitions/common/Timestamp" }
+        },
+        "required": ["run_id", "instance_id", "run_type", "start_utc", "status", "created_utc"],
+        "additionalProperties": false
+      }
+    },
+
+    "trading": {
+      "Order": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "run_id": { "$ref": "#/definitions/common/UUID" },
+          "order_id": { "type": "string" },
+          "parent_order_id": { "type": ["string", "null"] },
+          "symbol": { "type": "string" },
+          "account_id": { "type": ["string", "null"] },
+          "side": { "$ref": "#/definitions/enums/Side" },
+          "order_type": { "$ref": "#/definitions/enums/OrderType" },
+          "time_in_force": { "type": ["string", "null"] },
+          "quantity": { "type": "number" },
+          "price": { "type": ["number", "null"] },
+          "stop_price": { "type": ["number", "null"] },
+          "status": { "$ref": "#/definitions/enums/OrderStatus" },
+          "submit_utc": { "$ref": "#/definitions/common/Timestamp" },
+          "update_utc": { "$ref": "#/definitions/common/Timestamp" },
+          "client_tag": { "type": ["string", "null"] },
+          "position_impact": { "$ref": "#/definitions/enums/PositionImpactType" },
+          "extra_json": { "type": ["object", "null"] }
+        },
+        "required": ["id", "run_id", "order_id", "symbol", "side", "order_type", "quantity", "status", "submit_utc", "position_impact"],
+        "additionalProperties": false
+      },
+      "Execution": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "run_id": { "$ref": "#/definitions/common/UUID" },
+          "execution_id": { "type": "string" },
+          "order_id": { "type": "string" },
+          "exec_utc": { "$ref": "#/definitions/common/Timestamp" },
+          "price": { "type": "number" },
+          "quantity": { "type": "number" },
+          "fee": { "type": "number", "default": 0.0 },
+          "fee_currency": { "type": ["string", "null"] },
+          "liquidity": { "type": ["string", "null"] },
+          "position_impact": { "$ref": "#/definitions/enums/PositionImpactType" },
+          "extra_json": { "type": ["object", "null"] }
+        },
+        "required": ["id", "run_id", "execution_id", "order_id", "exec_utc", "price", "quantity", "position_impact"],
+        "additionalProperties": false
+      },
+      "Trade": {
+        "type": "object",
+        "properties": {
+          "trade_id": { "$ref": "#/definitions/common/UUID" },
+          "run_id": { "$ref": "#/definitions/common/UUID" },
+          "symbol": { "type": "string" },
+          "side": { "$ref": "#/definitions/enums/Side" },
+          "entry_time": { "$ref": "#/definitions/common/Timestamp" },
+          "exit_time": { "$ref": "#/definitions/common/Timestamp" },
+          "entry_price": { "type": "number" },
+          "exit_price": { "type": "number" },
+          "quantity": { "type": "number" },
+          "pnl_net": { "type": "number" },
+          "pnl_gross": { "type": ["number", "null"] },
+          "commission": { "type": "number", "default": 0.0 },
+          "mae": { "type": ["number", "null"] },
+          "mfe": { "type": ["number", "null"] },
+          "duration_seconds": { "type": ["number", "null"] },
+          "regime_trend": { "type": ["string", "null"] },
+          "regime_volatility": { "type": ["string", "null"] },
+          "extra_json": { "type": ["object", "null"] }
+        },
+        "required": ["trade_id", "run_id", "symbol", "side", "entry_time", "exit_time", "entry_price", "exit_price", "quantity", "pnl_net"],
+        "additionalProperties": false
+      },
+      "Bar": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "series_id": { "type": "string" },
+          "ts_utc": { "$ref": "#/definitions/common/Timestamp" },
+          "open": { "type": "number" },
+          "high": { "type": "number" },
+          "low": { "type": "number" },
+          "close": { "type": "number" },
+          "volume": { "type": "number", "default": 0.0 },
+          "volumetric_json": { "type": ["object", "null"] }
+        },
+        "required": ["id", "series_id", "ts_utc", "open", "high", "low", "close"],
+        "additionalProperties": false
+      }
+    },
+
+    "market_data": {
+      "MarketSeries": {
+        "type": "object",
+        "properties": {
+          "series_id": { "type": "string" },
+          "symbol": { "type": "string" },
+          "timeframe": { "type": "string" },
+          "venue": { "type": ["string", "null"] },
+          "provider": { "type": ["string", "null"] },
+          "created_utc": { "$ref": "#/definitions/common/Timestamp" }
+        },
+        "required": ["series_id", "symbol", "timeframe"],
+        "additionalProperties": false
+      },
+      "MarketBar": {
+        "type": "object",
+        "properties": {
+          "series_id": { "type": "string" },
+          "ts_utc": { "$ref": "#/definitions/common/Timestamp" },
+          "open": { "type": "number" },
+          "high": { "type": "number" },
+          "low": { "type": "number" },
+          "close": { "type": "number" },
+          "volume": { "type": "number", "default": 0.0 },
+          "volumetric_json": { "type": ["object", "null"] }
+        },
+        "required": ["series_id", "ts_utc", "open", "high", "low", "close"],
+        "additionalProperties": false
+      }
+    },
+
+    "ml": {
+      "Dataset": {
+        "type": "object",
+        "properties": {
+          "dataset_id": { "$ref": "#/definitions/common/UUID" },
+          "name": { "type": "string" },
+          "description": { "type": ["string", "null"] },
+          "created_utc": { "$ref": "#/definitions/common/Timestamp" },
+          "sources_json": {
+            "type": "array",
+            "items": { "type": "object" },
+            "minItems": 1
+          },
+          "feature_config_json": { 
+            "type": ["array", "null"],
+            "items": { "type": "string" }
+          }
+        },
+        "required": ["dataset_id", "name", "sources_json", "created_utc"],
+        "additionalProperties": false
+      },
+      "MlRewardFunction": {
+        "type": "object",
+        "properties": {
+          "function_id": { "$ref": "#/definitions/common/UUID" },
+          "name": { "type": "string" },
+          "code": { "type": "string" },
+          "description": { "type": ["string", "null"] },
+          "created_utc": { "$ref": "#/definitions/common/Timestamp" },
+          "metadata_json": { "type": ["object", "null"] }
+        },
+        "required": ["function_id", "name", "code", "created_utc"],
+        "additionalProperties": false
+      },
+      "MlTrainingSession": {
+        "type": "object",
+        "properties": {
+          "session_id": { "$ref": "#/definitions/common/UUID" },
+          "name": { "type": "string" },
+          "function_id": { "$ref": "#/definitions/common/UUID" },
+          "model_id": { "$ref": "#/definitions/common/UUID" },
+          "process_id": { "$ref": "#/definitions/common/UUID" },
+          "status": { "type": "string", "default": "PLANNED" },
+          "created_utc": { "$ref": "#/definitions/common/Timestamp" }
+        },
+        "required": ["session_id", "name", "created_utc"],
+        "additionalProperties": false
+      },
+      "MlIteration": {
+        "type": "object",
+        "properties": {
+          "iteration_id": { "$ref": "#/definitions/common/UUID" },
+          "session_id": { "$ref": "#/definitions/common/UUID" },
+          "dataset_id": { "$ref": "#/definitions/common/UUID" },
+          "name": { "type": ["string", "null"] },
+          "split_config_json": { "type": ["object", "null"] },
+          "status": { "type": "string", "default": "PENDING" },
+          "metrics_json": { "type": ["object", "null"] },
+          "model_artifact_path": { "type": ["string", "null"] },
+          "logs_json": { "type": ["object", "null"] },
+          "start_utc": { "$ref": "#/definitions/common/Timestamp" },
+          "end_utc": { "$ref": "#/definitions/common/Timestamp" }
+        },
+        "required": ["iteration_id", "session_id", "dataset_id"],
+        "additionalProperties": false
+      }
+    }
+  },
+  
+  "$ref": "#/definitions/enums"
+}

@@ -414,3 +414,139 @@ class Trade(Base):
         Index('idx_trades_run_time', 'run_id', 'exit_time'),
         Index('idx_trades_symbol', 'symbol'),
     )
+
+class Dataset(Base):
+    __tablename__ = 'datasets'
+    
+    dataset_id = Column(String, primary_key=True) # UUID
+    name = Column(String, nullable=False)
+    description = Column(String, nullable=True)
+    created_utc = Column(DateTime, default=datetime.utcnow)
+    
+    # Configuration for reconstructing the dataset
+    # e.g. [{"run_id": "...", "start_time": "...", "end_time": "..."}]
+    sources_json = Column(JSON, nullable=False) 
+    
+    # ML Metadata
+    # ML Metadata
+    feature_config_json = Column(JSON, nullable=True) # e.g. ["open", "close", "rsi_14"]
+    
+    samples = relationship("MlDatasetSample", back_populates="dataset", cascade="all, delete-orphan")
+
+class MlDatasetSample(Base):
+    """
+    Stores concrete numerical data rows for a dataset.
+    Used when the dataset is not just a pointer to market data but holds pre-processed values.
+    """
+    __tablename__ = 'ml_dataset_samples'
+    
+    sample_id = Column(Integer, primary_key=True, autoincrement=True)
+    dataset_id = Column(String, ForeignKey('datasets.dataset_id'), nullable=False)
+    
+    timestamp_utc = Column(DateTime, nullable=True)
+    
+    # Ordering/Grouping
+    group_id = Column(String, nullable=True) # e.g. "episode_1" or "batch_1"
+    step_index = Column(Integer, nullable=True) # order within group
+    
+    # Data Content
+    features_json = Column(JSON, nullable=False) # The actual input vector/map
+    targets_json = Column(JSON, nullable=True)   # The optional target/label
+    
+    dataset = relationship("Dataset", back_populates="samples")
+
+# --- ML Studio Models ---
+
+class MlRewardFunction(Base):
+    __tablename__ = 'ml_reward_functions'
+    
+    function_id = Column(String, primary_key=True) # UUID
+    name = Column(String, nullable=False)
+    code = Column(Text, nullable=False) # Python source code or JSON logic
+    description = Column(String, nullable=True)
+    created_utc = Column(DateTime, default=datetime.utcnow)
+    
+    # Metadata for configuration (Action Space, Status Space, etc.)
+    metadata_json = Column(JSON, nullable=True)
+
+class MlModelArchitecture(Base):
+    __tablename__ = 'ml_model_architectures'
+    
+    model_id = Column(String, primary_key=True) # UUID
+    name = Column(String, nullable=False)
+    layers_json = Column(JSON, nullable=False) # Config for layers e.g. [{type: 'Dense', ...}]
+    description = Column(String, nullable=True)
+    created_utc = Column(DateTime, default=datetime.utcnow)
+
+class MlTrainingProcess(Base):
+    __tablename__ = 'ml_training_processes'
+    
+    process_id = Column(String, primary_key=True) # UUID
+    name = Column(String, nullable=False)
+    
+    # Hyperparameters
+    gamma = Column(Float, default=0.99)
+    tau = Column(Float, default=0.005)
+    epsilon_start = Column(Float, default=1.0)
+    epsilon_end = Column(Float, default=0.01)
+    epsilon_decay = Column(Float, default=0.995)
+    
+    epochs = Column(Integer, default=50)
+    batch_size = Column(Integer, default=32)
+    learning_rate = Column(Float, default=0.001)
+    window_size = Column(Integer, default=10)
+    
+    description = Column(String, nullable=True)
+    created_utc = Column(DateTime, default=datetime.utcnow)
+
+class MlTrainingSession(Base):
+    """
+    Represents a configured training setup (Function + Model + Process).
+    Like a 'Recipe' that can be executed multiple times (Iterations).
+    """
+    __tablename__ = 'ml_training_sessions'
+    
+    session_id = Column(String, primary_key=True) # UUID
+    name = Column(String, nullable=False)
+    
+    function_id = Column(String, ForeignKey('ml_reward_functions.function_id'), nullable=True)
+    model_id = Column(String, ForeignKey('ml_model_architectures.model_id'), nullable=True)
+    process_id = Column(String, ForeignKey('ml_training_processes.process_id'), nullable=True)
+    
+    status = Column(String, default="PLANNED") # PLANNED, ACTIVE, ARCHIVED
+    created_utc = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    function = relationship("MlRewardFunction")
+    model = relationship("MlModelArchitecture")
+    process = relationship("MlTrainingProcess")
+    iterations = relationship("MlIteration", back_populates="session")
+
+class MlIteration(Base):
+    """
+    A specific execution of a Session on a specific Dataset.
+    """
+    __tablename__ = 'ml_iterations'
+    
+    iteration_id = Column(String, primary_key=True) # UUID
+    session_id = Column(String, ForeignKey('ml_training_sessions.session_id'), nullable=False)
+    dataset_id = Column(String, ForeignKey('datasets.dataset_id'), nullable=False)
+    
+    name = Column(String, nullable=True) # specific name for this run
+    
+    # Data Split Configuration
+    # e.g. {"train_ratio": 0.7, "test_ratio": 0.2, "validation_ratio": 0.1}
+    split_config_json = Column(JSON, nullable=True)
+    
+    status = Column(String, default="PENDING") # PENDING, RUNNING, COMPLETED, FAILED
+    
+    # Results & Artifacts
+    metrics_json = Column(JSON, nullable=True) # Final metrics
+    model_artifact_path = Column(String, nullable=True) # Path to saved model file
+    logs_json = Column(JSON, nullable=True) # Path or content of logs
+    
+    start_utc = Column(DateTime, nullable=True)
+    end_utc = Column(DateTime, nullable=True)
+    
+    session = relationship("MlTrainingSession", back_populates="iterations")
+    dataset = relationship("Dataset")

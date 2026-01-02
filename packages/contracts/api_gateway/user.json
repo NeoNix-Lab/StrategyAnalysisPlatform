@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "API Gateway - User Schemas",
+  "version": "1.0.0",
+  "definitions": {
+    "Role": {
+      "type": "string",
+      "enum": ["ADMIN", "USER", "GUEST"],
+      "description": "User role in the system"
+    },
+    "User": {
+      "type": "object",
+      "properties": {
+        "user_id": { "$ref": "common.json#/definitions/UUID" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "$ref": "#/definitions/Role" },
+        "is_active": { "type": "boolean" },
+        "created_utc": { "$ref": "common.json#/definitions/Timestamp" }
+      },
+      "required": ["user_id", "email", "role", "is_active"],
+      "additionalProperties": false
+    },
+    "UserSettings": {
+      "type": "object",
+      "properties": {
+        "setting_id": { "type": "integer" },
+        "user_id": { "$ref": "common.json#/definitions/UUID" },
+        "name": { "type": "string" },
+        "payload_json": { "type": "object" },
+        "updated_utc": { "$ref": "common.json#/definitions/Timestamp" }
+      },
+      "required": ["setting_id", "user_id", "name", "payload_json"],
+      "additionalProperties": false
+    },
+    "ApiKey": {
+      "type": "object",
+      "properties": {
+        "key_id": { "$ref": "common.json#/definitions/UUID" },
+        "user_id": { "$ref": "common.json#/definitions/UUID" },
+        "label": { "type": ["string", "null"] },
+        "expires_utc": { "$ref": "common.json#/definitions/Timestamp" }
+      },
+      "required": ["key_id", "user_id"],
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,9 +1,33 @@
-import { Fragment, useMemo } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { useStrategyData } from '../hooks/useStrategyData'
+import { useStrategy } from '../context/StrategyContext'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, FunnelChart } from 'recharts'
 
 const Regime = () => {
-    const { trades, loading } = useStrategyData()
+    const { trades, loading, refresh } = useStrategyData()
+    const { selectedRun } = useStrategy()
+    const [rebuilding, setRebuilding] = useState(false)
+    const [rebuildError, setRebuildError] = useState(null)
+
+    const triggerRebuild = async () => {
+        if (!selectedRun) return
+        setRebuilding(true)
+        setRebuildError(null)
+        try {
+            const res = await fetch(`/api/trades/rebuild/${selectedRun}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            if (!res.ok) {
+                throw new Error('Errore durante la ricostruzione dei trade')
+            }
+            await refresh()
+        } catch (err) {
+            setRebuildError(err.message || 'Errore sconosciuto')
+        } finally {
+            setRebuilding(false)
+        }
+    }
 
     const regimeStats = useMemo(() => {
         if (!trades.length) return { trend: [], volatility: [], matrix: {} }
@@ -61,6 +85,17 @@ const Regime = () => {
 
     return (
         <div className="regime-container">
+            <div className="regime-actions">
+                <button
+                    type="button"
+                    className="btn-primary"
+                    disabled={!selectedRun || rebuilding}
+                    onClick={triggerRebuild}
+                >
+                    {rebuilding ? 'Ricalcolo in corso…' : 'Ricalcola regime'}
+                </button>
+                {rebuildError && <span className="text-danger ml-2">{rebuildError}</span>}
+            </div>
             {/* Charts Row */}
             <div className="charts-grid">
                 <div className="card chart-card">

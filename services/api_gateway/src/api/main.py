@@ -1,11 +1,16 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from quant_shared.models.connection import init_db
+from quant_shared.models.connection import init_db, DB_PATH
+from quant_shared.utils.logger import get_logger
 import sys
+import os
 import asyncio
+import time
+
+# Initialize Logger
+logger = get_logger("api_gateway")
 
 # Fix for Windows "too many file descriptors in select()" error
-# This switches the event loop to Proactor (IOCP) which supports >> 512 connections.
 if sys.platform == 'win32':
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
@@ -20,6 +25,8 @@ from .routers import trades
 from .routers import metrics
 from .routers import auth
 from .routers import training
+from .routers import ml_studio
+from .routers import datasets
 
 app = FastAPI(
     title="Strategy Analysis Platform API",
@@ -35,8 +42,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    process_time = time.time() - start_time
+    logger.info(f"{request.method} {request.url.path} - {response.status_code} - {process_time:.4f}s")
+    return response
+
 @app.on_event("startup")
 def on_startup():
+    logger.info("Starting API Gateway Service...")
+    logger.info(f"Environment TRADING_DB_PATH: {os.getenv('TRADING_DB_PATH')}")
+    logger.info(f"Actual DB_PATH used: {DB_PATH}")
     init_db()
 
 app.include_router(executions.router, prefix="/api/executions", tags=["executions"])
@@ -49,6 +67,8 @@ app.include_router(trades.router, prefix="/api/trades", tags=["trades"])
 app.include_router(metrics.router, prefix="/api/metrics", tags=["metrics"])
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(training.router, prefix="/api/training", tags=["training"])
+app.include_router(ml_studio.router, prefix="/api/ml/studio", tags=["ml_studio"])
+app.include_router(datasets.router, prefix="/api/datasets", tags=["datasets"])
 
 @app.get("/health")
 def health_check():

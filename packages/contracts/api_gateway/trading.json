@@ -1,0 +1,112 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "API Gateway - Trading Schemas",
+  "version": "1.0.0",
+  "definitions": {
+    "Side": {
+      "type": "string",
+      "enum": ["BUY", "SELL"],
+      "description": "Trade direction"
+    },
+    "OrderType": {
+      "type": "string",
+      "enum": ["MARKET", "LIMIT", "STOP", "STOP_LIMIT", "MIT"],
+      "description": "Type of order"
+    },
+    "OrderStatus": {
+      "type": "string",
+      "enum": ["NEW", "WORKING", "PARTIALLY_FILLED", "FILLED", "CANCELED", "REJECTED", "EXPIRED", "UNKNOWN"],
+      "description": "Current status of an order"
+    },
+    "PositionImpactType": {
+      "type": "string",
+      "enum": ["OPEN", "CLOSE", "REDUCE", "REVERSE", "UNKNOWN"],
+      "description": "How an execution affects the position"
+    },
+    "Order": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "integer" },
+        "run_id": { "$ref": "common.json#/definitions/UUID" },
+        "order_id": { "type": "string" },
+        "parent_order_id": { "type": ["string", "null"] },
+        "symbol": { "type": "string" },
+        "account_id": { "type": ["string", "null"] },
+        "side": { "$ref": "#/definitions/Side" },
+        "order_type": { "$ref": "#/definitions/OrderType" },
+        "time_in_force": { "type": ["string", "null"] },
+        "quantity": { "type": "number" },
+        "price": { "type": ["number", "null"] },
+        "stop_price": { "type": ["number", "null"] },
+        "status": { "$ref": "#/definitions/OrderStatus" },
+        "submit_utc": { "$ref": "common.json#/definitions/Timestamp" },
+        "update_utc": { "$ref": "common.json#/definitions/Timestamp" },
+        "client_tag": { "type": ["string", "null"] },
+        "position_impact": { "$ref": "#/definitions/PositionImpactType" },
+        "extra_json": { "type": ["object", "null"] }
+      },
+      "required": ["id", "run_id", "order_id", "symbol", "side", "order_type", "quantity", "status", "submit_utc", "position_impact"],
+      "additionalProperties": false
+    },
+    "Execution": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "integer" },
+        "run_id": { "$ref": "common.json#/definitions/UUID" },
+        "execution_id": { "type": "string" },
+        "order_id": { "type": "string" },
+        "exec_utc": { "$ref": "common.json#/definitions/Timestamp" },
+        "price": { "type": "number" },
+        "quantity": { "type": "number" },
+        "fee": { "type": "number", "default": 0.0 },
+        "fee_currency": { "type": ["string", "null"] },
+        "liquidity": { "type": ["string", "null"] },
+        "position_impact": { "$ref": "#/definitions/PositionImpactType" },
+        "extra_json": { "type": ["object", "null"] }
+      },
+      "required": ["id", "run_id", "execution_id", "order_id", "exec_utc", "price", "quantity", "position_impact"],
+      "additionalProperties": false
+    },
+    "Trade": {
+      "type": "object",
+      "properties": {
+        "trade_id": { "$ref": "common.json#/definitions/UUID" },
+        "run_id": { "$ref": "common.json#/definitions/UUID" },
+        "symbol": { "type": "string" },
+        "side": { "$ref": "#/definitions/Side" },
+        "entry_time": { "$ref": "common.json#/definitions/Timestamp" },
+        "exit_time": { "$ref": "common.json#/definitions/Timestamp" },
+        "entry_price": { "type": "number" },
+        "exit_price": { "type": "number" },
+        "quantity": { "type": "number" },
+        "pnl_net": { "type": "number" },
+        "pnl_gross": { "type": ["number", "null"] },
+        "commission": { "type": "number", "default": 0.0 },
+        "mae": { "type": ["number", "null"] },
+        "mfe": { "type": ["number", "null"] },
+        "duration_seconds": { "type": ["number", "null"] },
+        "regime_trend": { "type": ["string", "null"] },
+        "regime_volatility": { "type": ["string", "null"] },
+        "extra_json": { "type": ["object", "null"] }
+      },
+      "required": ["trade_id", "run_id", "symbol", "side", "entry_time", "exit_time", "entry_price", "exit_price", "quantity", "pnl_net"],
+      "additionalProperties": false
+    },
+    "Bar": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "integer" },
+        "series_id": { "type": "string" },
+        "ts_utc": { "$ref": "common.json#/definitions/Timestamp" },
+        "open": { "type": "number" },
+        "high": { "type": "number" },
+        "low": { "type": "number" },
+        "close": { "type": "number" },
+        "volume": { "type": "number", "default": 0.0 },
+        "volumetric_json": { "type": ["object", "null"] }
+      },
+      "required": ["id", "series_id", "ts_utc", "open", "high", "low", "close"],
+      "additionalProperties": false
+    }
+  }
+}

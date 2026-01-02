@@ -15,7 +15,7 @@ def get_run(run_id: str, db: Session = Depends(get_db)):
 
     # [NEW] Calculate metrics on the fly using Analytics Service
     # This aggregates existing trades (fast) vs rebuilding from executions (slow)
-    from quant_shared.analytics.router import AnalyticsRouter
+    from quant_shared.analytics.analytics_router import AnalyticsRouter
     from quant_shared.models.models import Strategy
     
     router = AnalyticsRouter(db)
@@ -30,9 +30,15 @@ def get_run(run_id: str, db: Session = Depends(get_db)):
             strategy_type = sType
             
     # Calculate and update
-    metrics = router.route_analysis(run_id=run_id, strategy_type=strategy_type)
-    run.metrics_json = metrics
-    db.commit()
+    # Calculate and update
+    try:
+        metrics = router.route_analysis(run_id=run_id, strategy_type=strategy_type)
+        run.metrics_json = metrics
+        db.commit()
+    except Exception as e:
+        print(f"⚠️ Analytics failed for run {run_id}: {e}")
+        # Continue without crashing, return run with existing metrics
+    
     db.refresh(run)
 
     return run

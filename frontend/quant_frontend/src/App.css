@@ -117,6 +117,17 @@ h1 {
   }
 }
 
+.regime-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.regime-actions .btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .chart-card {
   height: 400px;
   display: flex;

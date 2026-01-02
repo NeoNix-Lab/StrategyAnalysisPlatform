@@ -20,7 +20,8 @@ dependencies = [
     "pandas",
     "numpy",
     "quant_shared",
-    "ml_core"
+    "ml_core",
+    "httpx"
 ]
 
 [tool.hatch.build.targets.wheel]

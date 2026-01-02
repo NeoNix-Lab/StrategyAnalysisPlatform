@@ -183,7 +183,18 @@ class StandardAnalyzer:
         fill_ratio = (executed_qty / ordered_qty) if ordered_qty > 0 else 0.0
 
         # [NEW] Equity Curve Generation
-        equity_curve = self._generate_equity_curve(df)
+        try:
+            equity_curve = self._generate_equity_curve(df)
+        except Exception:
+            equity_curve = []
+
+        # Safe Metrics Calculation Helper
+        def safe_calc(func, default=0.0):
+            try:
+                res = func()
+                return res if not (pd.isna(res) or res is None) else default
+            except Exception:
+                return default
 
         return {
             # P0
@@ -205,23 +216,20 @@ class StandardAnalyzer:
             "max_consecutive_losses": int(max_consecutive_losses),
             
             # P2 (Performance Ratios)
-            # P2 (Performance Ratios) - using Annualized Default (252)
-            "sharpe_ratio": round(self._calculate_sharpe(df['pnl_net'], annualized=True), 2),
-            "sortino_ratio": round(self._calculate_sortino(df['pnl_net'], annualized=True), 2),
-            "calmar_ratio": round(self._calculate_calmar(net_profit, max_drawdown), 2),
+            "sharpe_ratio": safe_calc(lambda: round(self._calculate_sharpe(df['pnl_net'], annualized=True), 2)),
+            "sortino_ratio": safe_calc(lambda: round(self._calculate_sortino(df['pnl_net'], annualized=True), 2)),
+            "calmar_ratio": safe_calc(lambda: round(self._calculate_calmar(net_profit, max_drawdown), 2)),
             
-            # [NEW] Equity Curve Data (Simplified for storage/api)
-            # Maybe too large for metrics_json? 
-            # Storing summary stats instead.
-            "equity_curve": equity_curve, # Frontend can use this if passed via API
+            # [NEW] Equity Curve Data
+            "equity_curve": equity_curve,
             
             # P2 (Execution Analysis)
-            "avg_mae": round(df['mae'].mean(), 2) if 'mae' in df else 0,
-            "avg_mfe": round(df['mfe'].mean(), 2) if 'mfe' in df else 0,
-            "efficiency_ratio": round(self._calculate_efficiency(df), 2),
-            "stability_r2": round(self._calculate_stability(df), 2),
-            "pnl_skew": self._calculate_distribution_stats(df)['skew'],
-            "pnl_kurtosis": self._calculate_distribution_stats(df)['kurtosis']
+            "avg_mae": round(df['mae'].mean(), 2) if 'mae' in df and not df['mae'].isnull().all() else 0,
+            "avg_mfe": round(df['mfe'].mean(), 2) if 'mfe' in df and not df['mfe'].isnull().all() else 0,
+            "efficiency_ratio": safe_calc(lambda: round(self._calculate_efficiency(df), 2)),
+            "stability_r2": safe_calc(lambda: round(self._calculate_stability(df), 2)),
+            "pnl_skew": safe_calc(lambda: self._calculate_distribution_stats(df)['skew']),
+            "pnl_kurtosis": safe_calc(lambda: self._calculate_distribution_stats(df)['kurtosis'])
         }
 
     def _calculate_sharpe(self, returns: pd.Series, annualized: bool = False) -> float:

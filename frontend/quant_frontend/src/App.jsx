@@ -13,10 +13,9 @@ import TradeReplayPage from './pages/TradeReplayPage'
 import Efficiency from './pages/Efficiency'
 import Regime from './pages/Regime'
 import StressTest from './pages/StressTest'
-import CompareRuns from './pages/CompareRuns'
 import DataManagement from './pages/DataManagement'
 import Settings from './pages/Settings'
-import MachineLearning from './pages/MachineLearning'
+
 import MlDashboard from './pages/ml/MlDashboard'
 import MlCompose from './pages/ml/MlCompose'
 import MlSessionDetail from './pages/ml/MlSessionDetail' // Active
@@ -53,7 +52,7 @@ function App() {
                 <Route path="analysis/efficiency" element={<Efficiency />} />
                 <Route path="analysis/regime" element={<Regime />} />
                 <Route path="analysis/stress-test" element={<StressTest />} />
-                <Route path="analysis/compare" element={<CompareRuns />} />
+
 
                 {/* --- QUANT LAB WORKSPACE --- */}
                 <Route path="ml" element={<Navigate to="/ml/studio" replace />} />

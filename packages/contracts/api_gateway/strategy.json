@@ -1,0 +1,70 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "API Gateway - Strategy Schemas",
+  "version": "1.0.0",
+  "definitions": {
+    "RunType": {
+      "type": "string",
+      "enum": ["BACKTEST", "LIVE", "PAPER", "REPLAY"],
+      "description": "Type of strategy execution run"
+    },
+    "RunStatus": {
+      "type": "string",
+      "enum": ["RUNNING", "COMPLETED", "FAILED", "CANCELED"],
+      "description": "Current status of a strategy run"
+    },
+    "Strategy": {
+      "type": "object",
+      "properties": {
+        "strategy_id": { "$ref": "common.json#/definitions/UUID" },
+        "name": { "type": "string" },
+        "version": { "type": ["string", "null"] },
+        "vendor": { "type": ["string", "null"] },
+        "source_ref": { "type": ["string", "null"] },
+        "created_utc": { "$ref": "common.json#/definitions/Timestamp" },
+        "notes": { "type": ["string", "null"] }
+      },
+      "required": ["strategy_id", "name", "created_utc"],
+      "additionalProperties": false
+    },
+    "StrategyInstance": {
+      "type": "object",
+      "properties": {
+        "instance_id": { "$ref": "common.json#/definitions/UUID" },
+        "strategy_id": { "$ref": "common.json#/definitions/UUID" },
+        "instance_name": { "type": ["string", "null"] },
+        "parameters_json": { "type": "object" },
+        "symbol": { "type": ["string", "null"] },
+        "symbols_json": {
+          "type": ["array", "null"],
+          "items": { "type": "string" }
+        },
+        "timeframe": { "type": ["string", "null"] },
+        "account_id": { "type": ["string", "null"] },
+        "venue": { "type": ["string", "null"] },
+        "created_utc": { "$ref": "common.json#/definitions/Timestamp" }
+      },
+      "required": ["instance_id", "strategy_id", "parameters_json", "created_utc"],
+      "additionalProperties": false
+    },
+    "StrategyRun": {
+      "type": "object",
+      "properties": {
+        "run_id": { "$ref": "common.json#/definitions/UUID" },
+        "instance_id": { "$ref": "common.json#/definitions/UUID" },
+        "run_type": { "$ref": "#/definitions/RunType" },
+        "start_utc": { "$ref": "common.json#/definitions/Timestamp" },
+        "end_utc": { "$ref": "common.json#/definitions/Timestamp" },
+        "status": { "$ref": "#/definitions/RunStatus" },
+        "engine_version": { "type": ["string", "null"] },
+        "data_source": { "type": ["string", "null"] },
+        "initial_balance": { "type": ["number", "null"] },
+        "base_currency": { "type": ["string", "null"] },
+        "metrics_json": { "type": ["object", "null"] },
+        "created_utc": { "$ref": "common.json#/definitions/Timestamp" }
+      },
+      "required": ["run_id", "instance_id", "run_type", "start_utc", "status", "created_utc"],
+      "additionalProperties": false
+    }
+  }
+}

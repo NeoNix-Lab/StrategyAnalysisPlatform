@@ -74,6 +74,9 @@ class TradeService:
         # 2. Reconstruct (using existing MetricsEngine logic)
         # Returns list of dicts
         trade_dicts = MetricsEngine.reconstruct_trades(executions, orders)
+        if not trade_dicts:
+            print(f"⚠️ No trades reconstructed for run {run_id}; preserving existing records.")
+            return 0
         
         # 3. Persist
         # Strategy: Delete existing trades for this run? Or Upsert?
@@ -139,41 +142,37 @@ class TradeService:
         self.db.add_all(new_trade_objs)
         self.db.commit()
         
-        # 4. Trigger Analysis (New Architecture)
-        from quant_shared.analytics.router import AnalyticsRouter
-        from quant_shared.models.models import StrategyRun, Strategy
-        
-        router = AnalyticsRouter(self.db)
-        
-        # Fetch strategy type
-        # Re-query for safety
-        run = self.db.query(StrategyRun).get(run_id)
+        analytics_router = None
         strategy_type = 'DEFAULT'
-        if run and run.instance:
-            # We can try to access strategy relation if loaded, else query
-             if run.instance.strategy_id:
-                  # Use get()
-                  # strategy = self.db.query(Strategy).get(run.instance.strategy_id)
-                  # Simplest: assume relation is working or use loose type
-                  pass
-            # Or just use logic:
-            # instance loaded above?
-        
-        # Calculate P0/P1 metrics
-        metrics = router.route_analysis(run_id=run_id, strategy_type=strategy_type)
-        
-        # Update Run
-        if run:
-            run.metrics_json = metrics
-            self.db.commit()
+        try:
+            from quant_shared.analytics.analytics_router import AnalyticsRouter
+            from quant_shared.models.models import StrategyRun, Strategy
+            
+            analytics_router = AnalyticsRouter(self.db)
+            
+            # Fetch strategy type
+            run = self.db.query(StrategyRun).get(run_id)
+            if run and run.instance:
+                associated_strategy = run.instance.strategy
+                s_type = getattr(associated_strategy, 'type', None)
+                if s_type:
+                    strategy_type = s_type
+            
+            metrics = analytics_router.route_analysis(run_id=run_id, strategy_type=strategy_type)
+            
+            if run:
+                run.metrics_json = metrics
+                self.db.commit()
+        except Exception as e:
+            print(f"⚠️ Analysis failed during rebuild for run {run_id}: {e}")
+            traceback.print_exc()
 
-        # Optional: Trigger per-trade analysis (P2: MAE/MFE)
-        # This could be slow for thousands of trades, so maybe only do it for recent/active ones
-        # or offload to background task. For now, we'll skip or do a lightweight loop.
-        # Trigger per-trade analysis (P2: MAE/MFE)
-        # Use pre-collected IDs to avoid stale session objects
-        for tid in trade_ids:
-             router.calculate_trade_metrics(trade_id=tid, strategy_type=strategy_type)
+        if analytics_router and trade_ids:
+            for tid in trade_ids:
+                try:
+                    analytics_router.calculate_trade_metrics(trade_id=tid, strategy_type=strategy_type)
+                except Exception:
+                    pass
 
         return len(new_trade_objs)
 

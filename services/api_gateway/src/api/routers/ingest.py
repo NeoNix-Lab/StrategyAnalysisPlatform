@@ -178,11 +178,12 @@ async def upsert_order_logic(db: Session, data: OrderCreate):
         db.flush() # Ensure visible for next iter in batch
 
 @router.post("/event/execution")
-async def on_execution(data: ExecutionCreate, db: Session = Depends(get_db)):
+async def on_execution(data: ExecutionCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     logger.info(f"Received Execution Event: {data.execution_id} for Order {data.order_id}")
     try:
         await upsert_execution_logic(db, data)
         db.commit()
+        background_tasks.add_task(rebuild_trades_task, data.run_id)
         return {"status": "ok", "id": data.execution_id}
     except Exception as e:
         db.rollback()
@@ -198,10 +199,8 @@ async def on_executions_batch(data: list[ExecutionCreate], background_tasks: Bac
             run_ids.add(item.run_id)
         db.commit()
         
-        # Trigger Trade Reconstruction for affected runs - DISABLED for Manual Trigger
-        # trade_service = TradeService(db)
-        # for rid in run_ids:
-        #     background_tasks.add_task(rebuild_trades_task, rid)
+        for rid in run_ids:
+            background_tasks.add_task(rebuild_trades_task, rid)
             
         return {"status": "ok", "count": len(data)}
     except Exception as e:
@@ -228,10 +227,8 @@ async def ingest_stream(data: StreamIngestRequest, background_tasks: BackgroundT
                 
         db.commit()
         
-        # Trigger reconstruction for involved runs - DISABLED for Manual Trigger
-        # trade_service = TradeService(db)
-        # for rid in run_ids:
-        #     background_tasks.add_task(rebuild_trades_task, rid)
+        for rid in run_ids:
+            background_tasks.add_task(rebuild_trades_task, rid)
             
         return {"status": "ok", "orders_processed": len(data.orders), "executions_processed": len(data.executions)}
         
