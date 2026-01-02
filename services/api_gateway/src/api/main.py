@@ -26,7 +26,9 @@ from .routers import metrics
 from .routers import auth
 from .routers import training
 from .routers import ml_studio
+from .routers import ml_studio
 from .routers import datasets
+from .routers import system
 
 app = FastAPI(
     title="Strategy Analysis Platform API",
@@ -69,6 +71,7 @@ app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(training.router, prefix="/api/training", tags=["training"])
 app.include_router(ml_studio.router, prefix="/api/ml/studio", tags=["ml_studio"])
 app.include_router(datasets.router, prefix="/api/datasets", tags=["datasets"])
+app.include_router(system.router, prefix="/api/system", tags=["system"])
 
 @app.get("/health")
 def health_check():

@@ -55,4 +55,27 @@ def get_logger(name: str, log_file: str = "app.log", level: str = None) -> loggi
         except Exception as e:
             print(f"Failed to setup file logging: {e}")
             
+            
     return logger
+
+def attach_queue_handler(logger: logging.Logger, queue):
+    """
+    Attaches a QueueHandler to the logger to stream logs to an asyncio or multiprocessing queue.
+    """
+    from logging.handlers import QueueHandler
+    
+    # Check if already attached
+    for h in logger.handlers:
+        if isinstance(h, QueueHandler):
+            return
+            
+    qh = QueueHandler(queue)
+    qh.setLevel(logging.INFO)
+    
+    # Custom formatter for JSON-like structure if needed, or just standard
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    qh.setFormatter(formatter)
+    
+    logger.addHandler(qh)
