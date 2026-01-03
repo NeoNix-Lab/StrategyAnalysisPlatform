@@ -3,6 +3,11 @@ import sys
 import os
 from logging.handlers import RotatingFileHandler
 
+def _ensure_contracts_on_path():
+    packages_dir = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../../../../packages"))
+    if packages_dir not in sys.path:
+        sys.path.insert(0, packages_dir)
+
 def get_logger(name: str, log_file: str = "app.log", level: str = None) -> logging.Logger:
     """
     Creates and configures a logger instance.
@@ -145,7 +150,11 @@ class HttpLogHandler(logging.Handler):
     def _monitor_queue(self):
         import requests
         import json
-        from contracts.logging.models import LogRecord
+        try:
+            from quant_shared.schemas.logging import LogRecord
+        except ImportError:
+            # Fallback for dev environment issues
+            raise
         from datetime import datetime
 
         session = requests.Session()

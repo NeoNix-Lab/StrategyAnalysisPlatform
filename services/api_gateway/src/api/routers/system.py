@@ -5,22 +5,8 @@ import logging
 import json
 from datetime import datetime
 from quant_shared.utils.logger import attach_queue_handler, get_logger
-# Try to import from contracts, might need path adjustment in dev
-try:
-    from contracts.logging.models import LogRecord
-except ImportError:
-    # If contracts package not installed in env, we might need to add it to sys.path or fail
-    # For now, we assume it's available or we add a mocked fallback for safety if user hasn't installed it yet
-    import sys
-    import os
-    # Try adding standard location relative to this file
-    # d:\Documents\Active\StrategyAnalysisPlatform\Main\services\api_gateway\src\api\routers\system.py
-    # -> ../../../../../packages
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    packages_dir = os.path.abspath(os.path.join(current_dir, "../../../../../packages"))
-    if packages_dir not in sys.path:
-        sys.path.append(packages_dir)
-    from contracts.logging.models import LogRecord
+# Import from shared schemas
+from quant_shared.schemas.logging import LogRecord
 
 router = APIRouter()
 logger = get_logger("system_router")

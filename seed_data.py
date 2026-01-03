@@ -9,7 +9,7 @@ from quant_shared.models.connection import get_db, init_db, engine
 from quant_shared.models.models import (
     Strategy, StrategyInstance, StrategyRun, Trade, Execution, Order,
     Dataset, MlRewardFunction, MlModelArchitecture, MlTrainingProcess, 
-    MlTrainingSession, MlIteration,
+    MlTrainingSession, MlIteration, OrderOcoGroup, RunSeries, RunSeriesRunLink, RunSeriesBar,
     RunType, RunStatus, Side, OrderType, OrderStatus, PositionImpactType,
     Base
 )
@@ -69,7 +69,7 @@ def create_dummy_data():
                     strategy_id=s.strategy_id,
                     instance_name=f"{s.name} - {symbols[i]} {timeframes[i]}",
                     parameters_json={"period": 14, "std_dev": 2.0},
-                    symbol=symbols[i],
+                    symbols_json=[symbols[i]],  # Required array instead of single symbol
                     timeframe=timeframes[i],
                     venue="Binance",
                     account_id="ACC_BIN_001"
@@ -109,10 +109,11 @@ def create_dummy_data():
                 if current_time > datetime.utcnow(): break
                 
                 side = random.choice([Side.BUY, Side.SELL])
-                entry_price = random.uniform(20000, 60000) if "BTC" in inst.symbol else random.uniform(1000, 3000)
+                symbol = inst.symbols_json[0] if inst.symbols_json else "BTCUSDT"  # Get first symbol from array
+                entry_price = random.uniform(20000, 60000) if "BTC" in symbol else random.uniform(1000, 3000)
                 exit_price = entry_price * (1 + random.uniform(-0.02, 0.03)) # -2% to +3%
                 
-                qty = 0.1 if "BTC" in inst.symbol else 1.0
+                qty = 0.1 if "BTC" in symbol else 1.0
                 
                 pnl = (exit_price - entry_price) * qty if side == Side.BUY else (entry_price - exit_price) * qty
                 balance += pnl
@@ -120,7 +121,7 @@ def create_dummy_data():
                 trade = Trade(
                     trade_id=str(uuid.uuid4()),
                     run_id=run.run_id,
-                    symbol=inst.symbol,
+                    symbol=symbol,
                     side=side,
                     entry_time=current_time,
                     exit_time=current_time + timedelta(minutes=random.randint(5, 120)),
@@ -133,19 +134,136 @@ def create_dummy_data():
                 )
                 db.add(trade)
                 
+                # Create fake orders for entry and exit
+                entry_order = Order(
+                    order_id=str(uuid.uuid4()),
+                    run_id=run.run_id,
+                    symbol=symbol,
+                    side=side,
+                    order_type=OrderType.MARKET,
+                    quantity=qty,
+                    price=entry_price,
+                    status=OrderStatus.FILLED,
+                    submit_utc=current_time,
+                    update_utc=current_time,
+                    position_impact=PositionImpactType.OPEN
+                )
+                db.add(entry_order)
+                
+                exit_order = Order(
+                    order_id=str(uuid.uuid4()),
+                    run_id=run.run_id,
+                    symbol=symbol,
+                    side=Side.SELL if side == Side.BUY else Side.BUY,
+                    order_type=OrderType.MARKET,
+                    quantity=qty,
+                    price=exit_price,
+                    status=OrderStatus.FILLED,
+                    submit_utc=current_time + timedelta(minutes=random.randint(5, 120)),
+                    update_utc=current_time + timedelta(minutes=random.randint(5, 120)),
+                    position_impact=PositionImpactType.CLOSE
+                )
+                db.add(exit_order)
+                
                 # Create fake execution for entry
                 exec_entry = Execution(
-                    run_id=run.run_id,
                     execution_id=str(uuid.uuid4()),
-                    order_id=str(uuid.uuid4()),
+                    run_id=run.run_id,
+                    order_id=entry_order.order_id,
                     exec_utc=current_time,
                     price=entry_price,
                     quantity=qty,
+                    fee=qty * entry_price * 0.001,
                     position_impact=PositionImpactType.OPEN
                 )
                 db.add(exec_entry)
+                
+                # Create fake execution for exit
+                exec_exit = Execution(
+                    execution_id=str(uuid.uuid4()),
+                    run_id=run.run_id,
+                    order_id=exit_order.order_id,
+                    exec_utc=current_time + timedelta(minutes=random.randint(5, 120)),
+                    price=exit_price,
+                    quantity=qty,
+                    fee=qty * exit_price * 0.001,
+                    position_impact=PositionImpactType.CLOSE
+                )
+                db.add(exec_exit)
+                
+                # Create OCO groups for some trades (30% chance)
+                if random.random() < 0.3:
+                    oco_group = OrderOcoGroup(
+                        oco_group_id=str(uuid.uuid4()),
+                        run_id=run.run_id,
+                        created_utc=current_time,
+                        label=f"OCO for trade {trade.trade_id}",
+                        order_ids=[entry_order.order_id, exit_order.order_id],
+                        extra_json={"trade_id": trade.trade_id}
+                    )
+                    db.add(oco_group)
 
-        # 4. Create ML Studio Data
+        # 4. Create Shared RunSeries and Bars
+        print("Creating RunSeries and Bars...")
+        
+        # Create shared series for each symbol/timeframe combination
+        series_map = {}
+        for symbol in ["BTCUSDT", "ETHUSDT", "SOLUSDT"]:
+            for timeframe in ["1m", "5m", "1h"]:
+                series_id = f"{symbol}_{timeframe}_shared"
+                series = RunSeries(
+                    series_id=series_id,
+                    symbol=symbol,
+                    timeframe=timeframe,
+                    venue="Binance",
+                    provider="Quantower",
+                    created_utc=datetime.utcnow()
+                )
+                db.add(series)
+                series_map[(symbol, timeframe)] = series
+        
+        db.commit()
+        
+        # Create sample bars for each series
+        for (symbol, timeframe), series in series_map.items():
+            # Create 100 bars per series
+            base_price = 45000 if "BTC" in symbol else (2800 if "ETH" in symbol else 150)
+            for i in range(100):
+                bar_time = datetime.utcnow() - timedelta(hours=i)
+                price_variation = random.uniform(-0.02, 0.02)  # ±2%
+                current_price = base_price * (1 + price_variation)
+                
+                bar = RunSeriesBar(
+                    series_id=series.series_id,
+                    ts_utc=bar_time,
+                    open=current_price,
+                    high=current_price * random.uniform(1.0, 1.01),
+                    low=current_price * random.uniform(0.99, 1.0),
+                    close=current_price * random.uniform(0.995, 1.005),
+                    volume=random.uniform(0.5, 5.0),
+                    volumetric_json={"buy_volume": random.uniform(0.3, 2.5), "sell_volume": random.uniform(0.2, 2.5)}
+                )
+                db.add(bar)
+        
+        # Link runs to series (each run uses the series for its symbol/timeframe)
+        for run in db.query(StrategyRun).all():
+            instance = run.instance
+            if instance and instance.symbols_json and instance.timeframe:
+                for symbol in instance.symbols_json:
+                    series_key = (symbol, instance.timeframe)
+                    if series_key in series_map:
+                        series = series_map[series_key]
+                        # Create link between run and series
+                        link = RunSeriesRunLink(
+                            series_id=series.series_id,
+                            run_id=run.run_id,
+                            created_utc=datetime.utcnow()
+                        )
+                        db.add(link)
+        
+        db.commit()
+
+        # 5. Create ML Studio Data
         print("Creating ML Studio Data...")
         
         # --- Datasets ---

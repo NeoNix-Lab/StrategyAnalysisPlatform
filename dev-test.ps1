@@ -3,6 +3,7 @@
 $ErrorActionPreference = "Continue"
 
 Write-Host "🧪 Starting Full Stack Test Suite..." -ForegroundColor Cyan
+$packagesPath = (Resolve-Path ".\packages").Path
 
 # Activate .venv
 if (Test-Path ".venv/Scripts/Activate.ps1") {
@@ -14,7 +15,7 @@ $failed = $false
 # Function to run pytest and catch failure
 function Run-TestGroup ($name, $path, $pythonpath) {
     Write-Host "`nTesting $name..." -ForegroundColor Yellow
-    $env:PYTHONPATH = $pythonpath
+    $env:PYTHONPATH = "$pythonpath;$packagesPath"
     pytest -v $path
     if ($LASTEXITCODE -ne 0) {
         Write-Host "❌ $name Tests Failed!" -ForegroundColor Red
