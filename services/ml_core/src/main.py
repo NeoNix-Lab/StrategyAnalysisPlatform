@@ -14,6 +14,14 @@ app = FastAPI(title="ML Training Microservice")
 @app.on_event("startup")
 def on_startup():
     init_db()
+    # Configure logging to API Gateway
+    from quant_shared.utils.logger import setup_remote_logging
+    # Assuming API Gateway is reachable at http://localhost:8000 inside the shared network or localhost if running locally
+    # Ideally this URL comes from env
+    import os
+    gateway_url = os.getenv("API_GATEWAY_URL", "http://localhost:8000")
+    setup_remote_logging("ml_core", gateway_url, "ml_core")
+    logger.info("ML Core service started and logging remotely")
 
 class TrainingJobRequest(BaseModel):
     run_id: str

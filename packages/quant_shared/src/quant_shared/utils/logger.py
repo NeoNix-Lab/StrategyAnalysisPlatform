@@ -114,3 +114,98 @@ def attach_queue_handler(logger: logging.Logger, queue):
     qh.setFormatter(formatter)
     
     logger.addHandler(qh)
+
+class HttpLogHandler(logging.Handler):
+    """
+    Log handler that sends logs to an HTTP endpoint (API Gateway).
+    Uses a background worker thread to process a queue and avoid blocking the main thread.
+    """
+    def __init__(self, url: str, service_name: str, token: str = None):
+        super().__init__()
+        self.url = url
+        self.service_name = service_name
+        self.token = token
+        
+        # Internal queue for the worker
+        from queue import Queue
+        self.queue = Queue()
+        
+        # Start worker thread
+        import threading
+        self._stop_event = threading.Event()
+        self.worker = threading.Thread(target=self._monitor_queue, daemon=True)
+        self.worker.start()
+
+    def emit(self, record: logging.LogRecord):
+        try:
+            self.queue.put(record)
+        except Exception:
+            self.handleError(record)
+
+    def _monitor_queue(self):
+        import requests
+        import json
+        from contracts.logging.models import LogRecord
+        from datetime import datetime
+
+        session = requests.Session()
+        if self.token:
+            session.headers.update({"Authorization": f"Bearer {self.token}"})
+        
+        while not self._stop_event.is_set():
+            try:
+                # Block for 1 sec then check stop event
+                record = self.queue.get(timeout=1.0)
+                
+                # Convert to Contract
+                try:
+                    contract_log = LogRecord(
+                        timestamp=datetime.fromtimestamp(record.created),
+                        level=record.levelname,
+                        name=self.service_name, # Use service name as override or record.name? record.name is better for granularity
+                        message=record.getMessage(),
+                        meta={
+                            "logger_name": record.name,
+                            "filename": record.filename,
+                            "lineno": record.lineno
+                        }
+                    )
+                    payload = contract_log.dict()
+                    # JSON serialization for datetime handled by Pydantic .dict() usually needs helper or .json()
+                    # .dict() returns datetime objects. json.dumps needs default=str
+                    
+                    response = session.post(self.url, json=payload, timeout=2, headers={"Content-Type": "application/json"}, default=str)
+                    if response.status_code >= 400:
+                        print(f"Failed to send log to gateway: {response.text}")
+                        
+                except Exception as e:
+                    # Don't crash the worker
+                    print(f"Error sending log: {e}")
+                finally:
+                    self.queue.task_done()
+                    
+            except Exception:
+                # Empty queue timeout
+                continue
+
+    def close(self):
+        self._stop_event.set()
+        if self.worker.is_alive():
+            self.worker.join(timeout=2.0)
+        super().close()
+
+def setup_remote_logging(logger_name: str, gateway_url: str, service_name: str):
+    """
+    Helper to configure a logger to send logs to the central gateway.
+    """
+    logger = logging.getLogger(logger_name)
+    
+    # Check if already has handler
+    for h in logger.handlers:
+        if isinstance(h, HttpLogHandler):
+            return logger
+            
+    handler = HttpLogHandler(f"{gateway_url}/internal/logs", service_name)
+    handler.setLevel(logging.INFO)
+    logger.addHandler(handler)
+    return logger

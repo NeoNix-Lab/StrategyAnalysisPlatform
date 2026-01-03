@@ -70,19 +70,22 @@ class ConnectionManager:
 
                 # Format record using Contract
                 try:
-                    # Map logging.LogRecord to contracts.LogRecord
-                    # We handle the potential missing fields or differences
-                    contract_record = LogRecord(
-                        timestamp=datetime.fromtimestamp(record.created),
-                        level=record.levelname,
-                        name=record.name,
-                        message=record.getMessage(),
-                        meta={
-                            "filename": record.filename,
-                            "lineno": record.lineno,
-                            "funcName": record.funcName
-                        }
-                    )
+                    if isinstance(record, LogRecord):
+                        # Already a contract (from internal HTTP endpoint)
+                        contract_record = record
+                    else:
+                        # Map logging.LogRecord to contracts.LogRecord
+                        contract_record = LogRecord(
+                            timestamp=datetime.fromtimestamp(record.created),
+                            level=record.levelname,
+                            name=record.name,
+                            message=record.getMessage(),
+                            meta={
+                                "filename": record.filename,
+                                "lineno": record.lineno,
+                                "funcName": record.funcName
+                            }
+                        )
                     
                     log_entry = json.loads(contract_record.json())
                     
@@ -122,3 +125,16 @@ async def websocket_endpoint(websocket: WebSocket):
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
         manager.disconnect(websocket)
+
+@router.post("/internal/logs")
+async def receive_internal_log(log: LogRecord):
+    """
+    Receives logs from other microservices via HTTP and broadcasts them.
+    """
+    try:
+        await log_queue.put(log)
+    except Exception as e:
+        logger.error(f"Failed to process internal log: {e}")
+        return {"status": "error", "message": str(e)}
+
+    return {"status": "ok"}
