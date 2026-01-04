@@ -1,115 +1,24 @@
 {
-  "event": "manual_push",
-  "action": "created",
+  "event": "issues",
+  "action": "closed",
   "repository": "NeoNix-Lab/StrategyAnalysisPlatform",
+  "sender": "NeoNix-Lab",
+  "event_timestamp": "2026-01-04T15:22:20.534107Z",
   "issue": {
-    "url": "https://api.github.com/repos/NeoNix-Lab/StrategyAnalysisPlatform/issues/13",
-    "repository_url": "https://api.github.com/repos/NeoNix-Lab/StrategyAnalysisPlatform",
-    "labels_url": "https://api.github.com/repos/NeoNix-Lab/StrategyAnalysisPlatform/issues/13/labels{/name}",
-    "comments_url": "https://api.github.com/repos/NeoNix-Lab/StrategyAnalysisPlatform/issues/13/comments",
-    "events_url": "https://api.github.com/repos/NeoNix-Lab/StrategyAnalysisPlatform/issues/13/events",
-    "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/13",
-    "id": 3736116617,
-    "node_id": "I_kwDOQkFd_c7esJ2J",
     "number": 13,
     "title": "Incorrect Bar Construction in Replayer",
-    "user": {
-      "login": "github-actions[bot]",
-      "id": 41898282,
-      "node_id": "MDM6Qm90NDE4OTgyODI=",
-      "avatar_url": "https://avatars.githubusercontent.com/in/15368?v=4",
-      "gravatar_id": "",
-      "url": "https://api.github.com/users/github-actions%5Bbot%5D",
-      "html_url": "https://github.com/apps/github-actions",
-      "followers_url": "https://api.github.com/users/github-actions%5Bbot%5D/followers",
-      "following_url": "https://api.github.com/users/github-actions%5Bbot%5D/following{/other_user}",
-      "gists_url": "https://api.github.com/users/github-actions%5Bbot%5D/gists{/gist_id}",
-      "starred_url": "https://api.github.com/users/github-actions%5Bbot%5D/starred{/owner}{/repo}",
-      "subscriptions_url": "https://api.github.com/users/github-actions%5Bbot%5D/subscriptions",
-      "organizations_url": "https://api.github.com/users/github-actions%5Bbot%5D/orgs",
-      "repos_url": "https://api.github.com/users/github-actions%5Bbot%5D/repos",
-      "events_url": "https://api.github.com/users/github-actions%5Bbot%5D/events{/privacy}",
-      "received_events_url": "https://api.github.com/users/github-actions%5Bbot%5D/received_events",
-      "type": "Bot",
-      "user_view_type": "public",
-      "site_admin": false
-    },
-    "labels": [
-      {
-        "id": 9784746440,
-        "node_id": "LA_kwDOQkFd_c8AAAACRzdhyA",
-        "url": "https://api.github.com/repos/NeoNix-Lab/StrategyAnalysisPlatform/labels/bug",
-        "name": "bug",
-        "color": "d73a4a",
-        "default": true,
-        "description": "Something isn't working"
-      },
-      {
-        "id": 9841461770,
-        "node_id": "LA_kwDOQkFd_c8AAAACSpjKCg",
-        "url": "https://api.github.com/repos/NeoNix-Lab/StrategyAnalysisPlatform/labels/database",
-        "name": "database",
-        "color": "ededed",
-        "default": false,
-        "description": null
-      },
-      {
-        "id": 9841461771,
-        "node_id": "LA_kwDOQkFd_c8AAAACSpjKCw",
-        "url": "https://api.github.com/repos/NeoNix-Lab/StrategyAnalysisPlatform/labels/high-priority",
-        "name": "high-priority",
-        "color": "ededed",
-        "default": false,
-        "description": null
-      },
-      {
-        "id": 9841461768,
-        "node_id": "LA_kwDOQkFd_c8AAAACSpjKCA",
-        "url": "https://api.github.com/repos/NeoNix-Lab/StrategyAnalysisPlatform/labels/replayer",
-        "name": "replayer",
-        "color": "ededed",
-        "default": false,
-        "description": null
-      }
-    ],
-    "state": "open",
-    "locked": false,
-    "assignee": null,
-    "assignees": [],
-    "milestone": null,
-    "comments": 0,
-    "created_at": "2025-12-16T19:50:27Z",
-    "updated_at": "2025-12-16T19:50:27Z",
-    "closed_at": null,
-    "author_association": "CONTRIBUTOR",
-    "active_lock_reason": null,
-    "sub_issues_summary": {
-      "total": 0,
-      "completed": 0,
-      "percent_completed": 0
-    },
-    "issue_dependencies_summary": {
-      "blocked_by": 0,
-      "total_blocked_by": 0,
-      "blocking": 0,
-      "total_blocking": 0
-    },
     "body": "The bar construction in the replayer seems incorrect. There is a suspicion that the data in the database might also be incorrect.",
-    "closed_by": null,
-    "reactions": {
-      "url": "https://api.github.com/repos/NeoNix-Lab/StrategyAnalysisPlatform/issues/13/reactions",
-      "total_count": 0,
-      "+1": 0,
-      "-1": 0,
-      "laugh": 0,
-      "hooray": 0,
-      "confused": 0,
-      "heart": 0,
-      "rocket": 0,
-      "eyes": 0
-    },
-    "timeline_url": "https://api.github.com/repos/NeoNix-Lab/StrategyAnalysisPlatform/issues/13/timeline",
-    "performed_via_github_app": null,
-    "state_reason": null
+    "state": "closed",
+    "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/13",
+    "labels": [
+      "bug",
+      "replayer",
+      "database",
+      "high-priority"
+    ],
+    "assignees": [],
+    "created_at": "2025-12-16T19:50:27Z",
+    "updated_at": "2026-01-04T15:22:09Z",
+    "closed_at": "2026-01-04T15:22:09Z"
   }
 }
