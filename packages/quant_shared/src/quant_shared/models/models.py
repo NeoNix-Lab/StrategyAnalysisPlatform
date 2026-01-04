@@ -258,6 +258,9 @@ class RunSeries(Base):
     venue = Column(String, nullable=True)
     provider = Column(String, nullable=True)
     
+    start_utc = Column(DateTime, nullable=True)
+    end_utc = Column(DateTime, nullable=True)
+    
     created_utc = Column(DateTime, default=datetime.utcnow, nullable=False)
     
     # M:N relationship to StrategyRun via association table

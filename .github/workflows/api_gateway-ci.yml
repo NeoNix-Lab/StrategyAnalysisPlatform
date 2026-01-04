@@ -2,12 +2,12 @@ name: API Gateway CI
 
 on:
   push:
-    branches: [ "main", "develop", "version-2" ]
+    branches: [ "main", "develop", "version-2", "feat/ssot-contracts" ]
     paths:
       - 'services/api_gateway/**'
       - 'packages/quant_shared/**'
   pull_request:
-    branches: [ "main", "develop", "version-2" ]
+    branches: [ "main", "develop", "version-2", "feat/ssot-contracts" ]
     paths:
       - 'services/api_gateway/**'
       - 'packages/quant_shared/**'

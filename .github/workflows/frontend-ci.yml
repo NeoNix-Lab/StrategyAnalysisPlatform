@@ -2,11 +2,11 @@ name: Frontend CI
 
 on:
   push:
-    branches: [ "main", "develop", "version-2" ]
+    branches: [ "main", "develop", "version-2", "feat/ssot-contracts" ]
     paths:
       - 'frontend/**'
   pull_request:
-    branches: [ "main", "develop", "version-2" ]
+    branches: [ "main", "develop", "version-2", "feat/ssot-contracts" ]
     paths:
       - 'frontend/**'
 

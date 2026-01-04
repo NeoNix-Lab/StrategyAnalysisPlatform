@@ -76,7 +76,22 @@ export const TradeReplayer = ({ tradeId, onClose }) => {
             setLoading(true);
             setError(null);
             try {
-                // Buffer: 2 hours before, 2 hours after
+                // 2.1 Fetch Available Series for this Run to find Metadata
+                // We're looking for the 'full' time range of the series, not just the trade's duration
+                const resSeries = await fetch(`/api/runs/${trade.run_id}/series`);
+                let seriesBounds = null;
+
+                if (resSeries.ok) {
+                    const seriesList = await resSeries.json();
+
+                    // Find matching series for current config
+                    const match = seriesList.find(s => s.symbol === trade.symbol && s.timeframe === timeframe);
+                    if (match && match.start_utc && match.end_utc) {
+                        seriesBounds = { start: match.start_utc, end: match.end_utc };
+                    }
+                }
+
+                // Buffer: 2 hours before, 2 hours after (Fallback)
                 const entryTime = new Date(trade.entry_time);
                 const exitTime = new Date(trade.exit_time);
 
@@ -84,8 +99,15 @@ export const TradeReplayer = ({ tradeId, onClose }) => {
                     throw new Error("Date del trade non valide");
                 }
 
-                const start = new Date(entryTime.getTime() - 2 * 60 * 60 * 1000).toISOString();
-                const end = new Date(exitTime.getTime() + 2 * 60 * 60 * 1000).toISOString();
+                // Use series bounds if available, otherwise fallback to trade buffer
+                let start, end;
+                if (seriesBounds) {
+                    start = seriesBounds.start;
+                    end = seriesBounds.end;
+                } else {
+                    start = new Date(entryTime.getTime() - 2 * 60 * 60 * 1000).toISOString();
+                    end = new Date(exitTime.getTime() + 2 * 60 * 60 * 1000).toISOString();
+                }
 
                 const url = `/api/bars/?run_id=${trade.run_id}&symbol=${trade.symbol}&timeframe=${timeframe}&start_utc=${start}&end_utc=${end}`;
                 const res = await fetch(url);

@@ -2,11 +2,11 @@ name: .NET CI
 
 on:
   push:
-    branches: [ "main", "develop", "version-2" ]
+    branches: [ "main", "develop", "version-2", "feat/ssot-contracts" ]
     paths:
       - 'exporters/**'
   pull_request:
-    branches: [ "main", "develop", "version-2" ]
+    branches: [ "main", "develop", "version-2", "feat/ssot-contracts" ]
     paths:
       - 'exporters/**'
 

@@ -259,6 +259,10 @@ def create_dummy_data():
                     volumetric_json={"buy_volume": random.uniform(0.3, 2.5), "sell_volume": random.uniform(0.2, 2.5)}
                 )
                 db.add(bar)
+
+            # Update Series Bounds
+            series.start_utc = datetime.utcnow() - timedelta(hours=99)
+            series.end_utc = datetime.utcnow()
         
         # Link runs to series (each run uses the series for its symbol/timeframe)
         for run in db.query(StrategyRun).all():

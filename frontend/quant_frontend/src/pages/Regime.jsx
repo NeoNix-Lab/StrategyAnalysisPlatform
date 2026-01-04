@@ -1,6 +1,7 @@
 import { Fragment, useMemo, useState } from 'react'
 import { useStrategyData } from '../hooks/useStrategyData'
 import { useStrategy } from '../context/StrategyContext'
+import api from '../api/axios'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, FunnelChart } from 'recharts'
 
 const Regime = () => {
@@ -14,16 +15,11 @@ const Regime = () => {
         setRebuilding(true)
         setRebuildError(null)
         try {
-            const res = await fetch(`/api/trades/rebuild/${selectedRun}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            })
-            if (!res.ok) {
-                throw new Error('Errore durante la ricostruzione dei trade')
-            }
+            await api.post(`/trades/rebuild/${selectedRun}`)
             await refresh()
         } catch (err) {
-            setRebuildError(err.message || 'Errore sconosciuto')
+            const detail = err?.response?.data?.detail
+            setRebuildError(detail || err.message || 'Errore sconosciuto')
         } finally {
             setRebuilding(false)
         }

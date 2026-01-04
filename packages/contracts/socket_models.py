@@ -188,6 +188,8 @@ class RunSeries(BaseModel):
     venue: Optional[str] = None
     provider: Optional[str] = None
     run_ids: List[str]  # Array of run IDs (for API compatibility)
+    start_utc: Optional[datetime] = None
+    end_utc: Optional[datetime] = None
     created_utc: datetime
 
     class Config:

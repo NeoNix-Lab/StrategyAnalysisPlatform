@@ -169,7 +169,9 @@ def get_run_series(run_id: str, db: Session = Depends(get_db)):
             "symbol": s.symbol,
             "timeframe": s.timeframe,
             "venue": s.venue,
-            "provider": s.provider
+            "provider": s.provider,
+            "start_utc": s.start_utc,
+            "end_utc": s.end_utc
         }
         for s in series
     ]

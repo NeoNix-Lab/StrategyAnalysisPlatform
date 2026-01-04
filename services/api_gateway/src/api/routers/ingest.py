@@ -335,10 +335,18 @@ async def upsert_bar_logic(db: Session, data: BarCreate):
             timeframe=data.timeframe,
             venue=data.venue,
             provider=data.provider,
-            created_utc=datetime.utcnow()
+            created_utc=datetime.utcnow(),
+            start_utc=data.ts_utc,
+            end_utc=data.ts_utc
         )
         db.add(series)
         db.flush() # Flush to make ID available, but don't commit yet if in batch
+    else:
+        # Update bounds if necessary
+        if series.start_utc is None or data.ts_utc < series.start_utc:
+            series.start_utc = data.ts_utc
+        if series.end_utc is None or data.ts_utc > series.end_utc:
+            series.end_utc = data.ts_utc
 
     # 3. Ensure Run Series Link (Run -> RunSeries)
     link = db.query(RunSeriesRunLink).filter(
