@@ -1,7 +1,6 @@
 import React from 'react';
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import { Layers, Brain, Zap, PenTool, LayoutDashboard, Box } from 'lucide-react';
-import '../Dashboard.css'; // Ensure uniformity
 
 const MlStudioLayout = () => {
     const location = useLocation();
@@ -16,50 +15,32 @@ const MlStudioLayout = () => {
     ];
 
     return (
-        <div className="dashboard-container" style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '0' }}>
+        <div className="flex flex-col h-full bg-bg-primary overflow-hidden">
             {/* Sub-Navigation Header */}
-            <div style={{
-                borderBottom: '1px solid #334155',
-                padding: '0 2rem',
-                background: 'rgba(15, 23, 42, 0.6)',
-                display: 'flex',
-                gap: '2rem',
-                alignItems: 'center',
-                height: '60px'
-            }}>
-                {navItems.map((item) => {
-                    const isActive = item.exact
-                        ? location.pathname === item.path
-                        : location.pathname.startsWith(item.path);
-
-                    return (
-                        <NavLink
-                            key={item.path}
-                            to={item.path}
-                            end={item.exact}
-                            style={({ isActive }) => ({
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.5rem',
-                                padding: '1rem 0',
-                                color: isActive ? '#d8b4fe' : '#94a3b8',
-                                borderBottom: isActive ? '2px solid #a855f7' : '2px solid transparent',
-                                textDecoration: 'none',
-                                fontWeight: isActive ? 600 : 500,
-                                fontSize: '0.9rem',
-                                transition: 'all 0.2s'
-                            })}
-                        >
-                            <item.icon size={18} />
-                            {item.label}
-                        </NavLink>
-                    );
-                })}
+            <div className="border-b border-slate-700/50 bg-slate-900/60 backdrop-blur-md px-8 h-[60px] flex items-center gap-8 shadow-lg z-10">
+                {navItems.map((item) => (
+                    <NavLink
+                        key={item.path}
+                        to={item.path}
+                        end={item.exact}
+                        className={({ isActive }) => `
+                            flex items-center gap-2 h-full text-sm font-medium transition-all duration-200 border-b-2
+                            ${isActive
+                                ? 'text-violet-400 border-violet-500'
+                                : 'text-slate-400 border-transparent hover:text-slate-200 hover:border-slate-700'}
+                        `}
+                    >
+                        <item.icon size={18} />
+                        {item.label}
+                    </NavLink>
+                ))}
             </div>
 
             {/* Content Area */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '2rem' }}>
-                <Outlet />
+            <div className="flex-1 overflow-y-auto p-8 custom-scrollbar relative">
+                <div className="max-w-[1600px] mx-auto">
+                    <Outlet />
+                </div>
             </div>
         </div>
     );

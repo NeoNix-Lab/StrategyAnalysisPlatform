@@ -151,4 +151,26 @@ def get_run_trades(run_id: str, db: Session = Depends(get_db)):
     
     if executions and orders:
         return MetricsEngine.reconstruct_trades(executions, orders)
-    return []
+
+@router.get("/{run_id}/series")
+def get_run_series(run_id: str, db: Session = Depends(get_db)):
+    from quant_shared.models.models import RunSeries, RunSeriesRunLink
+    
+    series = (
+        db.query(RunSeries)
+        .join(RunSeriesRunLink, RunSeries.series_id == RunSeriesRunLink.series_id)
+        .filter(RunSeriesRunLink.run_id == run_id)
+        .all()
+    )
+    
+    return [
+        {
+            "series_id": s.series_id,
+            "symbol": s.symbol,
+            "timeframe": s.timeframe,
+            "venue": s.venue,
+            "provider": s.provider
+        }
+        for s in series
+    ]
+

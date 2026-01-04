@@ -211,21 +211,36 @@ def create_dummy_data():
         for symbol in ["BTCUSDT", "ETHUSDT", "SOLUSDT"]:
             for timeframe in ["1m", "5m", "1h"]:
                 series_id = f"{symbol}_{timeframe}_shared"
-                series = RunSeries(
-                    series_id=series_id,
-                    symbol=symbol,
-                    timeframe=timeframe,
-                    venue="Binance",
-                    provider="Quantower",
-                    created_utc=datetime.utcnow()
-                )
-                db.add(series)
-                series_map[(symbol, timeframe)] = series
+                
+                # Check if series already exists
+                existing_series = db.query(RunSeries).filter_by(series_id=series_id).first()
+                if existing_series:
+                    series_map[(symbol, timeframe)] = existing_series
+                    print(f"✓ Using existing series: {series_id}")
+                else:
+                    series = RunSeries(
+                        series_id=series_id,
+                        symbol=symbol,
+                        timeframe=timeframe,
+                        venue="Binance",
+                        provider="Quantower",
+                        created_utc=datetime.utcnow()
+                    )
+                    db.add(series)
+                    series_map[(symbol, timeframe)] = series
+                    print(f"+ Creating new series: {series_id}")
         
         db.commit()
         
         # Create sample bars for each series
         for (symbol, timeframe), series in series_map.items():
+            # Check if bars already exist for this series
+            existing_bars_count = db.query(RunSeriesBar).filter_by(series_id=series.series_id).count()
+            if existing_bars_count > 0:
+                print(f"✓ Series {series.series_id} already has {existing_bars_count} bars, skipping bar creation")
+                continue
+                
+            print(f"+ Creating 100 bars for series: {series.series_id}")
             # Create 100 bars per series
             base_price = 45000 if "BTC" in symbol else (2800 if "ETH" in symbol else 150)
             for i in range(100):
@@ -253,13 +268,22 @@ def create_dummy_data():
                     series_key = (symbol, instance.timeframe)
                     if series_key in series_map:
                         series = series_map[series_key]
-                        # Create link between run and series
-                        link = RunSeriesRunLink(
-                            series_id=series.series_id,
-                            run_id=run.run_id,
-                            created_utc=datetime.utcnow()
-                        )
-                        db.add(link)
+                        # Check if link already exists
+                        existing_link = db.query(RunSeriesRunLink).filter_by(
+                            series_id=series.series_id, 
+                            run_id=run.run_id
+                        ).first()
+                        if existing_link:
+                            print(f"✓ Link already exists: run {run.run_id} → series {series.series_id}")
+                        else:
+                            # Create link between run and series
+                            link = RunSeriesRunLink(
+                                series_id=series.series_id,
+                                run_id=run.run_id,
+                                created_utc=datetime.utcnow()
+                            )
+                            db.add(link)
+                            print(f"+ Creating link: run {run.run_id} → series {series.series_id}")
         
         db.commit()
 

@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Save, Layers, Settings, Database, Trash2 } from 'lucide-react';
 import ModelBuilder from './components/ModelBuilder';
-import '../Dashboard.css';
 
 const MlModelArchitectures = () => {
     const [models, setModels] = useState([]);
@@ -72,35 +71,35 @@ const MlModelArchitectures = () => {
         } catch (e) { console.error(e); }
     };
 
+    const cardClass = "bg-bg-secondary/50 backdrop-blur-sm border border-slate-700/50 rounded-2xl flex flex-col overflow-hidden";
+
     return (
-        <div style={{ display: 'grid', gridTemplateColumns: '250px 1fr', gap: '2rem', height: 'calc(100vh - 140px)' }}>
+        <div className="grid grid-cols-[250px_1fr] gap-8 h-[calc(100vh-140px)]">
 
             {/* List Panel */}
-            <div className="card" style={{ display: 'flex', flexDirection: 'column', padding: '0', overflow: 'hidden' }}>
-                <div style={{ padding: '1rem', borderBottom: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h3 style={{ margin: 0, fontSize: '1rem' }}>Architectures</h3>
-                    <button onClick={handleCreateNew} style={{ background: 'transparent', border: 'none', color: '#60a5fa', cursor: 'pointer' }}>
+            <div className={`${cardClass} p-0`}>
+                <div className="p-4 border-b border-slate-700/50 flex justify-between items-center bg-bg-secondary/30">
+                    <h3 className="m-0 text-base font-semibold text-text-primary">Architectures</h3>
+                    <button onClick={handleCreateNew} className="bg-transparent border-none text-sky-400 cursor-pointer hover:text-sky-300 transition-colors">
                         <Plus size={18} />
                     </button>
                 </div>
-                <div style={{ overflowY: 'auto', flex: 1 }}>
+                <div className="overflow-y-auto flex-1 custom-scrollbar">
                     {loading && !selectedId ? (
-                        <div style={{ padding: '1rem', color: '#64748b' }}>Loading...</div>
+                        <div className="p-4 text-text-muted">Loading...</div>
                     ) : (
                         models.map(m => (
                             <div
                                 key={m.model_id}
                                 onClick={() => handleSelect(m.model_id)}
-                                style={{
-                                    padding: '1rem',
-                                    borderBottom: '1px solid #1e293b',
-                                    cursor: 'pointer',
-                                    background: selectedId === m.model_id ? 'rgba(147, 51, 234, 0.1)' : 'transparent',
-                                    borderLeft: selectedId === m.model_id ? '3px solid #d8b4fe' : '3px solid transparent'
-                                }}
+                                className={`p-4 border-b border-slate-800/50 cursor-pointer transition-all border-l-[3px]
+                                ${selectedId === m.model_id
+                                        ? 'bg-violet-500/10 border-l-violet-400'
+                                        : 'bg-transparent border-l-transparent hover:bg-white/5'
+                                    }`}
                             >
-                                <div style={{ fontWeight: 500, color: '#f1f5f9' }}>{m.name}</div>
-                                <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{m.description || 'No description'}</div>
+                                <div className="font-medium text-slate-100">{m.name}</div>
+                                <div className="text-xs text-text-muted mt-1 truncate">{m.description || 'No description'}</div>
                             </div>
                         ))
                     )}
@@ -108,21 +107,20 @@ const MlModelArchitectures = () => {
             </div>
 
             {/* Editor Panel */}
-            <div className="card" style={{ display: 'flex', flexDirection: 'column', padding: '1.5rem', gap: '1rem' }}>
+            <div className={`${cardClass} p-6 gap-4`}>
                 {editMode ? (
                     <>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div className="flex justify-between items-center gap-4">
                             <input
                                 type="text"
                                 value={name}
                                 onChange={e => setName(e.target.value)}
-                                style={{ background: 'transparent', border: 'none', fontSize: '1.5rem', fontWeight: 700, color: '#f1f5f9', width: '60%', outline: 'none' }}
+                                className="bg-transparent border-none text-2xl font-bold text-text-primary w-full outline-none placeholder:text-slate-600 focus:placeholder:text-slate-500"
                                 placeholder="Model Name"
                             />
                             <button
                                 onClick={handleSave}
-                                className="rebuild-btn"
-                                style={{ padding: '0.5rem 1rem', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'flex', gap: '0.5rem', alignItems: 'center' }}
+                                className="px-4 py-2 bg-blue-600 text-white border-none rounded-lg cursor-pointer flex gap-2 items-center hover:bg-blue-500 transition-colors font-medium text-sm whitespace-nowrap shadow-lg shadow-blue-900/20"
                             >
                                 <Save size={16} /> Save
                             </button>
@@ -131,17 +129,17 @@ const MlModelArchitectures = () => {
                             type="text"
                             value={description}
                             onChange={e => setDescription(e.target.value)}
-                            style={{ background: '#0f172a', border: '1px solid #334155', padding: '0.5rem', borderRadius: '4px', color: '#cbd5e1' }}
+                            className="bg-slate-900/50 border border-slate-700 rounded-lg p-2 text-slate-300 outline-none focus:border-blue-500 transition-colors"
                             placeholder="Description (optional)"
                         />
-                        <div style={{ flex: 1, overflowY: 'auto', border: '1px solid #334155', borderRadius: '8px', padding: '1rem', background: '#0f172a' }}>
+                        <div className="flex-1 overflow-y-auto border border-slate-700/50 rounded-xl p-4 bg-slate-900/30 custom-scrollbar">
                             <ModelBuilder layers={layers} setLayers={setLayers} />
                         </div>
                     </>
                 ) : (
-                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
-                        <Layers size={48} style={{ opacity: 0.2, marginBottom: '1rem' }} />
-                        <p>Select a model to edit or create a new one.</p>
+                    <div className="flex-1 flex flex-col items-center justify-center text-text-secondary select-none">
+                        <Layers size={48} className="opacity-20 mb-4" />
+                        <p className="text-sm">Select a model to edit or create a new one.</p>
                     </div>
                 )}
             </div>

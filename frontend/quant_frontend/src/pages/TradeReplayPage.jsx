@@ -8,7 +8,7 @@ const TradeReplayPage = () => {
     const navigate = useNavigate();
 
     return (
-        <div style={{ width: '100%', height: '100vh', background: '#0f172a' }}>
+        <div className="w-full h-screen bg-slate-950">
             {/* We render the Replayer Modal directly. When closed, go back. */}
             <TradeReplayer
                 tradeId={tradeId}

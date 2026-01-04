@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react'
 import { useStrategyData } from '../hooks/useStrategyData'
 import { ArrowDown, ArrowUp, Filter, Search } from 'lucide-react'
-import './Dashboard.css' // Reuse dashboard styles for cards
 
 const Executions = () => {
     const { executions, loading, error } = useStrategyData()
@@ -23,85 +22,81 @@ const Executions = () => {
         })
     }, [executions, filterSide, searchTerm])
 
-    if (loading) return <div className="loading">Loading executions...</div>
-    if (error) return <div className="error">Error loading data: {error.message}</div>
+    if (loading) return <div className="text-center mt-20 text-text-secondary animate-pulse">Loading executions...</div>
+    if (error) return <div className="text-center mt-20 text-rose-500">Error loading data: {error.message}</div>
 
     return (
-        <div className="dashboard-container">
-            <div className="card">
-                <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
-                        <h3>Execution Log</h3>
-                        <span className="badge" style={{ backgroundColor: '#334155', color: '#f8fafc' }}>
+        <div className="max-w-[1600px] mx-auto animate-fade-in">
+            <div className="bg-bg-secondary/50 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-6 shadow-xl">
+                <div className="flex justify-between mb-6">
+                    <div className="flex items-center gap-4">
+                        <h3 className="text-lg font-bold text-text-primary m-0">Execution Log</h3>
+                        <span className="bg-slate-700 text-slate-100 px-2 py-0.5 rounded text-xs font-mono">
                             {filteredExecutions.length}
                         </span>
                     </div>
-                    <div style={{ display: 'flex', gap: '1rem' }}>
-                        <div className="search-box" style={{ background: '#1e293b', padding: '0.5rem', borderRadius: '6px', display: 'flex', alignItems: 'center' }}>
-                            <Search size={16} color="#94a3b8" />
+                    <div className="flex gap-4">
+                        <div className="bg-slate-800/50 p-2 rounded-lg flex items-center border border-slate-700/50 focus-within:border-sky-500/50 transition-colors">
+                            <Search size={16} className="text-slate-400" />
                             <input
                                 type="text"
                                 placeholder="Search IDs..."
                                 value={searchTerm}
                                 onChange={e => setSearchTerm(e.target.value)}
-                                style={{ background: 'transparent', border: 'none', color: 'white', marginLeft: '0.5rem', outline: 'none' }}
+                                className="bg-transparent border-none text-slate-100 ml-2 outline-none placeholder:text-slate-600 text-sm w-48"
                             />
                         </div>
                     </div>
                 </div>
 
-                <div className="table-container">
-                    <table className="data-table">
-                        <thead>
+                <div className="overflow-x-auto custom-scrollbar">
+                    <table className="w-full text-sm text-left">
+                        <thead className="bg-slate-900/50 text-xs uppercase font-semibold text-text-secondary">
                             <tr>
-                                <th>Time (UTC)</th>
-                                <th>Impact</th>
-                                <th>Price</th>
-                                <th>Quantity</th>
-                                <th>Fee</th>
-                                <th>Liquidity</th>
-                                <th>IDs</th>
+                                <th className="p-4 border-b border-slate-700/50">Time (UTC)</th>
+                                <th className="p-4 border-b border-slate-700/50">Impact</th>
+                                <th className="p-4 border-b border-slate-700/50">Price</th>
+                                <th className="p-4 border-b border-slate-700/50">Quantity</th>
+                                <th className="p-4 border-b border-slate-700/50">Fee</th>
+                                <th className="p-4 border-b border-slate-700/50">Liquidity</th>
+                                <th className="p-4 border-b border-slate-700/50">IDs</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody className="divide-y divide-slate-800/50">
                             {filteredExecutions.length === 0 ? (
                                 <tr>
-                                    <td colSpan={7} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
+                                    <td colSpan={7} className="p-12 text-center text-text-secondary">
                                         No executions found for this run.
                                     </td>
                                 </tr>
                             ) : (
                                 filteredExecutions.map(exec => {
-                                    const impactClass = `badge-${exec.position_impact?.toLowerCase() || 'unknown'}`
+                                    const impactColor = exec.position_impact === 'OPEN' ? 'bg-sky-500/10 text-sky-400' :
+                                        exec.position_impact === 'CLOSE' ? 'bg-violet-500/10 text-violet-400' : 'bg-slate-700/50 text-slate-400';
+
                                     return (
-                                        <tr key={exec.execution_id} className="trade-row">
-                                            <td style={{ whiteSpace: 'nowrap', color: 'var(--text-secondary)' }}>
-                                                {new Date(exec.exec_utc).toLocaleTimeString()} <span style={{ fontSize: '0.8em', opacity: 0.7 }}>{new Date(exec.exec_utc).toLocaleDateString()}</span>
+                                        <tr key={exec.execution_id} className="hover:bg-white/5 transition-colors">
+                                            <td className="p-4 text-text-secondary whitespace-nowrap">
+                                                {new Date(exec.exec_utc).toLocaleTimeString()} <span className="opacity-70 text-xs ml-1">{new Date(exec.exec_utc).toLocaleDateString()}</span>
                                             </td>
-                                            <td>
-                                                <span className={`badge ${impactClass}`}>
+                                            <td className="p-4">
+                                                <span className={`px-2 py-1 rounded text-[10px] font-bold tracking-wider ${impactColor}`}>
                                                     {exec.position_impact || 'UNKNOWN'}
                                                 </span>
                                             </td>
-                                            <td className="num font-mono" style={{ fontWeight: 600 }}>{exec.price.toFixed(2)}</td>
-                                            <td className="num font-mono">{exec.quantity}</td>
-                                            <td className="num" style={{ color: exec.fee > 0 ? 'var(--danger)' : 'var(--text-secondary)' }}>
-                                                {exec.fee ? exec.fee.toFixed(4) : '-'} <span style={{ fontSize: '0.7em' }}>{exec.fee_currency}</span>
+                                            <td className="p-4 font-mono font-semibold text-text-primary">{exec.price.toFixed(2)}</td>
+                                            <td className="p-4 font-mono text-text-secondary">{exec.quantity}</td>
+                                            <td className={`p-4 font-mono ${exec.fee > 0 ? 'text-rose-400' : 'text-text-secondary'}`}>
+                                                {exec.fee ? exec.fee.toFixed(4) : '-'} <span className="text-[10px] opacity-70">{exec.fee_currency}</span>
                                             </td>
-                                            <td>
-                                                <span style={{
-                                                    fontSize: '0.75rem',
-                                                    padding: '0.2rem 0.5rem',
-                                                    borderRadius: '4px',
-                                                    background: exec.liquidity === 'MAKER' ? 'rgba(56, 189, 248, 0.1)' : 'transparent',
-                                                    color: exec.liquidity === 'MAKER' ? 'var(--accent)' : 'var(--text-secondary)'
-                                                }}>
+                                            <td className="p-4">
+                                                <span className={`px-2 py-1 rounded text-xs ${exec.liquidity === 'MAKER' ? 'bg-sky-500/10 text-accent' : 'text-text-secondary'}`}>
                                                     {exec.liquidity || '-'}
                                                 </span>
                                             </td>
-                                            <td className="mono" style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                                            <td className="p-4 font-mono text-xs text-text-secondary">
                                                 <div title={`Exec: ${exec.execution_id}`}>{exec.execution_id.substring(0, 8)}...</div>
-                                                <div title={`Order: ${exec.order_id}`} style={{ opacity: 0.7 }}>{exec.order_id.substring(0, 8)}...</div>
+                                                <div title={`Order: ${exec.order_id}`} className="opacity-60 mt-0.5">{exec.order_id.substring(0, 8)}...</div>
                                             </td>
                                         </tr>
                                     )

@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Save, Trash2, Code, Play, CheckCircle, XCircle, Database, Settings } from 'lucide-react';
 import RewardEditor from './components/RewardEditor';
-import '../Dashboard.css';
 
 const MlRewardFunctions = () => {
     const [functions, setFunctions] = useState([]);
@@ -183,35 +182,35 @@ const MlRewardFunctions = () => {
     const actionList = actionLabels.split(",").map(s => s.trim()).filter(s => s);
     const statusList = statusLabels.split(",").map(s => s.trim()).filter(s => s);
 
+    const cardClass = "bg-bg-secondary/50 backdrop-blur-sm border border-slate-700/50 rounded-2xl flex flex-col overflow-hidden";
+
     return (
-        <div style={{ display: 'grid', gridTemplateColumns: '250px 1fr', gap: '2rem', height: 'calc(100vh - 140px)' }}>
+        <div className="grid grid-cols-[250px_1fr] gap-8 h-[calc(100vh-140px)]">
 
             {/* Left Panel: List */}
-            <div className="card" style={{ display: 'flex', flexDirection: 'column', padding: '0', overflow: 'hidden' }}>
-                <div style={{ padding: '1rem', borderBottom: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h3 style={{ margin: 0, fontSize: '1rem' }}>Functions</h3>
-                    <button onClick={handleCreateNew} style={{ background: 'transparent', border: 'none', color: '#60a5fa', cursor: 'pointer' }}>
+            <div className={`${cardClass} p-0`}>
+                <div className="p-4 border-b border-slate-700/50 flex justify-between items-center bg-bg-secondary/30">
+                    <h3 className="m-0 text-base font-semibold text-text-primary">Functions</h3>
+                    <button onClick={handleCreateNew} className="bg-transparent border-none text-sky-400 cursor-pointer hover:text-sky-300 transition-colors">
                         <Plus size={18} />
                     </button>
                 </div>
-                <div style={{ overflowY: 'auto', flex: 1 }}>
+                <div className="overflow-y-auto flex-1 custom-scrollbar">
                     {loading && !selectedId ? (
-                        <div style={{ padding: '1rem', color: '#64748b' }}>Loading...</div>
+                        <div className="p-4 text-text-muted">Loading...</div>
                     ) : (
                         functions.map(f => (
                             <div
                                 key={f.function_id}
                                 onClick={() => handleSelect(f.function_id)}
-                                style={{
-                                    padding: '1rem',
-                                    borderBottom: '1px solid #1e293b',
-                                    cursor: 'pointer',
-                                    background: selectedId === f.function_id ? 'rgba(147, 51, 234, 0.1)' : 'transparent',
-                                    borderLeft: selectedId === f.function_id ? '3px solid #d8b4fe' : '3px solid transparent'
-                                }}
+                                className={`p-4 border-b border-slate-800/50 cursor-pointer transition-all border-l-[3px]
+                                ${selectedId === f.function_id
+                                        ? 'bg-violet-500/10 border-l-violet-400'
+                                        : 'bg-transparent border-l-transparent hover:bg-white/5'
+                                    }`}
                             >
-                                <div style={{ fontWeight: 500, color: '#f1f5f9' }}>{f.name}</div>
-                                <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{f.description || 'No description'}</div>
+                                <div className="font-medium text-slate-100">{f.name}</div>
+                                <div className="text-xs text-text-muted mt-1 truncate">{f.description || 'No description'}</div>
                             </div>
                         ))
                     )}
@@ -219,33 +218,28 @@ const MlRewardFunctions = () => {
             </div>
 
             {/* Right Panel: Editor */}
-            <div className="card" style={{ display: 'flex', flexDirection: 'column', padding: '1.5rem', gap: '1rem' }}>
+            <div className={`${cardClass} p-6 gap-4`}>
                 {editMode ? (
                     <>
                         {/* Header */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div className="flex justify-between items-center gap-4">
                             <input
                                 type="text"
                                 value={name}
                                 onChange={e => setName(e.target.value)}
-                                style={{ background: 'transparent', border: 'none', fontSize: '1.5rem', fontWeight: 700, color: '#f1f5f9', width: '60%', outline: 'none' }}
+                                className="bg-transparent border-none text-2xl font-bold text-text-primary w-full outline-none placeholder:text-slate-600 focus:placeholder:text-slate-500"
                                 placeholder="Function Name"
                             />
-                            <div style={{ display: 'flex', gap: '1rem' }}>
+                            <div className="flex gap-4">
                                 <button
                                     onClick={handleValidate}
-                                    style={{
-                                        padding: '0.5rem 1rem', background: '#334155', color: '#e2e8f0', border: 'none', borderRadius: '6px',
-                                        cursor: 'pointer', display: 'flex', gap: '0.5rem', alignItems: 'center', transition: 'background 0.2s'
-                                    }}
-                                    className="hover:bg-slate-700"
+                                    className="px-4 py-2 bg-slate-700 text-slate-200 border-none rounded-lg cursor-pointer flex gap-2 items-center hover:bg-slate-600 transition-colors font-medium text-sm"
                                 >
                                     <Play size={16} className="text-green-400" /> Dry Run
                                 </button>
                                 <button
                                     onClick={handleSave}
-                                    className="rebuild-btn"
-                                    style={{ padding: '0.5rem 1rem', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'flex', gap: '0.5rem', alignItems: 'center' }}
+                                    className="px-4 py-2 bg-blue-600 text-white border-none rounded-lg cursor-pointer flex gap-2 items-center hover:bg-blue-500 transition-colors font-medium text-sm whitespace-nowrap shadow-lg shadow-blue-900/20"
                                 >
                                     <Save size={16} /> Save
                                 </button>
@@ -253,20 +247,18 @@ const MlRewardFunctions = () => {
                         </div>
 
                         {/* Description & Config Toggle */}
-                        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                        <div className="flex gap-4 items-center">
                             <input
                                 type="text"
                                 value={description}
                                 onChange={e => setDescription(e.target.value)}
-                                style={{ flex: 1, background: '#0f172a', border: '1px solid #334155', padding: '0.5rem', borderRadius: '4px', color: '#cbd5e1' }}
+                                className="flex-1 bg-slate-900/50 border border-slate-700/50 rounded-lg p-2 text-slate-300 outline-none focus:border-blue-500 transition-colors"
                                 placeholder="Description (optional)"
                             />
                             <button
                                 onClick={() => setShowConfig(!showConfig)}
-                                style={{
-                                    background: 'transparent', border: 'none', color: showConfig ? '#60a5fa' : '#64748b', cursor: 'pointer',
-                                    display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.8rem'
-                                }}
+                                className={`bg-transparent border-none cursor-pointer flex items-center gap-1 text-sm font-medium transition-colors
+                                ${showConfig ? 'text-blue-400' : 'text-slate-400 hover:text-slate-300'}`}
                             >
                                 <Settings size={16} /> Config
                             </button>
@@ -274,35 +266,32 @@ const MlRewardFunctions = () => {
 
                         {/* Config Section */}
                         {showConfig && (
-                            <div style={{
-                                background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', padding: '1rem',
-                                display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem'
-                            }}>
+                            <div className="bg-slate-900/50 border border-slate-700/50 rounded-xl p-4 grid grid-cols-2 gap-4 animate-fade-in">
                                 <div>
-                                    <label style={{ display: 'block', fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.5rem', textTransform: 'uppercase' }}>
+                                    <label className="block text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">
                                         Action Space (Comma Sep)
                                     </label>
                                     <input
                                         type="text"
                                         value={actionLabels}
                                         onChange={e => setActionLabels(e.target.value)}
-                                        style={{ width: '100%', padding: '0.5rem', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: '#e2e8f0', fontFamily: 'monospace' }}
+                                        className="w-full p-2 bg-slate-800 border border-slate-600 rounded text-slate-200 font-mono text-xs focus:ring-1 focus:ring-blue-500 outline-none"
                                     />
-                                    <div style={{ marginTop: '0.25rem', fontSize: '0.7rem', color: '#64748b' }}>
+                                    <div className="mt-1 text-[10px] text-slate-500 font-mono truncate">
                                         Exposes: {actionList.map(l => `env.actions.${l.toUpperCase()}`).join(", ")}
                                     </div>
                                 </div>
                                 <div>
-                                    <label style={{ display: 'block', fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.5rem', textTransform: 'uppercase' }}>
+                                    <label className="block text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">
                                         Status Space (Comma Sep)
                                     </label>
                                     <input
                                         type="text"
                                         value={statusLabels}
                                         onChange={e => setStatusLabels(e.target.value)}
-                                        style={{ width: '100%', padding: '0.5rem', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: '#e2e8f0', fontFamily: 'monospace' }}
+                                        className="w-full p-2 bg-slate-800 border border-slate-600 rounded text-slate-200 font-mono text-xs focus:ring-1 focus:ring-blue-500 outline-none"
                                     />
-                                    <div style={{ marginTop: '0.25rem', fontSize: '0.7rem', color: '#64748b' }}>
+                                    <div className="mt-1 text-[10px] text-slate-500 font-mono truncate">
                                         Exposes: {statusList.map(l => `env.status.${l.toUpperCase()}`).join(", ")}
                                     </div>
                                 </div>
@@ -310,11 +299,11 @@ const MlRewardFunctions = () => {
                         )}
 
                         {/* Editor Layout: Editor + Schema Sidebar */}
-                        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 250px', gap: '1rem', minHeight: 0 }}>
+                        <div className="flex-1 grid grid-cols-[1fr_250px] gap-4 min-h-0">
 
                             {/* Editor Area */}
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                <div style={{ flex: 1, border: '1px solid #334155', borderRadius: '8px', overflow: 'hidden' }}>
+                            <div className="flex flex-col gap-4">
+                                <div className="flex-1 border border-slate-700/50 rounded-lg overflow-hidden bg-[#1e1e1e]">
                                     <RewardEditor
                                         code={code}
                                         setCode={setCode}
@@ -324,27 +313,25 @@ const MlRewardFunctions = () => {
 
                                 {/* Validation Output Console */}
                                 {validationResult && (
-                                    <div style={{
-                                        padding: '1rem', borderRadius: '6px',
-                                        background: validationResult.valid ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                                        border: validationResult.valid ? '1px solid #22c55e' : '1px solid #ef4444',
-                                        fontSize: '0.9rem', color: '#e2e8f0'
-                                    }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', fontWeight: 600 }}>
+                                    <div className={`p-4 rounded-lg border text-sm animate-fade-in
+                                    ${validationResult.valid
+                                            ? 'bg-green-500/10 border-green-500/50 text-slate-200'
+                                            : 'bg-red-500/10 border-red-500/50 text-slate-200'}`}>
+                                        <div className="flex items-center gap-2 mb-2 font-semibold">
                                             {validationResult.valid ? <CheckCircle size={18} className="text-green-500" /> : <XCircle size={18} className="text-red-500" />}
                                             {validationResult.valid ? "Validation Successful" : "Validation Failed"}
                                         </div>
                                         {validationResult.valid ? (
                                             <div>
-                                                Computed Reward: <span style={{ fontFamily: 'monospace', color: '#86efac' }}>{validationResult.result}</span>
+                                                Computed Reward: <span className="font-mono text-green-300">{validationResult.result}</span>
                                             </div>
                                         ) : (
-                                            <div style={{ fontFamily: 'monospace', color: '#fca5a5' }}>
+                                            <div className="font-mono text-red-300">
                                                 Error: {validationResult.error}
                                             </div>
                                         )}
                                         {validationResult.valid && validationResult.env_state && (
-                                            <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.1)', fontSize: '0.8rem', color: '#94a3b8' }}>
+                                            <div className="mt-2 pt-2 border-t border-white/10 text-xs text-slate-400 font-mono">
                                                 Mock Env State: Position={validationResult.env_state.pos}, Unrealized PnL={validationResult.env_state.pnl.toFixed(2)}
                                             </div>
                                         )}
@@ -353,16 +340,16 @@ const MlRewardFunctions = () => {
                             </div>
 
                             {/* Schema Context Sidebar */}
-                            <div style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            <div className="bg-slate-900/30 border border-slate-700/50 rounded-xl p-4 flex flex-col gap-4 overflow-y-auto custom-scrollbar">
                                 {/* Dataset Selector */}
                                 <div>
-                                    <label style={{ display: 'block', fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">
                                         Reference Dataset
                                     </label>
                                     <select
                                         value={selectedDatasetId}
                                         onChange={e => setSelectedDatasetId(e.target.value)}
-                                        style={{ width: '100%', padding: '0.5rem', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: '#e2e8f0', fontSize: '0.9rem' }}
+                                        className="w-full p-2 bg-slate-800 border border-slate-600 rounded text-slate-200 text-xs focus:ring-1 focus:ring-blue-500 outline-none"
                                     >
                                         <option value="">-- Select Dataset --</option>
                                         {datasets.map(d => (
@@ -373,45 +360,39 @@ const MlRewardFunctions = () => {
 
                                 {/* Environment Variables */}
                                 <div>
-                                    <div style={{ fontSize: '0.8rem', color: '#cbd5e1', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <div className="text-xs text-slate-300 mb-2 flex items-center gap-2 font-medium">
                                         <Database size={14} className="text-blue-400" />
                                         Environment State (env)
                                     </div>
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
+                                    <div className="flex flex-wrap gap-1.5">
                                         {['position', 'entry_price', 'qty', 'balance', 'unrealized_pnl', 'last_reward'].map(v => (
                                             <button
                                                 key={v}
                                                 onClick={() => insertVariable(`env.${v}`, true)}
-                                                className="hover:bg-slate-700 hover:text-white transition-colors"
-                                                style={{
-                                                    fontSize: '0.75rem', fontFamily: 'monospace',
-                                                    color: '#94a3b8', padding: '0.25rem 0.5rem',
-                                                    background: '#1e293b', borderRadius: '4px',
-                                                    border: '1px solid #334155', cursor: 'pointer'
-                                                }}
+                                                className="px-2 py-1 bg-slate-800 border border-slate-700 rounded text-[10px] font-mono text-slate-400 hover:bg-slate-700 hover:text-white transition-colors cursor-pointer"
                                             >
                                                 env.{v}
                                             </button>
                                         ))}
                                     </div>
                                     {/* Action Namespace Hints */}
-                                    <div style={{ marginTop: '0.5rem', borderTop: '1px solid #334155', paddingTop: '0.5rem' }}>
-                                        <div style={{ fontSize: '0.8rem', color: '#cbd5e1', marginBottom: '0.25rem' }}>Actions</div>
-                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
+                                    <div className="mt-3 pt-2 border-t border-slate-800">
+                                        <div className="text-[10px] text-slate-400 mb-1">Actions</div>
+                                        <div className="flex flex-wrap gap-1.5">
                                             {actionList.map(a => (
                                                 <button key={a} onClick={() => insertVariable(`env.actions.${a.toUpperCase()}`, true)}
-                                                    style={{ fontSize: '0.7rem', padding: '0.2rem', background: '#0f172a', border: '1px solid #334155', color: '#94a3b8', cursor: 'pointer' }}>
+                                                    className="px-1.5 py-0.5 bg-slate-900 border border-slate-800 rounded text-[10px] text-slate-500 hover:text-slate-300 transition-colors">
                                                     {a}
                                                 </button>
                                             ))}
                                         </div>
                                     </div>
-                                    <div style={{ marginTop: '0.5rem' }}>
-                                        <div style={{ fontSize: '0.8rem', color: '#cbd5e1', marginBottom: '0.25rem' }}>Status</div>
-                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
+                                    <div className="mt-2">
+                                        <div className="text-[10px] text-slate-400 mb-1">Status</div>
+                                        <div className="flex flex-wrap gap-1.5">
                                             {statusList.map(s => (
                                                 <button key={s} onClick={() => insertVariable(`env.status.${s.toUpperCase()}`, true)}
-                                                    style={{ fontSize: '0.7rem', padding: '0.2rem', background: '#0f172a', border: '1px solid #334155', color: '#94a3b8', cursor: 'pointer' }}>
+                                                    className="px-1.5 py-0.5 bg-slate-900 border border-slate-800 rounded text-[10px] text-slate-500 hover:text-slate-300 transition-colors">
                                                     {s}
                                                 </button>
                                             ))}
@@ -421,35 +402,28 @@ const MlRewardFunctions = () => {
 
                                 {/* Dataset Variables */}
                                 {selectedDataset ? (
-                                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-                                        <div style={{ fontSize: '0.8rem', color: '#cbd5e1', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <div className="flex-1 flex flex-col min-h-0">
+                                        <div className="text-xs text-slate-300 mb-2 flex items-center gap-2 font-medium">
                                             <Database size={14} className="text-purple-400" />
                                             Dataset Variables (env.data)
                                         </div>
-                                        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                        <div className="flex-1 overflow-y-auto flex flex-col gap-1 pr-1 custom-scrollbar">
                                             {availableColumns.map(col => (
                                                 <button
                                                     key={col}
                                                     onClick={() => insertVariable(col)}
-                                                    className="hover:bg-slate-700 hover:text-white transition-colors"
-                                                    style={{
-                                                        fontSize: '0.8rem', fontFamily: 'monospace',
-                                                        color: '#94a3b8', padding: '0.4rem 0.5rem',
-                                                        background: '#1e293b', borderRadius: '4px',
-                                                        border: '1px solid transparent', cursor: 'pointer',
-                                                        textAlign: 'left'
-                                                    }}
+                                                    className="px-2 py-1.5 bg-slate-800 border border-transparent hover:border-slate-600 rounded text-xs font-mono text-slate-400 hover:bg-slate-700 hover:text-white transition-all cursor-pointer text-left truncate"
                                                 >
                                                     env.data['{col}']
                                                 </button>
                                             ))}
                                             {availableColumns.length === 0 && (
-                                                <div style={{ fontSize: '0.8rem', color: '#64748b', fontStyle: 'italic' }}>No known columns</div>
+                                                <div className="text-xs text-slate-600 italic p-2">No known columns</div>
                                             )}
                                         </div>
                                     </div>
                                 ) : (
-                                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '0.8rem', textAlign: 'center' }}>
+                                    <div className="flex-1 flex items-center justify-center text-slate-600 text-xs text-center p-4 border border-dashed border-slate-800 rounded-lg">
                                         Select a dataset to see variable hints.
                                     </div>
                                 )}
@@ -457,9 +431,9 @@ const MlRewardFunctions = () => {
                         </div>
                     </>
                 ) : (
-                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
-                        <Code size={48} style={{ opacity: 0.2, marginBottom: '1rem' }} />
-                        <p>Select a function to edit or create a new one.</p>
+                    <div className="flex-1 flex flex-col items-center justify-center text-text-secondary select-none">
+                        <Code size={48} className="opacity-20 mb-4" />
+                        <p className="text-sm">Select a function to edit or create a new one.</p>
                     </div>
                 )}
             </div>

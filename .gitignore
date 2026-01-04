@@ -33,3 +33,8 @@ Docs/Issues/records/
 Docs/Issues/index.json
 Docs/Issues/issue-*.json
 Docs/Issues/workflows/issue-events.log
+
+
+# Ui Ux Pro Max
+.shared/
+.agent/

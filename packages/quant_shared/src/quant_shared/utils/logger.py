@@ -149,7 +149,6 @@ class HttpLogHandler(logging.Handler):
 
     def _monitor_queue(self):
         import requests
-        import json
         try:
             from quant_shared.schemas.logging import LogRecord
         except ImportError:
@@ -179,11 +178,14 @@ class HttpLogHandler(logging.Handler):
                             "lineno": record.lineno
                         }
                     )
-                    payload = contract_log.dict()
-                    # JSON serialization for datetime handled by Pydantic .dict() usually needs helper or .json()
-                    # .dict() returns datetime objects. json.dumps needs default=str
-                    
-                    response = session.post(self.url, json=payload, timeout=2, headers={"Content-Type": "application/json"}, default=str)
+                    payload = contract_log.json()
+                    # Send pre-serialized JSON so datetime is already ISO-encoded
+                    response = session.post(
+                        self.url,
+                        data=payload,
+                        timeout=2,
+                        headers={"Content-Type": "application/json"}
+                    )
                     if response.status_code >= 400:
                         print(f"Failed to send log to gateway: {response.text}")
                         

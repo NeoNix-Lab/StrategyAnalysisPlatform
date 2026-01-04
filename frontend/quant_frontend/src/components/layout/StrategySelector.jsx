@@ -1,6 +1,5 @@
 import React from 'react'
 import { useStrategy } from '../../context/StrategyContext'
-import './StrategySelector.css'
 
 const StrategySelector = () => {
     const {
@@ -9,15 +8,25 @@ const StrategySelector = () => {
         runs, selectedRun, setSelectedRun
     } = useStrategy()
 
+    const selectClass = `
+        bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 text-slate-50
+        py-1.5 px-3 rounded-lg text-sm min-w-[140px] outline-none cursor-pointer transition-all duration-200
+        hover:border-accent/50 hover:bg-slate-800/80
+        focus:border-accent focus:ring-1 focus:ring-accent/50 focus:bg-slate-900
+        disabled:opacity-50 disabled:cursor-not-allowed
+    `
+
+    const labelClass = "text-[10px] uppercase text-slate-400 font-bold mb-1 tracking-wide"
+
     return (
-        <div className="strategy-selector-container">
+        <div className="flex items-center gap-4">
             {/* Strategy Select */}
-            <div className="selector-group">
-                <label>Strategy</label>
+            <div className="flex flex-col">
+                <label className={labelClass}>Strategy</label>
                 <select
                     value={selectedStrategy || ''}
                     onChange={(e) => setSelectedStrategy(e.target.value)}
-                    className="strategy-select"
+                    className={selectClass}
                 >
                     {strategies.length === 0 && <option value="">No Strategies</option>}
                     {strategies.map(s => (
@@ -29,12 +38,12 @@ const StrategySelector = () => {
             </div>
 
             {/* Instance Select */}
-            <div className="selector-group">
-                <label>Instance</label>
+            <div className="flex flex-col">
+                <label className={labelClass}>Instance</label>
                 <select
                     value={selectedInstance || ''}
                     onChange={(e) => setSelectedInstance(e.target.value)}
-                    className="strategy-select"
+                    className={selectClass}
                     disabled={!selectedStrategy || instances.length === 0}
                 >
                     {instances.length === 0 && <option value="">No Instances</option>}
@@ -47,12 +56,12 @@ const StrategySelector = () => {
             </div>
 
             {/* Run Select */}
-            <div className="selector-group">
-                <label>Run</label>
+            <div className="flex flex-col">
+                <label className={labelClass}>Run</label>
                 <select
                     value={selectedRun || ''}
                     onChange={(e) => setSelectedRun(e.target.value)}
-                    className="run-select"
+                    className={selectClass}
                     disabled={!selectedInstance || runs.length === 0}
                 >
                     {runs.length === 0 && <option value="">No Runs</option>}
@@ -68,3 +77,4 @@ const StrategySelector = () => {
 }
 
 export default StrategySelector
+

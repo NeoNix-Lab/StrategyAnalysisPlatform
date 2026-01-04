@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from quant_shared.models.models import Trade, Bar, Side, Execution, Order
+from quant_shared.models.models import Trade, RunSeriesBar, Side, Execution, Order, RunSeries
 import pandas as pd
 import numpy as np
 
@@ -18,13 +18,11 @@ class StandardAnalyzer:
 
         # Fetch bars covering the trade duration
         # Bar does not have symbol directly, it is on RunSeries
-        from quant_shared.models.models import RunSeries
-        
-        bars = self.db.query(Bar).join(RunSeries, Bar.series_id == RunSeries.series_id).filter(
+        bars = self.db.query(RunSeriesBar).join(RunSeries, RunSeriesBar.series_id == RunSeries.series_id).filter(
             RunSeries.run_id == trade.run_id,
             RunSeries.symbol == trade.symbol,
-            Bar.ts_utc >= trade.entry_time,
-            Bar.ts_utc <= trade.exit_time
+            RunSeriesBar.ts_utc >= trade.entry_time,
+            RunSeriesBar.ts_utc <= trade.exit_time
         ).all()
 
         if not bars:

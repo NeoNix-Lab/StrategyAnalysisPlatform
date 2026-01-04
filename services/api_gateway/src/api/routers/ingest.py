@@ -8,8 +8,7 @@ import hashlib
 from quant_shared.models.connection import get_db
 from quant_shared.models.models import (
     Strategy, StrategyInstance, StrategyRun, 
-    Order, Execution, RunSeries, Bar,
-    MarketSeries, MarketBar, RunSubscription,
+    Order, Execution, RunSeries, RunSeriesBar, RunSeriesRunLink,
     Side, OrderType, OrderStatus, PositionImpactType, RunType, RunStatus
 )
 from quant_shared.schemas.schemas import (
@@ -322,14 +321,15 @@ async def on_bars_batch(data: list[BarCreate], db: Session = Depends(get_db)):
 async def upsert_bar_logic(db: Session, data: BarCreate):
     # "Unified Market Data Layer" Logic
     
-    # 1. Calculate MarketSeries ID (Hash)
+    # 1. Calculate RunSeries ID (Hash)
+    # Note: Using same hashing strategy as MarketSeries for consistency
     series_key = f"{data.symbol}_{data.timeframe}_{data.venue}_{data.provider}"
     series_id = hashlib.md5(series_key.encode()).hexdigest()
     
-    # 2. Ensure MarketSeries Exists
-    market_series = db.query(MarketSeries).filter(MarketSeries.series_id == series_id).first()
-    if not market_series:
-        market_series = MarketSeries(
+    # 2. Ensure RunSeries Exists
+    series = db.query(RunSeries).filter(RunSeries.series_id == series_id).first()
+    if not series:
+        series = RunSeries(
             series_id=series_id,
             symbol=data.symbol,
             timeframe=data.timeframe,
@@ -337,24 +337,24 @@ async def upsert_bar_logic(db: Session, data: BarCreate):
             provider=data.provider,
             created_utc=datetime.utcnow()
         )
-        db.add(market_series)
+        db.add(series)
         db.flush() # Flush to make ID available, but don't commit yet if in batch
 
-    # 3. Ensure Run Subscription (Run -> MarketSeries)
-    sub = db.query(RunSubscription).filter(
-        RunSubscription.run_id == data.run_id,
-        RunSubscription.series_id == series_id
+    # 3. Ensure Run Series Link (Run -> RunSeries)
+    link = db.query(RunSeriesRunLink).filter(
+        RunSeriesRunLink.run_id == data.run_id,
+        RunSeriesRunLink.series_id == series_id
     ).first()
     
-    if not sub:
-        sub = RunSubscription(run_id=data.run_id, series_id=series_id)
-        db.add(sub)
+    if not link:
+        link = RunSeriesRunLink(run_id=data.run_id, series_id=series_id)
+        db.add(link)
         db.flush() # Ensure visible for next iter in batch
     
-    # 4. Upsert Bar in MarketBar
-    existing = db.query(MarketBar).filter(
-        MarketBar.series_id == series_id,
-        MarketBar.ts_utc == data.ts_utc
+    # 4. Upsert Bar in RunSeriesBar
+    existing = db.query(RunSeriesBar).filter(
+        RunSeriesBar.series_id == series_id,
+        RunSeriesBar.ts_utc == data.ts_utc
     ).first()
     
     if existing:
@@ -366,7 +366,7 @@ async def upsert_bar_logic(db: Session, data: BarCreate):
         existing.volume = data.volume
         existing.volumetric_json = data.volumetric_json
     else:
-        new_bar = MarketBar(
+        new_bar = RunSeriesBar(
             series_id=series_id,
             ts_utc=data.ts_utc,
             open=data.open,
@@ -375,7 +375,6 @@ async def upsert_bar_logic(db: Session, data: BarCreate):
             close=data.close,
             volume=data.volume,
             volumetric_json=data.volumetric_json
-
         )
         db.add(new_bar)
         db.flush() # Ensure visible for next iter in batch
