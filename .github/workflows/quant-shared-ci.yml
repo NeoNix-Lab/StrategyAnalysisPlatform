@@ -39,7 +39,8 @@ jobs:
     - name: Test with pytest
       working-directory: packages/quant_shared
       run: |
-        pytest -v
+        export PYTHONPATH=$PYTHONPATH:$(pwd)/src
+        python -m pytest -v
 
     - name: Create Issue on Failure
       if: failure()
