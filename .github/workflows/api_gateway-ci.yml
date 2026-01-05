@@ -6,11 +6,13 @@ on:
     paths:
       - 'services/api_gateway/**'
       - 'packages/quant_shared/**'
+      - '.github/workflows/api_gateway-ci.yml'
   pull_request:
     branches: [ "main", "develop", "version-2", "feat/ssot-contracts" ]
     paths:
       - 'services/api_gateway/**'
       - 'packages/quant_shared/**'
+      - '.github/workflows/api_gateway-ci.yml'
 
 permissions:
   contents: read

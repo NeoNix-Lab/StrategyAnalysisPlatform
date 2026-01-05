@@ -6,11 +6,13 @@ on:
     paths:
       - 'services/ml_core/**'
       - 'packages/quant_shared/**'
+      - '.github/workflows/ml_core-ci.yml'
   pull_request:
     branches: [ "main", "develop", "version-2", "feat/ssot-contracts" ]
     paths:
       - 'services/ml_core/**'
       - 'packages/quant_shared/**'
+      - '.github/workflows/ml_core-ci.yml'
 
 permissions:
   contents: read
