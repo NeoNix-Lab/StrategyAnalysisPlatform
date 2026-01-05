@@ -2,7 +2,7 @@ import sqlite3
 import pytest
 from datetime import datetime, timedelta
 import os
-from quant_shared.models.models import Bar
+from quant_shared.models.models import RunSeriesBar as Bar
 from etl.import_sqlite import SqliteImporter
 
 def create_source_sqlite(path, bars_data):
