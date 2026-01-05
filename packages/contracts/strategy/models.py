@@ -3,6 +3,18 @@ from datetime import datetime
 from typing import Optional, List, Dict, Any
 from ..common.models import RunType, RunStatus
 
+class StrategyParameter(BaseModel):
+    name: str
+    label: Optional[str] = None
+    description: Optional[str] = None
+    type_hint: Optional[str] = None
+    default_value: Optional[Any] = None
+    value: Optional[Any] = None
+    required: Optional[bool] = None
+
+    class Config:
+        extra = "allow"
+
 class Strategy(BaseModel):
     strategy_id: str
     name: str
@@ -11,6 +23,7 @@ class Strategy(BaseModel):
     source_ref: Optional[str] = None
     created_utc: datetime
     notes: Optional[str] = None
+    parameters_json: List[StrategyParameter] = Field(default_factory=list)
 
 class StrategyInstance(BaseModel):
     instance_id: str

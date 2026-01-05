@@ -118,10 +118,35 @@
           "vendor": { "type": ["string", "null"] },
           "source_ref": { "type": ["string", "null"] },
           "created_utc": { "$ref": "#/definitions/common/Timestamp" },
+          "parameters_json": {
+            "type": "array",
+            "description": "Catalog of configurable parameters; entries can omit values when only metadata is known.",
+            "items": { "$ref": "#/definitions/strategy/StrategyParameter" }
+          },
           "notes": { "type": ["string", "null"] }
         },
         "required": ["strategy_id", "name", "created_utc"],
         "additionalProperties": false
+      },
+      "StrategyParameter": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "description": "Unique parameter key" },
+          "label": { "type": ["string", "null"], "description": "Human-friendly name" },
+          "description": { "type": ["string", "null"], "description": "What the parameter controls" },
+          "type_hint": { "type": ["string", "null"], "description": "Guidance on the expected data type" },
+          "default_value": {
+            "description": "Documented default value",
+            "type": ["string", "number", "boolean", "object", "array", "null"]
+          },
+          "value": {
+            "description": "Current or overridden value; null means no concrete value yet",
+            "type": ["string", "number", "boolean", "object", "array", "null"]
+          },
+          "required": { "type": "boolean", "description": "Whether the consumer should provide a value" }
+        },
+        "required": ["name"],
+        "additionalProperties": true
       },
       "StrategyInstance": {
         "type": "object",

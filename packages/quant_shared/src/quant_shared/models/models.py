@@ -109,6 +109,7 @@ class Strategy(Base):
     source_ref = Column(String, nullable=True) # Repo URL / Commit
     created_utc = Column(DateTime, default=datetime.utcnow, nullable=False)
     notes = Column(Text, nullable=True)
+    parameters_json = Column(JSON, nullable=False, default=list)
 
     instances = relationship("StrategyInstance", back_populates="strategy")
 

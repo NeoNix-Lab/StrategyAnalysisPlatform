@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
@@ -35,6 +35,18 @@ class PositionImpactType(str, Enum):
 
 # --- Input Schemas (Create/Ingest) ---
 
+class StrategyParameter(BaseModel):
+    name: str
+    label: Optional[str] = None
+    description: Optional[str] = None
+    type_hint: Optional[str] = None
+    default_value: Optional[Any] = None
+    value: Optional[Any] = None
+    required: Optional[bool] = None
+
+    class Config:
+        extra = "allow"
+
 class StrategyCreate(BaseModel):
     strategy_id: str
     name: str
@@ -42,6 +54,7 @@ class StrategyCreate(BaseModel):
     vendor: Optional[str] = None
     source_ref: Optional[str] = None
     notes: Optional[str] = None
+    parameters_json: List[StrategyParameter] = Field(default_factory=list)
 
 class StrategyInstanceCreate(BaseModel):
     instance_id: str

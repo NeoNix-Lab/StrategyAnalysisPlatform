@@ -14,7 +14,8 @@ def test_rebuild_trades(db_session):
     instance = StrategyInstance(
         instance_id=instance_id,
         strategy_id=strategy_id,
-        parameters_json={}
+        parameters_json={},
+        symbols_json='["EURUSD"]'
     )
     db_session.add(instance)
     

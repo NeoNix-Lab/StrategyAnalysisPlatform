@@ -22,10 +22,35 @@
         "vendor": { "type": ["string", "null"] },
         "source_ref": { "type": ["string", "null"] },
         "created_utc": { "$ref": "common.json#/definitions/Timestamp" },
+        "parameters_json": {
+          "type": "array",
+          "description": "Catalog of parameters describing each configurable input.",
+          "items": { "$ref": "#/definitions/StrategyParameter" }
+        },
         "notes": { "type": ["string", "null"] }
       },
       "required": ["strategy_id", "name", "created_utc"],
       "additionalProperties": false
+    },
+    "StrategyParameter": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Unique parameter key" },
+        "label": { "type": ["string", "null"], "description": "Friendly label" },
+        "description": { "type": ["string", "null"], "description": "Narrative about the parameter" },
+        "type_hint": { "type": ["string", "null"], "description": "Guided type hint" },
+        "default_value": {
+          "description": "Documented default value (null allowed)",
+          "type": ["string", "number", "boolean", "object", "array", "null"]
+        },
+        "value": {
+          "description": "Current/override value; null indicates an undefined value",
+          "type": ["string", "number", "boolean", "object", "array", "null"]
+        },
+        "required": { "type": "boolean", "description": "When true, a value must eventually be supplied" }
+      },
+      "required": ["name"],
+      "additionalProperties": true
     },
     "StrategyInstance": {
       "type": "object",

@@ -3,7 +3,10 @@ from pydantic import BaseModel
 from typing import Dict, Any
 import logging
 from quant_shared.models.connection import init_db, get_db
-from .runner import TrainingRunner
+try:
+    from .runner import TrainingRunner
+except ImportError:
+    from runner import TrainingRunner
 
 # Setup Logging
 logging.basicConfig(level=logging.INFO)
@@ -41,7 +44,11 @@ def start_training_job(job: TrainingJobRequest, background_tasks: BackgroundTask
     runner = TrainingRunner(db)
     background_tasks.add_task(runner.start_training_run, job.run_id, job.config)
     
-    return {"status": "ok", "message": "Training started"}
+    return {"status": "PENDING", "job_id": job.run_id, "message": "Training started"}
+
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
 
 @app.get("/status/{run_id}")
 def get_status(run_id: str):

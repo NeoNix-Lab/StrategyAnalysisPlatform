@@ -29,21 +29,93 @@ def create_dummy_data():
                 name="TrendFollower Alpha",
                 version="1.0.2",
                 vendor="QuantLab",
-                notes="Standard moving average crossover"
+                notes="Standard moving average crossover",
+                parameters_json=[
+                    {
+                        "name": "fast_ma_period",
+                        "label": "Fast moving average window",
+                        "description": "Controls the short-term trend sensitivity",
+                        "type_hint": "integer",
+                        "default_value": 12,
+                        "value": None,
+                        "required": True
+                    },
+                    {
+                        "name": "slow_ma_period",
+                        "label": "Slow moving average window",
+                        "description": "Defines the baseline trend reference",
+                        "type_hint": "integer",
+                        "default_value": 26,
+                        "value": None,
+                        "required": True
+                    }
+                ]
             ),
             Strategy(
                 strategy_id=str(uuid.uuid4()),
                 name="MeanReversion X",
                 version="2.1.0",
                 vendor="External",
-                notes="Bollinger bands strategy"
+                notes="Bollinger bands strategy",
+                parameters_json=[
+                    {
+                        "name": "lookback_period",
+                        "description": "Number of bars used to compute the mean",
+                        "type_hint": "integer",
+                        "default_value": 20,
+                        "value": None,
+                        "required": True
+                    },
+                    {
+                        "name": "entry_zscore",
+                        "description": "Threshold for opening contrarian positions",
+                        "type_hint": "number",
+                        "default_value": 2.0,
+                        "value": 2.0,
+                        "required": True
+                    },
+                    {
+                        "name": "exit_zscore",
+                        "description": "Threshold for closing the position",
+                        "type_hint": "number",
+                        "default_value": 0.5,
+                        "value": None,
+                        "required": False
+                    }
+                ]
             ),
-             Strategy(
+            Strategy(
                 strategy_id=str(uuid.uuid4()),
                 name="DeepRL Trader",
                 version="0.5.0-beta",
                 vendor="AI Lab",
-                notes="PPO agent trained on BTCUSDT"
+                notes="PPO agent trained on BTCUSDT",
+                parameters_json=[
+                    {
+                        "name": "epsilon_start",
+                        "description": "Initial exploration ratio",
+                        "type_hint": "number",
+                        "default_value": 1.0,
+                        "value": None,
+                        "required": True
+                    },
+                    {
+                        "name": "epsilon_decay",
+                        "description": "Decay rate applied per episode",
+                        "type_hint": "number",
+                        "default_value": 0.995,
+                        "value": 0.995,
+                        "required": True
+                    },
+                    {
+                        "name": "batch_size",
+                        "description": "Batch size for gradient updates",
+                        "type_hint": "integer",
+                        "default_value": 64,
+                        "value": None,
+                        "required": True
+                    }
+                ]
             )
         ]
         

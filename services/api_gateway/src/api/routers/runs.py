@@ -75,9 +75,10 @@ def start_run(request: StartRunRequest, db: Session = Depends(get_db)):
         # Create dummy strategy if not exists for test/mvp purposes
         # Or raise error. Given "TEST_STRAT_INTEGRATION", likely need to create it.
         strategy = Strategy(
-            strategy_id=request.strategy_id, 
-            name=f"Auto Created {request.strategy_id}", 
-            version="1.0"
+            strategy_id=request.strategy_id,
+            name=f"Auto Created {request.strategy_id}",
+            version="1.0",
+            parameters_json=[]
         )
         db.add(strategy)
         db.flush()
@@ -93,7 +94,7 @@ def start_run(request: StartRunRequest, db: Session = Depends(get_db)):
         strategy_id=request.strategy_id,
         instance_name=f"Run {datetime.utcnow().isoformat()}",
         parameters_json=request.parameters,
-        symbol=symbol,
+        symbols_json=[symbol] if symbol else [],
         timeframe=timeframe
     )
     db.add(instance)

@@ -4,6 +4,7 @@ import logging
 from datetime import datetime
 import uuid
 import hashlib
+import json
 
 from quant_shared.models.connection import get_db
 from quant_shared.models.models import (
@@ -22,8 +23,36 @@ logger = logging.getLogger(__name__)
 
 # --- Helper Functions ---
 
+def normalize_strategy_parameters(params):
+    """Normalize parameter metadata so comparisons stay deterministic."""
+    if not params:
+        return []
+
+    normalized = []
+    for param in params:
+        entry = param.dict() if hasattr(param, "dict") else param
+        normalized.append(json.loads(json.dumps(entry, sort_keys=True)))
+
+    return normalized
+
 def upsert_strategy(db: Session, data: StrategyCreate):
+    normalized_params = normalize_strategy_parameters(data.parameters_json)
+
     strat = db.query(Strategy).filter(Strategy.strategy_id == data.strategy_id).first()
+
+    if not strat:
+        strat = (
+            db.query(Strategy)
+            .filter(
+                Strategy.name == data.name,
+                Strategy.version == data.version,
+                Strategy.parameters_json == normalized_params
+            )
+            .first()
+        )
+        if strat and strat.strategy_id != data.strategy_id:
+            logger.info(f"Using existing strategy {strat.strategy_id} for {data.strategy_id}")
+
     if not strat:
         strat = Strategy(
             strategy_id=data.strategy_id,
@@ -31,16 +60,18 @@ def upsert_strategy(db: Session, data: StrategyCreate):
             version=data.version,
             vendor=data.vendor,
             source_ref=data.source_ref,
-            notes=data.notes
+            notes=data.notes,
+            parameters_json=normalized_params
         )
         db.add(strat)
     else:
-        # Update updatable fields if they are not None ?
-        # Strategy definition is mostly static, but version might change.
-        if data.version:
-            strat.version = data.version
-        if data.name:
-            strat.name = data.name
+        strat.name = data.name
+        strat.version = data.version
+        strat.vendor = data.vendor
+        strat.source_ref = data.source_ref
+        strat.notes = data.notes
+        strat.parameters_json = normalized_params
+
     db.commit()
     db.refresh(strat)
     return strat

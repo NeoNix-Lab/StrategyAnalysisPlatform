@@ -13,9 +13,14 @@ from quant_shared.models.models import StrategyRun, StrategyInstance, Trade, Exe
 from quant_shared.schemas.schemas import StrategyRunCreate
 
 # Local imports
-from .core.environment import EnvFlex
-from .core.trainer import Trainer
-from .core.models import CustomDQNModel
+try:
+    from .core.environment import EnvFlex
+    from .core.trainer import Trainer
+    from .core.models import CustomDQNModel
+except ImportError:
+    from core.environment import EnvFlex
+    from core.trainer import Trainer
+    from core.models import CustomDQNModel
 
 logger = logging.getLogger(__name__)
 
