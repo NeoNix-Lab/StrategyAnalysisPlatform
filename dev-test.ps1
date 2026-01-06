@@ -3,7 +3,7 @@
 $ErrorActionPreference = "Continue"
 
 Write-Host "🧪 Starting Full Stack Test Suite..." -ForegroundColor Cyan
-$packagesPath = (Resolve-Path ".\packages").Path
+$packagesPath = (Resolve-Path ".\packages\quant_shared\src").Path
 
 # Activate .venv
 if (Test-Path ".venv/Scripts/Activate.ps1") {
@@ -20,14 +20,15 @@ function Run-TestGroup ($name, $path, $pythonpath) {
     if ($LASTEXITCODE -ne 0) {
         Write-Host "❌ $name Tests Failed!" -ForegroundColor Red
         return $true
-    } else {
+    }
+    else {
         Write-Host "✅ $name Tests Passed!" -ForegroundColor Green
         return $false
     }
 }
 
 # 1. Shared Core
-$fail_shared = Run-TestGroup "Shared Core" "packages/quant_shared" "$PWD/packages/quant_shared"
+$fail_shared = Run-TestGroup "Shared Core" "packages/quant_shared" "$PWD/packages/quant_shared/src"
 
 if ($fail_shared) { $failed = $true }
 
@@ -45,14 +46,33 @@ if ($fail_ml) { $failed = $true }
 Write-Host "`nTesting Frontend..." -ForegroundColor Yellow
 Push-Location "frontend/quant_frontend"
 try {
-    npm run test -- --run
-    if ($LASTEXITCODE -ne 0) {
+    Write-Host "Current Failed Status before Frontend: $failed" -ForegroundColor Magenta
+    
+    # Use npm.cmd for Windows compatibility
+    $npmCmd = "npm.cmd"
+    if ($IsLinux -or $IsMacOS) { $npmCmd = "npm" }
+
+    Write-Host "Running $npmCmd test..."
+    
+    # Run synchronously and wait
+    & $npmCmd run test -- --run
+    $exitCode = $LASTEXITCODE
+    
+    Write-Host "Frontend Test Exit Code: $exitCode" -ForegroundColor Cyan
+
+    if ($exitCode -ne 0) {
         Write-Host "❌ Frontend Tests Failed!" -ForegroundColor Red
         $failed = $true
-    } else {
+    }
+    else {
         Write-Host "✅ Frontend Tests Passed!" -ForegroundColor Green
     }
-} finally {
+}
+catch {
+    Write-Host "Error running frontend tests: $_" -ForegroundColor Red
+    $failed = $true
+}
+finally {
     Pop-Location
 }
 
@@ -60,7 +80,8 @@ Write-Host "`n----------------------------------------"
 if ($failed) {
     Write-Host "❌ OVERALL STATUS: FAILED" -ForegroundColor Red
     exit 1
-} else {
+}
+else {
     Write-Host "✅ OVERALL STATUS: ALL SYSTEMS GO" -ForegroundColor Green
     exit 0
 }

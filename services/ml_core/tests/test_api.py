@@ -33,7 +33,7 @@ def test_training_flow():
             "type": "input",
             "layer": {
                 "type": "Dense",
-                "params": {"input_shape": [10, 2]} # 2 features: close, volume
+                "params": {"units": 16, "input_shape": [10, 2]} # 2 features: close, volume
             }
         },
         {

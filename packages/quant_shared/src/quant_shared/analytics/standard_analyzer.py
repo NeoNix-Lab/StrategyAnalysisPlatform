@@ -4,6 +4,8 @@ import pandas as pd
 import numpy as np
 
 class StandardAnalyzer:
+    REGIME_TRENDS = ['BULL', 'BEAR', 'RANGE']
+    REGIME_VOLS = ['HIGH', 'NORMAL', 'LOW']
     def __init__(self, db_session: Session):
         self.db = db_session
 
@@ -186,6 +188,8 @@ class StandardAnalyzer:
         except Exception:
             equity_curve = []
 
+        regime_performance = self._aggregate_regime_performance(df)
+
         # Safe Metrics Calculation Helper
         def safe_calc(func, default=0.0):
             try:
@@ -220,6 +224,7 @@ class StandardAnalyzer:
             
             # [NEW] Equity Curve Data
             "equity_curve": equity_curve,
+            "regime_performance": regime_performance,
             
             # P2 (Execution Analysis)
             "avg_mae": round(df['mae'].mean(), 2) if 'mae' in df and not df['mae'].isnull().all() else 0,
@@ -365,6 +370,7 @@ class StandardAnalyzer:
             "stability_r2": 0,
             "pnl_skew": 0,
             "pnl_kurtosis": 0,
+            "regime_performance": self._empty_regime_metrics(),
             "equity_curve": []
         }
 
@@ -397,3 +403,99 @@ class StandardAnalyzer:
             })
             
         return curve
+
+    def _aggregate_regime_performance(self, df: pd.DataFrame) -> dict:
+        if df.empty or 'pnl_net' not in df.columns:
+            return self._empty_regime_metrics()
+
+        trends = self.REGIME_TRENDS
+        volatilities = self.REGIME_VOLS
+
+        has_trend = 'regime_trend' in df.columns
+        has_vol = 'regime_volatility' in df.columns
+
+        def summarize(subset: pd.DataFrame) -> dict:
+            subset = subset[subset['pnl_net'].notna()]
+            if subset.empty:
+                return self._default_regime_summary()
+
+            total = len(subset)
+            pnl_sum = subset['pnl_net'].sum()
+            wins = subset[subset['pnl_net'] > 0]
+            losses = subset[subset['pnl_net'] <= 0]
+            win_rate = (len(wins) / total) * 100 if total else 0.0
+            gross_profit = wins['pnl_net'].sum()
+            gross_loss = abs(losses['pnl_net'].sum())
+
+            pf = None
+            if gross_loss > 0:
+                pf = gross_profit / gross_loss
+            elif gross_profit == 0:
+                pf = 0.0
+
+            return {
+                "pnl": round(pnl_sum, 2),
+                "count": total,
+                "win_rate": round(win_rate, 2),
+                "profit_factor": round(pf, 2) if pf is not None else None
+            }
+
+        trend_stats = []
+        for trend in trends:
+            if has_trend:
+                entry = summarize(df[df['regime_trend'] == trend])
+            else:
+                entry = self._default_regime_summary()
+            entry["name"] = trend
+            trend_stats.append(entry)
+
+        vol_stats = []
+        for vol in volatilities:
+            if has_vol:
+                entry = summarize(df[df['regime_volatility'] == vol])
+            else:
+                entry = self._default_regime_summary()
+            entry["name"] = vol
+            vol_stats.append(entry)
+
+        matrix = {}
+        for trend in trends:
+            for vol in volatilities:
+                if has_trend and has_vol:
+                    entry = summarize(df[(df['regime_trend'] == trend) & (df['regime_volatility'] == vol)])
+                else:
+                    entry = self._default_regime_summary()
+                entry["trend"] = trend
+                entry["volatility"] = vol
+                matrix[f"{trend}_{vol}"] = entry
+
+        return {
+            "trend": trend_stats,
+            "volatility": vol_stats,
+            "matrix": matrix
+        }
+
+    def _empty_regime_metrics(self) -> dict:
+        return {
+            "trend": [
+                {"name": trend, **self._default_regime_summary()}
+                for trend in self.REGIME_TRENDS
+            ],
+            "volatility": [
+                {"name": vol, **self._default_regime_summary()}
+                for vol in self.REGIME_VOLS
+            ],
+            "matrix": {
+                f"{trend}_{vol}": {"trend": trend, "volatility": vol, **self._default_regime_summary()}
+                for trend in self.REGIME_TRENDS
+                for vol in self.REGIME_VOLS
+            }
+        }
+
+    def _default_regime_summary(self) -> dict:
+        return {
+            "pnl": 0.0,
+            "count": 0,
+            "win_rate": 0.0,
+            "profit_factor": 0.0
+        }

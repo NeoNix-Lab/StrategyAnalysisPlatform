@@ -154,15 +154,14 @@ def create_dummy_data():
         # 3. Create Runs & Trades
         print("Creating Runs and Trades...")
         
-        start_date = datetime.utcnow() - timedelta(days=30)
-        
-        for inst in instances:
-            # Create 1 main run per instance
+        base_start = datetime.utcnow() - timedelta(days=30)
+
+        def seed_run(instance, run_start):
             run = StrategyRun(
                 run_id=str(uuid.uuid4()),
-                instance_id=inst.instance_id,
+                instance_id=instance.instance_id,
                 run_type=RunType.BACKTEST,
-                start_utc=start_date,
+                start_utc=run_start,
                 end_utc=datetime.utcnow(),
                 status=RunStatus.COMPLETED,
                 initial_balance=10000.0,
@@ -170,26 +169,24 @@ def create_dummy_data():
             )
             db.add(run)
             db.commit() # Commit to get run ID valid
-            
-            # Generate random trades
+
             balance = 10000.0
-            equity = []
-            
-            current_time = start_date
-            for _ in range(random.randint(20, 50)): # 20-50 trades per run
+            current_time = run_start
+
+            for _ in range(random.randint(20, 50)):
                 current_time += timedelta(hours=random.randint(1, 12))
                 if current_time > datetime.utcnow(): break
-                
+
                 side = random.choice([Side.BUY, Side.SELL])
-                symbol = inst.symbols_json[0] if inst.symbols_json else "BTCUSDT"  # Get first symbol from array
+                symbol = instance.symbols_json[0] if instance.symbols_json else "BTCUSDT"
                 entry_price = random.uniform(20000, 60000) if "BTC" in symbol else random.uniform(1000, 3000)
-                exit_price = entry_price * (1 + random.uniform(-0.02, 0.03)) # -2% to +3%
-                
+                exit_price = entry_price * (1 + random.uniform(-0.02, 0.03))
+
                 qty = 0.1 if "BTC" in symbol else 1.0
-                
+
                 pnl = (exit_price - entry_price) * qty if side == Side.BUY else (entry_price - exit_price) * qty
                 balance += pnl
-                
+
                 trade = Trade(
                     trade_id=str(uuid.uuid4()),
                     run_id=run.run_id,
@@ -205,8 +202,7 @@ def create_dummy_data():
                     commission=pnl * 0.01
                 )
                 db.add(trade)
-                
-                # Create fake orders for entry and exit
+
                 entry_order = Order(
                     order_id=str(uuid.uuid4()),
                     run_id=run.run_id,
@@ -221,7 +217,7 @@ def create_dummy_data():
                     position_impact=PositionImpactType.OPEN
                 )
                 db.add(entry_order)
-                
+
                 exit_order = Order(
                     order_id=str(uuid.uuid4()),
                     run_id=run.run_id,
@@ -236,8 +232,7 @@ def create_dummy_data():
                     position_impact=PositionImpactType.CLOSE
                 )
                 db.add(exit_order)
-                
-                # Create fake execution for entry
+
                 exec_entry = Execution(
                     execution_id=str(uuid.uuid4()),
                     run_id=run.run_id,
@@ -249,8 +244,7 @@ def create_dummy_data():
                     position_impact=PositionImpactType.OPEN
                 )
                 db.add(exec_entry)
-                
-                # Create fake execution for exit
+
                 exec_exit = Execution(
                     execution_id=str(uuid.uuid4()),
                     run_id=run.run_id,
@@ -262,8 +256,7 @@ def create_dummy_data():
                     position_impact=PositionImpactType.CLOSE
                 )
                 db.add(exec_exit)
-                
-                # Create OCO groups for some trades (30% chance)
+
                 if random.random() < 0.3:
                     oco_group = OrderOcoGroup(
                         oco_group_id=str(uuid.uuid4()),
@@ -274,6 +267,11 @@ def create_dummy_data():
                         extra_json={"trade_id": trade.trade_id}
                     )
                     db.add(oco_group)
+
+        for idx, inst in enumerate(instances):
+            for run_offset in range(2):
+                run_start = base_start + timedelta(days=idx + run_offset)
+                seed_run(inst, run_start)
 
         # 4. Create Shared RunSeries and Bars
         print("Creating RunSeries and Bars...")
