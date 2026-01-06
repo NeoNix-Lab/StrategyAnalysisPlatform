@@ -7,6 +7,7 @@ export const useStrategyData = () => {
     const [stats, setStats] = useState(null)
     const [trades, setTrades] = useState([])
     const [executions, setExecutions] = useState([])
+    const [regimePerformance, setRegimePerformance] = useState(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
 
@@ -22,6 +23,7 @@ export const useStrategyData = () => {
 
         try {
             setLoading(true)
+            setRegimePerformance(null)
 
             // 1. Fetch Run Stats (Metrics)
             const runRes = await axios.get(`${API_URL}/runs/${selectedRun}`)
@@ -69,6 +71,14 @@ export const useStrategyData = () => {
                 setTrades([])
             }
 
+            try {
+                const regimeRes = await axios.get(`${API_URL}/regime/${selectedRun}`)
+                setRegimePerformance(regimeRes.data.regime_performance)
+            } catch (regimeErr) {
+                console.warn("Failed to fetch regime performance", regimeErr)
+                setRegimePerformance(null)
+            }
+
             setLoading(false)
         } catch (err) {
             console.error("Error fetching data:", err)
@@ -81,5 +91,5 @@ export const useStrategyData = () => {
         fetchData()
     }, [selectedRun])
 
-    return { stats, trades, executions, loading, error, refresh: fetchData }
+    return { stats, trades, executions, regimePerformance, loading, error, refresh: fetchData }
 }

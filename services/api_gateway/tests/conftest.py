@@ -7,6 +7,8 @@ from fastapi.testclient import TestClient
 
 # Add project root to path to ensure imports work
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+# Add src directory so the "api" package can be imported directly
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 
 from quant_shared.models.models import Base
 

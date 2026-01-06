@@ -114,6 +114,8 @@ def test_regime_performance_aggregation(analyzer, setup_query_mock):
 
     metrics = analyzer.calculate_portfolio_metrics(strategy_id="test_strat", run_id="test_run")
     regime = metrics.get('regime_performance', {})
+    direct_regime = analyzer.calculate_regime_performance(run_id="test_run")
+    assert regime == direct_regime
     assert regime
 
     trend_map = {entry['name']: entry for entry in regime.get('trend', [])}

@@ -5,7 +5,7 @@ import api from '../api/axios'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, FunnelChart } from 'recharts'
 
 const Regime = () => {
-    const { trades, loading, refresh } = useStrategyData()
+    const { trades, loading, refresh, regimePerformance } = useStrategyData()
     const { selectedRun } = useStrategy()
     const [rebuilding, setRebuilding] = useState(false)
     const [rebuildError, setRebuildError] = useState(null)
@@ -15,7 +15,7 @@ const Regime = () => {
         setRebuilding(true)
         setRebuildError(null)
         try {
-            await api.post(`/trades/rebuild/${selectedRun}`)
+            await api.post(`/regime/${selectedRun}/rebuild`)
             await refresh()
         } catch (err) {
             const detail = err?.response?.data?.detail
@@ -25,7 +25,7 @@ const Regime = () => {
         }
     }
 
-    const regimeStats = useMemo(() => {
+    const fallbackRegimeStats = useMemo(() => {
         if (!trades.length) return { trend: [], volatility: [], matrix: {} }
 
         const calculateMetrics = (subset) => {
@@ -45,21 +45,18 @@ const Regime = () => {
             }
         }
 
-        // Trend Stats
         const trends = ['BULL', 'BEAR', 'RANGE']
         const trendStats = trends.map(trend => {
             const subset = trades.filter(t => t.regime_trend === trend)
             return { name: trend, ...calculateMetrics(subset) }
         })
 
-        // Volatility Stats
         const vols = ['HIGH', 'LOW', 'NORMAL']
         const volStats = vols.map(vol => {
             const subset = trades.filter(t => t.regime_volatility === vol)
             return { name: vol, ...calculateMetrics(subset) }
         })
 
-        // Matrix Stats
         const matrix = {}
         trends.forEach(trend => {
             vols.forEach(vol => {
@@ -70,6 +67,8 @@ const Regime = () => {
 
         return { trend: trendStats, volatility: volStats, matrix }
     }, [trades])
+
+    const regimeStats = regimePerformance || fallbackRegimeStats
 
     if (loading) return <div className="loading">Loading regime analysis...</div>
 

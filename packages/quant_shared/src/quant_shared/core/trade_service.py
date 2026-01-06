@@ -31,7 +31,20 @@ class TradeService:
             if not instance:
                  instance = self.db.query(StrategyInstance).get(run.instance_id)
 
-            if not instance or not instance.symbol or not instance.timeframe:
+            if not instance:
+                return pd.DataFrame()
+
+            symbol = getattr(instance, 'symbol', None)
+            if not symbol:
+                symbols_list = getattr(instance, 'symbols_json', None)
+                if symbols_list and isinstance(symbols_list, list):
+                    symbol = symbols_list[0]
+                elif symbols_list:
+                    symbol = symbols_list
+
+            timeframe = instance.timeframe
+
+            if not symbol or not timeframe:
                 return pd.DataFrame()
 
             series = (
@@ -39,8 +52,8 @@ class TradeService:
                 .join(RunSeriesRunLink, RunSeries.series_id == RunSeriesRunLink.series_id)
                 .filter(
                     RunSeriesRunLink.run_id == run_id,
-                    RunSeries.symbol == instance.symbol,
-                    RunSeries.timeframe == instance.timeframe,
+                    RunSeries.symbol == symbol,
+                    RunSeries.timeframe == timeframe,
                 )
                 .first()
             )
@@ -188,4 +201,48 @@ class TradeService:
                     pass
 
         return len(new_trade_objs)
+
+    def count_trades_for_run(self, run_id: str) -> int:
+        return self.db.query(Trade).filter(Trade.run_id == run_id).count()
+
+    def ensure_regime_tags(self, run_id: str) -> int:
+        trades = self.db.query(Trade).filter(Trade.run_id == run_id).all()
+        if not trades:
+            return 0
+
+        missing = [t for t in trades if not t.regime_trend or not t.regime_volatility]
+        logger.debug(f"Run {run_id} has {len(trades)} trades and {len(missing)} missing regime tags")
+        if not missing:
+            return 0
+
+        df_regime = self._get_regime_df(run_id)
+        if df_regime.empty or 'ts_utc' not in df_regime.columns:
+            logger.warning(f"Run {run_id} missing regime data to tag {len(missing)} trades")
+            return 0
+
+        df_regime = df_regime.sort_values('ts_utc')
+        updates = 0
+        for trade in missing:
+            subset = df_regime[df_regime['ts_utc'] <= trade.entry_time]
+            if subset.empty:
+                continue
+
+            regime_row = subset.iloc[-1]
+            r_trend = regime_row.get('regime_trend')
+            r_vol = regime_row.get('regime_volatility')
+
+            updated = False
+            if r_trend and not trade.regime_trend:
+                trade.regime_trend = r_trend
+                updated = True
+            if r_vol and not trade.regime_volatility:
+                trade.regime_volatility = r_vol
+                updated = True
+            if updated:
+                updates += 1
+
+        if updates > 0:
+            self.db.commit()
+
+        return updates
 

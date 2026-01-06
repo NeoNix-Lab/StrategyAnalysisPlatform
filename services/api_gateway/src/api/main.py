@@ -22,6 +22,7 @@ from .routers import ingest
 from .routers import strategies
 from .routers import runs
 from .routers import trades
+from .routers import regime
 from .routers import metrics
 from .routers import auth
 from .routers import training
@@ -95,6 +96,7 @@ app.include_router(strategies.router, prefix="/api/strategies", tags=["strategie
 app.include_router(runs.router, prefix="/api/runs", tags=["runs"])
 app.include_router(trades.router, prefix="/api/trades", tags=["trades"])
 app.include_router(metrics.router, prefix="/api/metrics", tags=["metrics"])
+app.include_router(regime.router, prefix="/api/regime", tags=["regime"])
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(training.router, prefix="/api/training", tags=["training"])
 app.include_router(ml_studio.router, prefix="/api/ml/studio", tags=["ml_studio"])
