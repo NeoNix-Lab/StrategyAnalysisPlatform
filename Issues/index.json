@@ -339,5 +339,14 @@
     "last_action": "closed",
     "last_updated": "2026-01-09T17:47:04.497766Z",
     "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/49"
+  },
+  "50": {
+    "title": "Test Failure: ml_core",
+    "state": "closed",
+    "labels": [],
+    "assignees": [],
+    "last_action": "closed",
+    "last_updated": "2026-01-09T17:47:57.261783Z",
+    "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/50"
   }
 }
