@@ -357,5 +357,14 @@
     "last_action": "closed",
     "last_updated": "2026-01-09T17:48:19.187884Z",
     "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/53"
+  },
+  "52": {
+    "title": "Test Failure: quant_shared",
+    "state": "closed",
+    "labels": [],
+    "assignees": [],
+    "last_action": "closed",
+    "last_updated": "2026-01-09T17:48:36.857321Z",
+    "html_url": "https://github.com/NeoNix-Lab/StrategyAnalysisPlatform/issues/52"
   }
 }
