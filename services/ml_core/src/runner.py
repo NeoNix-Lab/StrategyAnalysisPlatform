@@ -33,6 +33,15 @@ except ImportError:
     from etl.data_converter import DataConverter
 
 logger = logging.getLogger("ml_core.runner")
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+
+def _resolve_root_path(path_value: Optional[str], default: Path) -> Path:
+    if not path_value:
+        return default
+    candidate = Path(path_value)
+    if candidate.is_absolute():
+        return candidate
+    return PROJECT_ROOT / candidate
 
 class TrainingRunner:
     def __init__(self, db_session, status_cb=None):
@@ -252,7 +261,9 @@ class TrainingRunner:
                 logger.warning(f"Loss function {loss_name} not found, falling back to Huber")
                 loss_fn = tf.keras.losses.Huber()
             
-            log_dir = os.path.join("logs", "training", run_id)
+            default_log_root = PROJECT_ROOT / "var" / "logs" / "training"
+            log_root = _resolve_root_path(os.getenv("ML_CORE_LOG_DIR"), default_log_root)
+            log_dir = str(log_root / run_id)
             trainer = Trainer(
                 env=env,
                 main_network=model,

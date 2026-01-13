@@ -5,6 +5,7 @@ import pandas as pd
 import tensorflow as tf
 import os
 import shutil
+from pathlib import Path
 
 from src.core.environment import EnvFlex
 from src.core.models import CustomDQNModel
@@ -13,6 +14,15 @@ from src.core.trainer import Trainer
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - [%(name)s] %(message)s')
 logger = logging.getLogger("ML_VALIDATION")
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+
+def _resolve_root_path(path_value: str, default: Path) -> Path:
+    if not path_value:
+        return default
+    candidate = Path(path_value)
+    if candidate.is_absolute():
+        return candidate
+    return PROJECT_ROOT / candidate
 
 def generate_dummy_data(n_rows=1000):
     logger.info(f"Generating {n_rows} rows of dummy market data...")
@@ -80,8 +90,10 @@ def validate_pipeline():
     logger.info("=== STARTING REAL ML PIPELINE VALIDATION (Real TF) ===")
     
     # 0. Cleanup previous logs
-    if os.path.exists("./logs_validation"):
-        shutil.rmtree("./logs_validation")
+    default_log_dir = PROJECT_ROOT / "var" / "logs_validation"
+    log_dir_path = _resolve_root_path(os.getenv("ML_CORE_VALIDATION_LOG_DIR"), default_log_dir)
+    if log_dir_path.exists():
+        shutil.rmtree(log_dir_path)
 
     # 1. Data Preparation
     df = generate_dummy_data()
@@ -148,7 +160,7 @@ def validate_pipeline():
         epsilon_start=1.0,
         epsilon_end=0.1, 
         epsilon_decay_steps=500,
-        log_dir="./logs_validation",
+        log_dir=str(log_dir_path),
         training_name="ValidationRun",
         epochs=1,
         replay_capacity=5000,

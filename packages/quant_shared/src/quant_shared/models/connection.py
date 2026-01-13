@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 
 # Per ora usiamo SQLite locale
-# Logic: Always prefer the project root 'trading_data.db'
+# Logic: prefer TRADING_DB_PATH, then var/trading_data.db, then project root
 # We dertermine project root relative to this file's location in packages/quant_shared
 # This file is in: .../Main/packages/quant_shared/src/quant_shared/models/connection.py
 
@@ -20,8 +20,12 @@ if not DB_PATH:
     project_root = current_file.parents[5]
     
     expected_db = project_root / "trading_data.db"
-    
-    if expected_db.exists():
+    var_db = project_root / "var" / "trading_data.db"
+
+    if var_db.exists():
+        DB_PATH = str(var_db)
+        print(f"Database found in var: {DB_PATH}")
+    elif expected_db.exists():
         DB_PATH = str(expected_db)
         print(f"Database found at Project Root: {DB_PATH}")
     else:
@@ -41,11 +45,17 @@ if not DB_PATH:
                 break
         
         if not found:
-             # Default to creating it in Root if possible, otherwise CWD
-             DB_PATH = str(expected_db)
-             print(f"Database target set to Project Root (New): {DB_PATH}")
+             # Default to creating it in var if possible, otherwise Project Root
+             DB_PATH = str(var_db)
+             print(f"Database target set to var (New): {DB_PATH}")
 
 DATABASE_URL = f"sqlite:///{DB_PATH}"
+
+# Ensure parent directory exists for new database paths (e.g., var/)
+try:
+    Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
+except Exception:
+    pass
 
 from sqlalchemy import event
 

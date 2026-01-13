@@ -56,6 +56,13 @@ A high-performance React application built with Vite, offering a lightning-fast 
 - Node.js 18+
 - .NET 8 SDK
 
+### 0. Helper Scripts (Optional)
+Quickstart helpers live in `scripts/`:
+- `scripts/dev-setup.ps1`
+- `scripts/dev-run.ps1`
+- `scripts/dev-run-debug.ps1`
+- `scripts/dev-test.ps1`
+
 ### 1. Python Environment Setup
 We use a single shared virtual environment at the root of the project to manage all services.
 
@@ -78,7 +85,7 @@ pip install -e services/ml_core
 # Ensure your PYTHONPATH includes the services/api_gateway/src directory
 uvicorn api.main:app --host 0.0.0.0 --port 8000 --app-dir services/api_gateway/src
 ```
-Default DB: `trading_data.db` (located at the project root).
+Default DB: `var/trading_data.db` (override with `TRADING_DB_PATH`; root `trading_data.db` is still supported).
 
 ### 3. Running the Frontend
 ```bash
@@ -99,10 +106,11 @@ The CI/CD pipeline runs tests for each component using a matrix strategy:
 ## 🤖 Automations & Issues
 - **GitHub Actions**: Automated CI for Python, .NET, and Node.js.
 - **Issue Tracking**: Issues are mirrored locally in `Docs/Issues/` as JSON files for auditability and "Zero Browser" management using `gh` CLI.
-- **Database Status**: Root-level `trading_data.db` is the primary SQLite store for development.
+- **Database Status**: Default SQLite lives in `var/trading_data.db` (override with `TRADING_DB_PATH`).
+- **Runtime Logs**: ML training logs default to `var/logs/` (override `ML_CORE_LOG_DIR` or `ML_CORE_VALIDATION_LOG_DIR`).
 
 ## 📄 Documentation Indices
 Consult `Docs/` for detailed guides:
-- `ARCHITECTURE.md`: Technical overview.
-- `Workflow.md`: Terminal-first management guide.
-- `Metrics_Implementation_Status.md`: Current coverage of analytics.
+- `road_to_production.md`: Release hardening checklist.
+- `Issues/README.md`: Zero-browser issue workflow.
+- `Issues/benchmarks.md`: Benchmarks and perf notes.

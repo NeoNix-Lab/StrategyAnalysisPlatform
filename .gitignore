@@ -3,6 +3,7 @@ __pycache__
 .venv
 venv
 env
+.pytest_cache
 *.db
 *.sqlite
 *.db-shm
@@ -14,8 +15,17 @@ env
 *.egg-info
 dist
 build
-# Documentation
-Docs/
+# Runtime artifacts
+var/*
+!var/.gitkeep
+logs/
+logs_validation/
+services/ml_core/src/logs/
+services/ml_core/tests/logs_validation/
+services/ml_core/models/ml_artifacts/
+frontend/quant_frontend/.vite/
+bin/
+obj/
 
 
 # Issues Data (Local Cache)
