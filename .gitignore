@@ -16,17 +16,7 @@ dist
 build
 # Documentation
 Docs/
-!Docs/ARCHITECTURE.md
-!Docs/Workflow.md
-!Docs/Metrics.md
-!Docs/Metrics_Implementation_Status.md
-!Docs/QuantowerExportWorkflowProposto.md
-!Docs/SystemV2_Reference.md
-!Docs/roadmap.md
-!Docs/Issues/
-!Docs/Issues/*.py
-!Docs/Issues/README.md
-!Docs/Issues/tests/
+
 
 # Issues Data (Local Cache)
 Docs/Issues/records/
@@ -35,6 +25,7 @@ Docs/Issues/issue-*.json
 Docs/Issues/workflows/issue-events.log
 
 
-# Ui Ux Pro Max
-.shared/
+# Workflows
 .agent/
+.windsurf/
+.shared/

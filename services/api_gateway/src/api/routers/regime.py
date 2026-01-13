@@ -43,6 +43,7 @@ def rebuild_regime(run_id: str, request: Request, strategy_id: Optional[str] = N
     service = TradeService(db)
     analyzer = StandardAnalyzer(db)
 
+
     trade_count = service.count_trades_for_run(run_id)
     if trade_count == 0:
         logger.warning(f"[{trace_id}] No trades found for run {run_id}; skipping regime rebuild.")

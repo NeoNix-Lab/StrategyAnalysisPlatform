@@ -30,6 +30,21 @@ const ProcessConfig = ({ config, setConfig }) => {
         </div>
     );
 
+    const SelectGroup = ({ label, value, onChange, options }) => (
+        <div className="flex flex-col gap-2">
+            <label className="text-[11px] uppercase font-bold text-slate-500 tracking-wider">{label}</label>
+            <select
+                className="w-full bg-[#0b1121] border border-slate-800 rounded px-4 py-3 text-sm text-slate-300 focus:border-blue-500/50 focus:bg-slate-900 focus:outline-none transition-all font-mono appearance-none"
+                value={value || ""}
+                onChange={onChange}
+            >
+                {options.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+            </select>
+        </div>
+    );
+
     return (
         <div className="grid grid-cols-1 gap-8 max-w-4xl mx-auto py-4">
 
@@ -60,6 +75,13 @@ const ProcessConfig = ({ config, setConfig }) => {
                         onChange={e => handleChange('window_size', parseInt(e.target.value))}
                         min="1"
                     />
+                    <InputGroup
+                        label="Fees (Per Trade)"
+                        value={config.fees}
+                        onChange={e => handleChange('fees', parseFloat(e.target.value))}
+                        step="0.0001"
+                        min="0"
+                    />
                 </div>
             </div>
 
@@ -71,12 +93,38 @@ const ProcessConfig = ({ config, setConfig }) => {
                     colorClass="text-purple-400"
                     bgClass="bg-purple-500/10"
                 />
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                     <InputGroup
                         label="Learning Rate"
                         value={config.learning_rate}
                         onChange={e => handleChange('learning_rate', parseFloat(e.target.value))}
                         step="0.0001"
+                    />
+                    <SelectGroup
+                        label="Optimizer"
+                        value={config.optimizer || "Adam"}
+                        onChange={e => handleChange('optimizer', e.target.value)}
+                        options={[
+                            { label: "Adam", value: "Adam" },
+                            { label: "SGD", value: "SGD" },
+                            { label: "RMSprop", value: "RMSprop" },
+                            { label: "Adagrad", value: "Adagrad" },
+                            { label: "Nadam", value: "Nadam" },
+                            { label: "Adamax", value: "Adamax" }
+                        ]}
+                    />
+                    <SelectGroup
+                        label="Loss Function"
+                        value={config.loss || "huber"}
+                        onChange={e => handleChange('loss', e.target.value)}
+                        options={[
+                            { label: "Huber", value: "huber" },
+                            { label: "Mean Squared Error", value: "mean_squared_error" },
+                            { label: "Mean Absolute Error", value: "mean_absolute_error" },
+                            { label: "Binary Crossentropy", value: "binary_crossentropy" },
+                            { label: "Categorical Crossentropy", value: "categorical_crossentropy" },
+                            { label: "Kullback Leibler", value: "kullback_leibler_divergence" }
+                        ]}
                     />
                 </div>
             </div>

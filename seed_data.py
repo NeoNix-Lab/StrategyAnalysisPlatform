@@ -5,6 +5,7 @@ import uuid
 import json
 
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from quant_shared.models.connection import get_db, init_db, engine
 from quant_shared.models.models import (
     Strategy, StrategyInstance, StrategyRun, Trade, Execution, Order,
@@ -21,7 +22,14 @@ def create_dummy_data():
     db = next(get_db())
     
     try:
-        # 1. Create Strategies
+        # --- 0. Setup Time Anchors ---
+        # Everything relative to NOW
+        now_utc = datetime.utcnow()
+        # Bars cover last 30 days
+        data_start_utc = now_utc - timedelta(days=30)
+        data_end_utc = now_utc
+
+        # --- 1. Create Strategies ---
         print("Creating Strategies...")
         strategies = [
             Strategy(
@@ -31,24 +39,8 @@ def create_dummy_data():
                 vendor="QuantLab",
                 notes="Standard moving average crossover",
                 parameters_json=[
-                    {
-                        "name": "fast_ma_period",
-                        "label": "Fast moving average window",
-                        "description": "Controls the short-term trend sensitivity",
-                        "type_hint": "integer",
-                        "default_value": 12,
-                        "value": None,
-                        "required": True
-                    },
-                    {
-                        "name": "slow_ma_period",
-                        "label": "Slow moving average window",
-                        "description": "Defines the baseline trend reference",
-                        "type_hint": "integer",
-                        "default_value": 26,
-                        "value": None,
-                        "required": True
-                    }
+                    {"name": "fast_ma", "default_value": 12, "type_hint": "integer", "required": True},
+                    {"name": "slow_ma", "default_value": 26, "type_hint": "integer", "required": True}
                 ]
             ),
             Strategy(
@@ -58,442 +50,290 @@ def create_dummy_data():
                 vendor="External",
                 notes="Bollinger bands strategy",
                 parameters_json=[
-                    {
-                        "name": "lookback_period",
-                        "description": "Number of bars used to compute the mean",
-                        "type_hint": "integer",
-                        "default_value": 20,
-                        "value": None,
-                        "required": True
-                    },
-                    {
-                        "name": "entry_zscore",
-                        "description": "Threshold for opening contrarian positions",
-                        "type_hint": "number",
-                        "default_value": 2.0,
-                        "value": 2.0,
-                        "required": True
-                    },
-                    {
-                        "name": "exit_zscore",
-                        "description": "Threshold for closing the position",
-                        "type_hint": "number",
-                        "default_value": 0.5,
-                        "value": None,
-                        "required": False
-                    }
+                    {"name": "lookback", "default_value": 20, "type_hint": "integer", "required": True},
+                    {"name": "std_dev", "default_value": 2.0, "type_hint": "number", "required": True}
                 ]
             ),
-            Strategy(
+             Strategy(
                 strategy_id=str(uuid.uuid4()),
                 name="DeepRL Trader",
                 version="0.5.0-beta",
                 vendor="AI Lab",
                 notes="PPO agent trained on BTCUSDT",
                 parameters_json=[
-                    {
-                        "name": "epsilon_start",
-                        "description": "Initial exploration ratio",
-                        "type_hint": "number",
-                        "default_value": 1.0,
-                        "value": None,
-                        "required": True
-                    },
-                    {
-                        "name": "epsilon_decay",
-                        "description": "Decay rate applied per episode",
-                        "type_hint": "number",
-                        "default_value": 0.995,
-                        "value": 0.995,
-                        "required": True
-                    },
-                    {
-                        "name": "batch_size",
-                        "description": "Batch size for gradient updates",
-                        "type_hint": "integer",
-                        "default_value": 64,
-                        "value": None,
-                        "required": True
-                    }
+                    {"name": "epsilon_start", "default_value": 1.0, "type_hint": "number", "required": True}
                 ]
             )
         ]
         
+        # Upsert strategies
+        final_strategies = []
         for s in strategies:
             exists = db.query(Strategy).filter_by(name=s.name).first()
             if not exists:
                 db.add(s)
+                final_strategies.append(s)
             else:
-                strategies[strategies.index(s)] = exists # Use existing
-        
+                final_strategies.append(exists)
         db.commit()
+
+
+        # --- 2. Create Market Data Series (The Foundation) ---
+        print("Creating Market Data Series & Bars...")
         
-        # 2. Create Instances
-        print("Creating Instances...")
-        instances = []
         symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
-        timeframes = ["1m", "5m", "1h", "4h"]
+        timeframes = ["1m", "5m", "1h"]
         
-        for s in strategies:
-            for i in range(2): # 2 instances per strategy
-                inst = StrategyInstance(
-                    instance_id=str(uuid.uuid4()),
-                    strategy_id=s.strategy_id,
-                    instance_name=f"{s.name} - {symbols[i]} {timeframes[i]}",
-                    parameters_json={"period": 14, "std_dev": 2.0},
-                    symbols_json=[symbols[i]],  # Required array instead of single symbol
-                    timeframe=timeframes[i],
-                    venue="Binance",
-                    account_id="ACC_BIN_001"
-                )
-                db.add(inst)
-                instances.append(inst)
+        # Store created series to link later
+        # Key: (symbol, timeframe) -> RunSeries object
+        series_registry = {}
+        
+        for symbol in symbols:
+            for tf in timeframes:
+                series_id = f"{symbol}_{tf}_shared"
+                
+                # Check/Create Series
+                series = db.query(RunSeries).filter_by(series_id=series_id).first()
+                if not series:
+                    series = RunSeries(
+                        series_id=series_id,
+                        symbol=symbol,
+                        timeframe=tf,
+                        venue="Binance",
+                        provider="Quantower",
+                        start_utc=data_start_utc,
+                        end_utc=data_end_utc,
+                        created_utc=now_utc
+                    )
+                    db.add(series)
+                    print(f"+ Created Series: {series_id}")
+                else:
+                    print(f"✓ Found Series: {series_id}")
+                
+                series_registry[(symbol, tf)] = series
+
+                # Check/Create Bars using consistent timeline
+                # We'll generate bars for the last 5 days to keep it fast but relevant
+                # Only if they don't exist
+                bar_count = db.query(RunSeriesBar).filter_by(series_id=series_id).count()
+                
+                if bar_count < 100:
+                    print(f"  generating bars for {series_id}...")
+                    
+                    # Logic: Generate 1 bar per interval? No, just dummy 'N' bars covering the range evenly
+                    # For visualization, let's just do 500 bars ending at now
+                    
+                    num_bars = 500
+                    base_price = 60000 if "BTC" in symbol else (3000 if "ETH" in symbol else 150)
+                    
+                    # Simple Walk
+                    bars = []
+                    current_price = base_price
+                    
+                    # Determine interval delta (approximate for dummy data)
+                    delta = timedelta(minutes=1) 
+                    if tf == "5m": delta = timedelta(minutes=5)
+                    if tf == "1h": delta = timedelta(hours=1)
+                    
+                    start_t = now_utc - (delta * num_bars)
+                    
+                    for i in range(num_bars):
+                        t = start_t + (delta * i)
+                        
+                        change = random.uniform(-0.005, 0.005) # 0.5% move
+                        current_price *= (1 + change)
+                        
+                        vol = random.uniform(1, 10)
+                        
+                        b = RunSeriesBar(
+                            series_id=series_id,
+                            ts_utc=t,
+                            open=current_price,
+                            high=current_price * 1.002,
+                            low=current_price * 0.998,
+                            close=current_price, # simplified
+                            volume=vol,
+                            volumetric_json={"buy": vol*0.6, "sell": vol*0.4}
+                        )
+                        bars.append(b)
+                    
+                    db.add_all(bars)
         
         db.commit()
 
-        # 3. Create Runs & Trades
-        print("Creating Runs and Trades...")
-        
-        base_start = datetime.utcnow() - timedelta(days=30)
 
-        def seed_run(instance, run_start):
+        # --- 3. Create Instances & Runs (Linked to Data) ---
+        print("Creating Instances, Runs & Trades...")
+        
+        # We'll create runs that align with the generated data
+        # Let's say runs happened in the last 2 days
+        run_start_utc = now_utc - timedelta(days=2)
+        
+        for s_idx, strategy in enumerate(final_strategies):
+            # Create 1 instance per symbol for diversity
+            target_symbol = symbols[s_idx % len(symbols)] # Rotate symbols
+            target_tf = "1m" # Default to 1m for granularity
+            
+            # --- Instance ---
+            inst = StrategyInstance(
+                instance_id=str(uuid.uuid4()),
+                strategy_id=strategy.strategy_id,
+                instance_name=f"Live - {strategy.name} on {target_symbol}",
+                parameters_json={"risk": 1.0},
+                symbols_json=[target_symbol], # Required List
+                timeframe=target_tf,
+                venue="Binance",
+                account_id="ACC_MAIN_01"
+            )
+            db.add(inst)
+            
+            # --- Run ---
+            run_id = str(uuid.uuid4())
             run = StrategyRun(
-                run_id=str(uuid.uuid4()),
-                instance_id=instance.instance_id,
+                run_id=run_id,
+                instance_id=inst.instance_id,
                 run_type=RunType.BACKTEST,
-                start_utc=run_start,
-                end_utc=datetime.utcnow(),
+                start_utc=run_start_utc,
+                end_utc=now_utc,
                 status=RunStatus.COMPLETED,
                 initial_balance=10000.0,
                 base_currency="USDT"
             )
             db.add(run)
-            db.commit() # Commit to get run ID valid
-
+            
+            # --- Link Run to Series (CRITICAL STEP) ---
+            series_ref = series_registry.get((target_symbol, target_tf))
+            
+            # Determine Time Range for Trades
+            trade_start = run_start_utc
+            trade_end = now_utc
+            
+            if series_ref:
+                link = RunSeriesRunLink(
+                    run_id=run_id,
+                    series_id=series_ref.series_id
+                )
+                db.add(link)
+                
+                # Query actual bar range to ensure trades are valid
+                min_max = db.query(func.min(RunSeriesBar.ts_utc), func.max(RunSeriesBar.ts_utc))\
+                    .filter(RunSeriesBar.series_id == series_ref.series_id).first()
+                if min_max and min_max[0]:
+                    trade_start, trade_end = min_max
+                    
+                print(f"  -> Linked Run {run_id[:8]} to Series {series_ref.series_id} [{trade_start} - {trade_end}]")
+            
+            # --- Generate Trades within Run Window ---
+            # Generate 10-20 trades
+            num_trades = random.randint(10, 20)
             balance = 10000.0
-            current_time = run_start
-
-            for _ in range(random.randint(20, 50)):
-                current_time += timedelta(hours=random.randint(1, 12))
-                if current_time > datetime.utcnow(): break
-
+            
+            # Calculate average step to fit trades in the window
+            total_duration = (trade_end - trade_start).total_seconds()
+            if total_duration < 300: total_duration = 3600 # Safety for tiny ranges
+            avg_step = total_duration / (num_trades + 2)
+            
+            current_trade_time = trade_start
+            
+            for t_i in range(num_trades):
+                # Move forward proportional to range
+                step = avg_step * random.uniform(0.5, 1.5)
+                current_trade_time += timedelta(seconds=step)
+                
+                if current_trade_time >= trade_end: break
+                
                 side = random.choice([Side.BUY, Side.SELL])
-                symbol = instance.symbols_json[0] if instance.symbols_json else "BTCUSDT"
-                entry_price = random.uniform(20000, 60000) if "BTC" in symbol else random.uniform(1000, 3000)
-                exit_price = entry_price * (1 + random.uniform(-0.02, 0.03))
-
-                qty = 0.1 if "BTC" in symbol else 1.0
-
-                pnl = (exit_price - entry_price) * qty if side == Side.BUY else (entry_price - exit_price) * qty
+                qty = 0.5
+                
+                # Price approximation (random walk logic implies we don't strictly query the DB here for speed, 
+                # but valid 'clean' seed would query the bar at that time. 
+                # For now, approximate based on base price of symbol)
+                # Ideally: fetch price from bar? 
+                # Let's just create random efficient trades
+                base_p = 60000 if "BTC" in target_symbol else (3000 if "ETH" in target_symbol else 150)
+                
+                entry_p = base_p * random.uniform(0.9, 1.1)
+                exit_p = entry_p * (1.02 if random.random() > 0.4 else 0.98) # 60% win rate
+                
+                pnl = (exit_p - entry_p) * qty if side == Side.BUY else (entry_p - exit_p) * qty
                 balance += pnl
-
+                
+                # Trade
+                trade_id = str(uuid.uuid4())
                 trade = Trade(
-                    trade_id=str(uuid.uuid4()),
-                    run_id=run.run_id,
-                    symbol=symbol,
+                    trade_id=trade_id,
+                    run_id=run_id,
+                    symbol=target_symbol,
                     side=side,
-                    entry_time=current_time,
-                    exit_time=current_time + timedelta(minutes=random.randint(5, 120)),
-                    entry_price=entry_price,
-                    exit_price=exit_price,
+                    entry_time=current_trade_time,
+                    exit_time=current_trade_time + timedelta(minutes=15),
+                    entry_price=entry_p,
+                    exit_price=exit_p,
                     quantity=qty,
                     pnl_net=pnl,
                     pnl_gross=pnl,
-                    commission=pnl * 0.01
+                    commission=0.5
                 )
                 db.add(trade)
-
-                entry_order = Order(
-                    order_id=str(uuid.uuid4()),
-                    run_id=run.run_id,
-                    symbol=symbol,
-                    side=side,
-                    order_type=OrderType.MARKET,
-                    quantity=qty,
-                    price=entry_price,
-                    status=OrderStatus.FILLED,
-                    submit_utc=current_time,
-                    update_utc=current_time,
-                    position_impact=PositionImpactType.OPEN
-                )
-                db.add(entry_order)
-
-                exit_order = Order(
-                    order_id=str(uuid.uuid4()),
-                    run_id=run.run_id,
-                    symbol=symbol,
-                    side=Side.SELL if side == Side.BUY else Side.BUY,
-                    order_type=OrderType.MARKET,
-                    quantity=qty,
-                    price=exit_price,
-                    status=OrderStatus.FILLED,
-                    submit_utc=current_time + timedelta(minutes=random.randint(5, 120)),
-                    update_utc=current_time + timedelta(minutes=random.randint(5, 120)),
-                    position_impact=PositionImpactType.CLOSE
-                )
-                db.add(exit_order)
-
-                exec_entry = Execution(
+                
+                # Executions (Entry/Exit)
+                # Entry
+                db.add(Execution(
                     execution_id=str(uuid.uuid4()),
-                    run_id=run.run_id,
-                    order_id=entry_order.order_id,
-                    exec_utc=current_time,
-                    price=entry_price,
+                    run_id=run_id,
+                    order_id=str(uuid.uuid4()), # Dummy order IDs
+                    exec_utc=current_trade_time,
+                    price=entry_p,
                     quantity=qty,
-                    fee=qty * entry_price * 0.001,
                     position_impact=PositionImpactType.OPEN
-                )
-                db.add(exec_entry)
-
-                exec_exit = Execution(
+                ))
+                 # Exit
+                db.add(Execution(
                     execution_id=str(uuid.uuid4()),
-                    run_id=run.run_id,
-                    order_id=exit_order.order_id,
-                    exec_utc=current_time + timedelta(minutes=random.randint(5, 120)),
-                    price=exit_price,
+                    run_id=run_id,
+                    order_id=str(uuid.uuid4()),
+                    exec_utc=current_trade_time + timedelta(minutes=15),
+                    price=exit_p,
                     quantity=qty,
-                    fee=qty * exit_price * 0.001,
                     position_impact=PositionImpactType.CLOSE
-                )
-                db.add(exec_exit)
+                ))
 
-                if random.random() < 0.3:
-                    oco_group = OrderOcoGroup(
-                        oco_group_id=str(uuid.uuid4()),
-                        run_id=run.run_id,
-                        created_utc=current_time,
-                        label=f"OCO for trade {trade.trade_id}",
-                        order_ids=[entry_order.order_id, exit_order.order_id],
-                        extra_json={"trade_id": trade.trade_id}
-                    )
-                    db.add(oco_group)
-
-        for idx, inst in enumerate(instances):
-            for run_offset in range(2):
-                run_start = base_start + timedelta(days=idx + run_offset)
-                seed_run(inst, run_start)
-
-        # 4. Create Shared RunSeries and Bars
-        print("Creating RunSeries and Bars...")
-        
-        # Create shared series for each symbol/timeframe combination
-        series_map = {}
-        for symbol in ["BTCUSDT", "ETHUSDT", "SOLUSDT"]:
-            for timeframe in ["1m", "5m", "1h"]:
-                series_id = f"{symbol}_{timeframe}_shared"
-                
-                # Check if series already exists
-                existing_series = db.query(RunSeries).filter_by(series_id=series_id).first()
-                if existing_series:
-                    series_map[(symbol, timeframe)] = existing_series
-                    print(f"✓ Using existing series: {series_id}")
-                else:
-                    series = RunSeries(
-                        series_id=series_id,
-                        symbol=symbol,
-                        timeframe=timeframe,
-                        venue="Binance",
-                        provider="Quantower",
-                        created_utc=datetime.utcnow()
-                    )
-                    db.add(series)
-                    series_map[(symbol, timeframe)] = series
-                    print(f"+ Creating new series: {series_id}")
-        
-        db.commit()
-        
-        # Create sample bars for each series
-        for (symbol, timeframe), series in series_map.items():
-            # Check if bars already exist for this series
-            existing_bars_count = db.query(RunSeriesBar).filter_by(series_id=series.series_id).count()
-            if existing_bars_count > 0:
-                print(f"✓ Series {series.series_id} already has {existing_bars_count} bars, skipping bar creation")
-                continue
-                
-            print(f"+ Creating 100 bars for series: {series.series_id}")
-            # Create 100 bars per series
-            base_price = 45000 if "BTC" in symbol else (2800 if "ETH" in symbol else 150)
-            for i in range(100):
-                bar_time = datetime.utcnow() - timedelta(hours=i)
-                price_variation = random.uniform(-0.02, 0.02)  # ±2%
-                current_price = base_price * (1 + price_variation)
-                
-                bar = RunSeriesBar(
-                    series_id=series.series_id,
-                    ts_utc=bar_time,
-                    open=current_price,
-                    high=current_price * random.uniform(1.0, 1.01),
-                    low=current_price * random.uniform(0.99, 1.0),
-                    close=current_price * random.uniform(0.995, 1.005),
-                    volume=random.uniform(0.5, 5.0),
-                    volumetric_json={"buy_volume": random.uniform(0.3, 2.5), "sell_volume": random.uniform(0.2, 2.5)}
-                )
-                db.add(bar)
-
-            # Update Series Bounds
-            series.start_utc = datetime.utcnow() - timedelta(hours=99)
-            series.end_utc = datetime.utcnow()
-        
-        # Link runs to series (each run uses the series for its symbol/timeframe)
-        for run in db.query(StrategyRun).all():
-            instance = run.instance
-            if instance and instance.symbols_json and instance.timeframe:
-                for symbol in instance.symbols_json:
-                    series_key = (symbol, instance.timeframe)
-                    if series_key in series_map:
-                        series = series_map[series_key]
-                        # Check if link already exists
-                        existing_link = db.query(RunSeriesRunLink).filter_by(
-                            series_id=series.series_id, 
-                            run_id=run.run_id
-                        ).first()
-                        if existing_link:
-                            print(f"✓ Link already exists: run {run.run_id} → series {series.series_id}")
-                        else:
-                            # Create link between run and series
-                            link = RunSeriesRunLink(
-                                series_id=series.series_id,
-                                run_id=run.run_id,
-                                created_utc=datetime.utcnow()
-                            )
-                            db.add(link)
-                            print(f"+ Creating link: run {run.run_id} → series {series.series_id}")
-        
         db.commit()
 
-        # 5. Create ML Studio Data
-        print("Creating ML Studio Data...")
-        
-        # --- Datasets ---
-        datasets_to_seed = [
-            Dataset(
-                dataset_id=str(uuid.uuid4()),
-                name="BTC 1m High Volatility",
-                description="BTCUSDT 1m bars from 2023-01-01 with RSI > 70",
-                sources_json=[{"run_id": "none", "symbol": "BTCUSDT", "timeframe": "1m"}],
-                feature_config_json=["open", "high", "low", "close", "volume"]
-            ),
-            Dataset(
-                dataset_id=str(uuid.uuid4()),
-                name="ETH 5m Trend",
-                description="ETHUSDT 5m bars for trend following training",
-                sources_json=[{"run_id": "none", "symbol": "ETHUSDT", "timeframe": "5m"}],
-                feature_config_json=["open", "high", "low", "close", "volume", "rsi_14", "ema_50"]
-            )
-        ]
-        for ds in datasets_to_seed:
-            db.add(ds)
-        
-        # --- Reward Functions ---
-        reward_fns = [
-            MlRewardFunction(
-                function_id=str(uuid.uuid4()),
-                name="Simple PnL",
-                description="Directly rewards unrealized profit/loss",
-                code="def calculate_reward(env, action):\n    # Simply return the current unrealized PnL\n    return env.unrealized_pnl",
-                metadata_json={"action_labels": ["HOLD", "BUY", "SELL"], "status_labels": ["FLAT", "LONG", "SHORT"]}
-            ),
-            MlRewardFunction(
-                function_id=str(uuid.uuid4()),
-                name="Sharpe Reward (Approx)",
-                description="Rewards returns adjusted by volatility",
-                code="def calculate_reward(env, action):\n    # Mocked Sharpe: reward / (volatility + epsilon)\n    # In a real environment, you'd track historical rewards\n    pnl = env.unrealized_pnl\n    reward = pnl\n    if abs(pnl) < 1.0:\n        reward = 0\n    return reward",
-                metadata_json={"action_labels": ["HOLD", "BUY", "SELL"], "status_labels": ["FLAT", "LONG", "SHORT"]}
-            ),
-            MlRewardFunction(
-                function_id=str(uuid.uuid4()),
-                name="Directional Accuracy",
-                description="Rewards being in the correct position relative to next move",
-                code="def calculate_reward(env, action):\n    # This is a placeholder for complex directional logic\n    # Reward 1.0 if position matches trend, else -1.0\n    reward = 0\n    if env.position == env.status.LONG and env.data['close'].iloc[-1] > env.entry_price:\n        reward = 1.0\n    elif env.position == env.status.SHORT and env.data['close'].iloc[-1] < env.entry_price:\n        reward = 1.0\n    else:\n        reward = -0.1\n    return reward",
-                metadata_json={"action_labels": ["HOLD", "BUY", "SELL"], "status_labels": ["FLAT", "LONG", "SHORT"]}
-            )
-        ]
-        for rf in reward_fns:
-            db.add(rf)
-        
-        # --- Model Architectures ---
-        architectures = [
-            MlModelArchitecture(
-                model_id=str(uuid.uuid4()),
-                name="DQN Small (2-Layer)",
-                description="Lightweight 2-layer Dense network",
-                layers_json=[
-                    {"type": "Dense", "units": 32, "activation": "relu"},
-                    {"type": "Dense", "units": 16, "activation": "relu"},
-                    {"type": "Dense", "units": 3, "activation": "linear"}
-                ]
-            ),
-            MlModelArchitecture(
-                model_id=str(uuid.uuid4()),
-                name="DQN Standard (3-Layer)",
-                description="Balanced 3-layer Dense network",
-                layers_json=[
-                    {"type": "Dense", "units": 64, "activation": "relu"},
-                    {"type": "Dense", "units": 64, "activation": "relu"},
-                    {"type": "Dense", "units": 32, "activation": "relu"},
-                    {"type": "Dense", "units": 3, "activation": "linear"}
-                ]
-            ),
-            MlModelArchitecture(
-                model_id=str(uuid.uuid4()),
-                name="LSTM Sequence Trader",
-                description="Uses LSTM for temporal feature extraction",
-                layers_json=[
-                    {"type": "LSTM", "units": 64, "return_sequences": True},
-                    {"type": "LSTM", "units": 32, "return_sequences": False},
-                    {"type": "Dense", "units": 3, "activation": "linear"}
-                ]
-            )
-        ]
-        for arch in architectures:
-            db.add(arch)
-        
-        # --- Training Processes ---
-        processes = [
-            MlTrainingProcess(
-                process_id=str(uuid.uuid4()),
-                name="Fast Test Cycle",
-                gamma=0.9,
-                learning_rate=0.001,
-                epochs=5,
-                batch_size=32,
-                epsilon_start=1.0,
-                epsilon_end=0.1,
-                epsilon_decay=0.8,
-                description="Very fast training for UI and flow testing"
-            ),
-            MlTrainingProcess(
-                process_id=str(uuid.uuid4()),
-                name="Stable DQN Production",
-                gamma=0.99,
-                learning_rate=0.0001,
-                epochs=100,
-                batch_size=64,
-                epsilon_start=1.0,
-                epsilon_end=0.01,
-                epsilon_decay=0.995,
-                description="Balanced settings for actual model training"
-            )
-        ]
-        for p in processes:
-            db.add(p)
-            
-        db.commit()
 
-        # --- Training Sessions ---
-        session = MlTrainingSession(
-            session_id=str(uuid.uuid4()),
-            name="BTC Alpha Exploration",
-            function_id=reward_fns[0].function_id,
-            model_id=architectures[1].model_id,
-            process_id=processes[1].process_id,
-            status="ACTIVE"
+        # --- 4. ML Data (Optional but good for completeness) ---
+        print("Creating ML Metadata...")
+        # Keeping it minimal as focus is on Trades/Regime
+        
+        # ... (ML seeding logic can be kept minimal or copied if needed, 
+        # but for robustness let's just create one session)
+        
+        # Reward Function
+        rf = MlRewardFunction(
+             function_id=str(uuid.uuid4()),
+             name="Simple PnL",
+             code="return env.pnl",
+             description="Simple PnL Reward"
         )
-        db.add(session)
+        db.add(rf)
+        
+        # Architecture
+        arch = MlModelArchitecture(
+            model_id=str(uuid.uuid4()),
+            name="DQN Simple",
+            layers_json=[]
+        )
+        db.add(arch)
+        
+        # Process
+        proc = MlTrainingProcess(
+            process_id=str(uuid.uuid4()),
+            name="Default Process"
+        )
+        db.add(proc)
+        
         db.commit()
-
-        print("✅ Database populated (with coherent ML defaults) successfully!")
-
+    
     except Exception as e:
         print(f"❌ Error seeding data: {e}")
         import traceback
@@ -501,6 +341,7 @@ def create_dummy_data():
         db.rollback()
     finally:
         db.close()
+        print("✅ Seed Complete.")
 
 if __name__ == "__main__":
     create_dummy_data()

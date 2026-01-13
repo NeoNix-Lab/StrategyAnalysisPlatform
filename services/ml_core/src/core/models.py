@@ -67,9 +67,21 @@ class CustomDQNModel(tf.keras.Model):
 
             # 2. Instantiate Layers
             for idx, layer_conf in enumerate(self.architecture_config):
-                keras_layer_def = layer_conf.get('layer', {})
-                l_type = keras_layer_def.get('type')
-                config = keras_layer_def.get('params', {})
+                # Support both legacy {"layer": {"type": "Dense"}} and new {"type": "Dense"} formats
+                if 'layer' in layer_conf:
+                     keras_layer_def = layer_conf.get('layer', {})
+                     l_type = keras_layer_def.get('type')
+                     config = keras_layer_def.get('params', {})
+                else:
+                     l_type = layer_conf.get('type')
+                     config = layer_conf.copy()
+                     if 'type' in config:
+                         del config['type']
+                
+                # If meta_type is input, we might have stored params in config. 
+                # But typically 'params' is not top level in new format unless we standardize.
+                # Actually, the frontend stores params directly as keys e.g. {type: Dense, units: 64}
+                # So config = layer_conf without 'type' is correct for flat format.
                 
                 # Ensure unique names
                 if 'name' not in config:
@@ -102,3 +114,44 @@ class CustomDQNModel(tf.keras.Model):
     @classmethod
     def from_config(cls, config):
         return cls(**config)
+
+    def extract_standard_keras_model(self, shape=None):
+        """
+        Build a standard Keras Functional Model object from internal layers.
+        This ensures compatibility with standard Keras training loops and serialization.
+        
+        Args:
+            shape: Input shape (optional). If None, uses a placeholder shape based on window_size.
+        """
+        try:
+            if shape is None:
+                # Default placeholder shape if not provided (batch_size, window_size, features)
+                # We assume a feature dimension of 5 (OHLCV) or inferred from usage if possible.
+                # However, usually this is called with a concrete tensor sample.
+                shape = (self.window_size, 5) 
+            
+            # If shape is a Tensor/Array, extract shape tuple
+            if hasattr(shape, 'shape'):
+                input_shape = shape.shape
+                # If first dim is batch (often None or discrete), we need the feature info.
+                # Keras Input expects shape=(features,) or (time_steps, features).
+                # If input_shape is (32, 10, 5), we want (10, 5).
+                if len(input_shape) > 1:
+                     input_shape = input_shape[1:]
+            elif isinstance(shape, (tuple, list)):
+                 input_shape = shape
+            else:
+                 input_shape = (self.window_size, 5)
+
+            x = k.Input(shape=input_shape)
+            out = x
+            for layer in self.model_layers:
+                out = layer(out)
+            
+            # Create standard functional model
+            standard_model = k.Model(inputs=x, outputs=out, name=self.custom_name)
+            return standard_model
+            
+        except Exception as e:
+            print(f"Error generating standard Keras model: {e}")
+            raise e

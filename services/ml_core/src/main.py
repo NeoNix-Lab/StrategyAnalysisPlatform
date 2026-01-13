@@ -13,6 +13,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ml_core")
 
 app = FastAPI(title="ML Training Microservice")
+JOB_STATUS: Dict[str, str] = {}
+RUNNERS: Dict[str, TrainingRunner] = {}
 
 @app.on_event("startup")
 def on_startup():
@@ -30,6 +32,9 @@ class TrainingJobRequest(BaseModel):
     run_id: str
     config: Dict[str, Any]
 
+class LoggingConfigRequest(BaseModel):
+    log_every_steps: int = 2000
+
 @app.post("/train")
 def start_training_job(job: TrainingJobRequest, background_tasks: BackgroundTasks):
     """
@@ -41,7 +46,12 @@ def start_training_job(job: TrainingJobRequest, background_tasks: BackgroundTask
     db_gen = get_db()
     db = next(db_gen)
     
-    runner = TrainingRunner(db)
+    def set_status(run_id: str, status: str):
+        JOB_STATUS[run_id] = status
+
+    JOB_STATUS[job.run_id] = "PENDING"
+    runner = TrainingRunner(db, status_cb=set_status)
+    RUNNERS[job.run_id] = runner
     background_tasks.add_task(runner.start_training_run, job.run_id, job.config)
     
     return {"status": "PENDING", "job_id": job.run_id, "message": "Training started"}
@@ -52,12 +62,23 @@ def health_check():
 
 @app.get("/status/{run_id}")
 def get_status(run_id: str):
-    return {"status": "unknown", "run_id": run_id}
+    return {"status": JOB_STATUS.get(run_id, "unknown"), "run_id": run_id}
 
 @app.post("/stop/{run_id}")
 def stop_training(run_id: str):
-    # TODO: Implement a registry of active runners to stop specific ones
-    return {"status": "not_implemented"}
+    runner = RUNNERS.get(run_id)
+    if runner:
+        runner.stop()
+    JOB_STATUS[run_id] = "CANCELLED"
+    return {"status": JOB_STATUS[run_id], "run_id": run_id}
+
+@app.post("/runs/{run_id}/logging")
+def update_logging(run_id: str, config: LoggingConfigRequest):
+    runner = RUNNERS.get(run_id)
+    if not runner:
+        raise HTTPException(404, "Run not found")
+    updated = runner.set_log_every_steps(config.log_every_steps)
+    return {"status": "ok", "run_id": run_id, "log_every_steps": updated}
 
 if __name__ == "__main__":
     import uvicorn

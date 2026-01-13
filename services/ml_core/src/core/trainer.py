@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Trainer module for DQN training with EnvFlex, replay buffer, and model management.
+Optimized for Graph Execution via @tf.function.
 """
 import os
 import time
@@ -15,6 +16,7 @@ from tensorflow.keras.losses import Loss
 # from tensorflow.keras.callbacks import TensorBoard, ModelCheckpoint
 
 from .environment import EnvFlex
+from .models import CustomDQNModel
 # We need ReplayBuffer. We can inline it or create a file. 
 # ReplayBuffer is small, I will implement a basic one here to keep files self-contained 
 # or I should check if I should create replay_buffer.py. 
@@ -32,7 +34,7 @@ class Trainer:
     def __init__(
             self,
             env: EnvFlex,
-            main_network: Model,
+            main_network: CustomDQNModel,
             optimizer: Optimizer,
             loss_fn: Loss,
             gamma: float,
@@ -44,11 +46,21 @@ class Trainer:
             training_name: str,
             epochs: int = 1,
             replay_capacity: int = 30000,
+            log_every_steps: int = 2000,
     ):
         self.env = env
-        self.main_network = main_network
-        self.target_network = tf.keras.models.clone_model(main_network)
-        self.target_network.set_weights(main_network.get_weights())
+        
+        # Legacy Refactor: Extract standard Keras model for training stability
+        # We keep the custom object for metadata/saving, but train the internal keras model.
+        self.custom_model_ref = main_network
+        # Initialize with dummy input to build graph with the env feature dimension
+        feature_count = self.env.observation_space.shape[1]
+        dummy_input = np.zeros((1, main_network.window_size, feature_count))
+        self.main_network = main_network.extract_standard_keras_model(shape=dummy_input)
+        
+        # Clone for target network
+        self.target_network = tf.keras.models.clone_model(self.main_network)
+        self.target_network.set_weights(self.main_network.get_weights())
 
         self.optimizer = optimizer
         self.loss_fn = loss_fn
@@ -63,6 +75,7 @@ class Trainer:
         # Training parameters
         self.epochs = epochs
         self.replay_buffer = ReplayBuffer(capacity=replay_capacity)
+        self.log_every_steps = max(int(log_every_steps), 0)
 
         # Paths and logging
         timestamp = time.time()
@@ -72,7 +85,7 @@ class Trainer:
         self.logger = self._setup_logger(self.base_path)
 
     def _setup_logger(self, path: str) -> logging.Logger:
-        logger = logging.getLogger(f"Trainer_{id(self)}")
+        logger = logging.getLogger(f"ml_core.trainer.{id(self)}")
         logger.setLevel(logging.INFO)
         fh = logging.FileHandler(os.path.join(path, 'training.log'))
         fh.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
@@ -85,7 +98,6 @@ class Trainer:
 
     def save_model(self, path: Optional[str] = None) -> None:
         save_path = path or os.path.join(self.base_path, 'model.h5')
-        # Using .keras format is recommended for Keras 3, but .h5 is legacy compatible.
         self.main_network.save(save_path)
         self.logger.info(f"Model saved to {save_path}")
 
@@ -97,12 +109,19 @@ class Trainer:
 
     def train(self, num_episodes: int, batch_size: int, mode: str = 'batch') -> None:
         # Ensure network is compiled (safeguard)
-        if not self.main_network.optimizer:
+        if not hasattr(self.main_network, 'optimizer') or not self.main_network.optimizer:
             self.compile_networks()
 
         for ep in range(num_episodes):
             episode_path = os.path.join(self.base_path, f"episode_{ep}")
             os.makedirs(episode_path, exist_ok=True)
+            self.logger.info(
+                "Episode %s start | window=%s features=%s epsilon=%.4f",
+                ep,
+                self.env.window_size,
+                self.env.observation_space.shape[1],
+                self.epsilon
+            )
             
             # Reset Env
             obs = self.env.reset()
@@ -129,6 +148,16 @@ class Trainer:
                 obs = next_obs
                 step_count += 1
 
+                if self.log_every_steps > 0 and step_count % self.log_every_steps == 0:
+                    avg_reward = episode_reward / max(step_count, 1)
+                    self.logger.info(
+                        "Episode %s progress | step=%s avg_reward=%.4f epsilon=%.4f",
+                        ep,
+                        step_count,
+                        avg_reward,
+                        self.epsilon
+                    )
+
             # End of episode
             self.logger.info(f"Episode {ep} finished. Steps: {step_count} Reward: {episode_reward:.2f} Epsilon: {self.epsilon:.4f}")
             # Save model at end of episode
@@ -136,39 +165,74 @@ class Trainer:
 
     def epsilon_greedy_action(self, state: np.ndarray) -> int:
         if np.random.rand() < self.epsilon:
-            action = self.env.action_space.sample()
+            action = int(self.env.action_space.sample())
         else:
-            q_vals = self.main_network.predict(state[np.newaxis, ...], verbose=0)[0]
-            action = int(np.argmax(q_vals))
+            # OPTIMIZED: Use __call__ instead of .predict() to avoid overhead
+            state_tensor = tf.convert_to_tensor(state[np.newaxis, ...], dtype=tf.float32)
+            q_vals = self.main_network(state_tensor, training=False)[0]
+            
+            # Handle sequence output: (Time, Actions) -> take last step
+            if len(q_vals.shape) == 2:
+                q_vals = q_vals[-1]
+                
+            # Convert to numpy if needed, or tf.argmax
+            action = int(tf.argmax(q_vals).numpy())
         
         # Decay epsilon
         self.epsilon = max(self.epsilon - self.epsilon_decay, self.epsilon_end)
         return action
 
-    def _learn_from_batch(self, batch: Tuple[np.ndarray, ...]) -> None:
+    @tf.function
+    def _learn_from_batch(self, batch: Tuple[Any, ...]) -> None:
+        """
+        Execute a training step using a batch of transitions.
+        decorated with @tf.function for Graph Execution (Performance Optimization).
+        """
         states, actions, rewards, next_states, dones = batch
         
-        # Compute targets
-        target_q = self.target_network.predict(next_states, verbose=0)
-        max_q = np.max(target_q, axis=1)
-        # Q_target = r + gamma * max(Q(s', a')) * (1 - done)
-        targets = rewards + self.gamma * max_q * (1 - dones.astype(np.float32))
+        # Ensure inputs are tensors (usually automatic, but good for safety if passed from numpy)
+        # tf.function handles numpy inputs by converting them to tensors automatically.
 
-        # Gradient update
+        # 1. Expand dimensions for broadcasting
+        # We use tf.expand_dims instead of np.expand_dims
+        if len(rewards.shape) == 1:
+            rewards = tf.expand_dims(rewards, axis=1) # (BS, 1)
+
+        dones_float = tf.cast(dones, tf.float32)
+        term = 1.0 - dones_float
+        _term = tf.expand_dims(term, axis=1) # (BS, 1)
+
+        # 2. Compute Target Q-Values
+        # Use __call__ instead of .predict() for Graph compatibility and speed
+        target_preds = self.target_network(next_states, training=False)
+        
+        if len(target_preds.shape) == 3:
+            target_preds = target_preds[:, -1, :]
+            
+        # Use tf.reduce_max instead of np.max
+        max_q_next = tf.reduce_max(target_preds, axis=1, keepdims=True) # (BS, 1)
+
+        # Q_target = r + gamma * max(Q(s')) * (1 - done)
+        targets = rewards + (self.gamma * max_q_next * _term)
+
+        # 3. Gradient Update
         with tf.GradientTape() as tape:
             preds = self.main_network(states, training=True)
-            # Gather Q-values for the taken actions
-            # One-hot encoding actions to mask outputs
-            masks = tf.one_hot(actions, self.env.action_space.n)
-            q_vals = tf.reduce_sum(preds * masks, axis=1)
+            if len(preds.shape) == 3:
+                preds = preds[:, -1, :]
             
-            loss = self.loss_fn(targets, q_vals)
+            # Masking to get Q(s, a)
+            # Ensure n_actions is available. self.env is a py_object, so accessing it inside graph 
+            # might cause retracing if it changes, or we should treat n_actions as a constant.
+            # Ideally self.env.n_actions is int.
+            masks = tf.one_hot(actions, self.env.n_actions)
+            q_action = tf.reduce_sum(preds * masks, axis=1, keepdims=True)
+            
+            loss = self.loss_fn(targets, q_action)
             
         grads = tape.gradient(loss, self.main_network.trainable_variables)
         self.optimizer.apply_gradients(zip(grads, self.main_network.trainable_variables))
 
-        # Soft update target network
-        tw = self.target_network.get_weights()
-        mw = self.main_network.get_weights()
-        new_weights = [self.tau * m + (1 - self.tau) * t for t, m in zip(tw, mw)]
-        self.target_network.set_weights(new_weights)
+        # Soft update target network (Graph-compatible loop)
+        for t, m in zip(self.target_network.trainable_variables, self.main_network.trainable_variables):
+             t.assign(self.tau * m + (1 - self.tau) * t)

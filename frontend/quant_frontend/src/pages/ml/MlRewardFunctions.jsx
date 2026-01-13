@@ -18,6 +18,13 @@ const MlRewardFunctions = () => {
     const [statusLabels, setStatusLabels] = useState("FLAT, LONG, SHORT");
     const [showConfig, setShowConfig] = useState(false);
 
+    // Execution Logic State
+    const [priceColumn, setPriceColumn] = useState('close');
+
+    // FSM State Transition Matrix
+    // Structure: { [CurrentStatusLabel]: { [ActionLabel]: { next_state: Label, effect: Enum, update_price: Bool } } }
+    const [transitionMatrix, setTransitionMatrix] = useState({});
+
     // Validation Context
     const [datasets, setDatasets] = useState([]);
     const [selectedDatasetId, setSelectedDatasetId] = useState('');
@@ -57,10 +64,29 @@ const MlRewardFunctions = () => {
         finally { setLoading(false); }
     };
 
+    const parseJsonList = (value) => {
+        if (!value) return null;
+        if (Array.isArray(value)) return value;
+        if (typeof value !== 'string') return null;
+        try {
+            const parsed = JSON.parse(value);
+            return Array.isArray(parsed) ? parsed : null;
+        } catch (e) {
+            return null;
+        }
+    };
+
     const fetchDatasets = async () => {
         try {
             const res = await fetch('/api/datasets/');
-            if (res.ok) setDatasets(await res.json());
+            if (res.ok) {
+                const data = await res.json();
+                const normalized = data.map(d => ({
+                    ...d,
+                    feature_config: d.feature_config || parseJsonList(d.feature_config_json) || []
+                }));
+                setDatasets(normalized);
+            }
         } catch (e) { console.error(e); }
     };
 
@@ -80,6 +106,22 @@ const MlRewardFunctions = () => {
                 setActionLabels((meta.action_labels || ["HOLD", "BUY", "SELL"]).join(", "));
                 setStatusLabels((meta.status_labels || ["FLAT", "LONG", "SHORT"]).join(", "));
 
+                // Load reference dataset if exists
+                if (meta.reference_dataset_id) {
+                    setSelectedDatasetId(meta.reference_dataset_id);
+                } else {
+                    setSelectedDatasetId('');
+                }
+
+                // Load Execution Logic FSM
+                const execParams = meta.execution_params || {};
+                if (execParams.transition_matrix) {
+                    setTransitionMatrix(execParams.transition_matrix);
+                } else {
+                    setTransitionMatrix({});
+                }
+                setPriceColumn(execParams.price_column || 'close');
+
                 setEditMode(true); // Auto switch to edit/view mode
                 setValidationResult(null);
                 setShowConfig(false);
@@ -94,6 +136,9 @@ const MlRewardFunctions = () => {
         setDescription('');
         setActionLabels("HOLD, BUY, SELL");
         setStatusLabels("FLAT, LONG, SHORT");
+        setStatusLabels("FLAT, LONG, SHORT");
+        setSelectedDatasetId('');
+        setTransitionMatrix({});
         setEditMode(true);
         setValidationResult(null);
         setShowConfig(false);
@@ -103,7 +148,12 @@ const MlRewardFunctions = () => {
         return {
             metadata_json: {
                 action_labels: actionLabels.split(",").map(s => s.trim()).filter(s => s),
-                status_labels: statusLabels.split(",").map(s => s.trim()).filter(s => s)
+                status_labels: statusLabels.split(",").map(s => s.trim()).filter(s => s),
+                reference_dataset_id: selectedDatasetId || null,
+                execution_params: {
+                    transition_matrix: transitionMatrix,
+                    price_column: priceColumn
+                }
             }
         };
     };
@@ -126,10 +176,21 @@ const MlRewardFunctions = () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
-            const data = await res.json();
+            const contentType = res.headers.get('content-type') || '';
+            let data = null;
+            if (contentType.includes('application/json')) {
+                data = await res.json();
+            } else {
+                const text = await res.text();
+                data = { valid: false, error: text || `Request failed (${res.status})` };
+            }
+            if (!res.ok) {
+                setValidationResult({ valid: false, error: data?.error || `Request failed (${res.status})` });
+                return;
+            }
             setValidationResult(data);
         } catch (e) {
-            setValidationResult({ valid: false, error: "Network error during validation" });
+            setValidationResult({ valid: false, error: e?.message || "Network error during validation" });
         }
     };
 
@@ -218,7 +279,7 @@ const MlRewardFunctions = () => {
             </div>
 
             {/* Right Panel: Editor */}
-            <div className={`${cardClass} p-6 gap-4`}>
+            <div className={`${cardClass} p-6 gap-4 min-h-0 overflow-y-auto`}>
                 {editMode ? (
                     <>
                         {/* Header */}
@@ -311,9 +372,117 @@ const MlRewardFunctions = () => {
                                     />
                                 </div>
 
+                                {/* FSM Transition Matrix Builder */}
+                                <div className="bg-slate-900/30 border border-slate-700/50 rounded-xl p-0 animate-fade-in overflow-hidden">
+                                    <div className="flex items-center justify-between p-4 text-slate-300 font-medium text-sm bg-slate-800/30 border-b border-slate-700/50">
+                                        <div className="flex items-center gap-2">
+                                            <Settings size={14} className="text-orange-400" />
+                                            <span>Transition & Execution Logic (FSM)</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[10px] uppercase font-bold text-slate-500">Price Source:</span>
+                                            <select
+                                                value={priceColumn}
+                                                onChange={e => setPriceColumn(e.target.value)}
+                                                className="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-slate-300 focus:border-orange-500 outline-none"
+                                            >
+                                                <option value="">-- Col --</option>
+                                                {availableColumns.map(col => (
+                                                    <option key={col} value={col}>{col}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div className="p-4 overflow-x-auto">
+                                        <table className="w-full text-left border-collapse">
+                                            <thead>
+                                                <tr>
+                                                    <th className="p-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-700/50">Current State</th>
+                                                    <th className="p-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-700/50">Action</th>
+                                                    <th className="p-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-700/50 w-[140px]">Next State</th>
+                                                    <th className="p-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-700/50 w-[140px]">Effect</th>
+                                                    <th className="p-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-700/50 text-center">Update Price</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {statusList.map(currentStatus => (
+                                                    <React.Fragment key={currentStatus}>
+                                                        {actionList.map((action, idx) => {
+                                                            const cellKey = `${currentStatus}-${action}`;
+                                                            // Get current config or default
+                                                            const currentConfig = transitionMatrix[currentStatus]?.[action] || {
+                                                                next_state: currentStatus,
+                                                                effect: 'NONE',
+                                                                update_price: false
+                                                            };
+
+                                                            const updateConfig = (field, value) => {
+                                                                setTransitionMatrix(prev => {
+                                                                    const next = { ...prev };
+                                                                    if (!next[currentStatus]) next[currentStatus] = {};
+                                                                    next[currentStatus][action] = {
+                                                                        ...currentConfig,
+                                                                        [field]: value
+                                                                    };
+                                                                    return next;
+                                                                });
+                                                            };
+
+                                                            return (
+                                                                <tr key={cellKey} className="border-b border-slate-800/30 hover:bg-white/5 transition-colors">
+                                                                    {idx === 0 && (
+                                                                        <td
+                                                                            rowSpan={actionList.length}
+                                                                            className="p-3 text-xs font-mono text-slate-400 border-r border-slate-800/50 bg-slate-900/20 align-top pt-4"
+                                                                        >
+                                                                            {currentStatus}
+                                                                        </td>
+                                                                    )}
+                                                                    <td className="p-2 text-xs font-mono text-blue-300 pl-4">{action}</td>
+                                                                    <td className="p-2">
+                                                                        <select
+                                                                            className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-slate-300 focus:border-blue-500 outline-none"
+                                                                            value={currentConfig.next_state}
+                                                                            onChange={e => updateConfig('next_state', e.target.value)}
+                                                                        >
+                                                                            {statusList.map(s => <option key={s} value={s}>{s}</option>)}
+                                                                        </select>
+                                                                    </td>
+                                                                    <td className="p-2">
+                                                                        <select
+                                                                            className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-slate-300 focus:border-blue-500 outline-none"
+                                                                            value={currentConfig.effect}
+                                                                            onChange={e => updateConfig('effect', e.target.value)}
+                                                                        >
+                                                                            <option value="NONE">None</option>
+                                                                            <option value="APPLY_FEE">Fee Only</option>
+                                                                            <option value="CLOSE_POS">Close (Realize PnL)</option>
+                                                                            <option value="CLOSE_SHORT">Close Short (Inv PnL)</option>
+                                                                        </select>
+                                                                    </td>
+                                                                    <td className="p-2 text-center">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={currentConfig.update_price}
+                                                                            onChange={e => updateConfig('update_price', e.target.checked)}
+                                                                            className="accent-blue-500"
+                                                                        />
+                                                                    </td>
+                                                                </tr>
+                                                            );
+                                                        })}
+                                                        <tr className="h-2 bg-transparent" /> {/* Spacer */}
+                                                    </React.Fragment>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
                                 {/* Validation Output Console */}
                                 {validationResult && (
-                                    <div className={`p-4 rounded-lg border text-sm animate-fade-in
+                                    <div className={`p-4 rounded-lg border text-sm animate-fade-in max-h-48 overflow-y-auto
                                     ${validationResult.valid
                                             ? 'bg-green-500/10 border-green-500/50 text-slate-200'
                                             : 'bg-red-500/10 border-red-500/50 text-slate-200'}`}>

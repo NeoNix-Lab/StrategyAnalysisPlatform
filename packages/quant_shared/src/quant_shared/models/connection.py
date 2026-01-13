@@ -3,28 +3,47 @@ from sqlalchemy.orm import sessionmaker
 from .models import Base
 import os
 
+from pathlib import Path
+
 # Per ora usiamo SQLite locale
-# Default resolution logic:
-# 1. Environment variable
-# 2. Search for existing DB in parent directories (to find project root from services)
-# 3. Fallback to local new file
+# Logic: Always prefer the project root 'trading_data.db'
+# We dertermine project root relative to this file's location in packages/quant_shared
+# This file is in: .../Main/packages/quant_shared/src/quant_shared/models/connection.py
+
 DB_PATH = os.getenv("TRADING_DB_PATH")
 
 if not DB_PATH:
-    # Smart fallback: search for existing DB
-    potential_paths = [
-        "trading_data.db",                # Current dir
-        "../../trading_data.db",          # 2 levels up (from services/xyz)
-        "../../../trading_data.db"        # 3 levels up
-    ]
-    for p in potential_paths:
-        if os.path.exists(os.path.abspath(p)):
-            DB_PATH = os.path.abspath(p)
-            print(f"🔄 Database found at: {DB_PATH}")
-            break
-
-if not DB_PATH:
-    DB_PATH = "trading_data.db" # Default fallback
+    # Anchor to this file
+    current_file = Path(__file__).resolve()
+    # Go up 5 levels to reach 'Main' from 'packages/quant_shared/src/quant_shared/models'
+    # levels: models -> quant_shared -> src -> quant_shared -> packages -> Main
+    project_root = current_file.parents[5]
+    
+    expected_db = project_root / "trading_data.db"
+    
+    if expected_db.exists():
+        DB_PATH = str(expected_db)
+        print(f"Database found at Project Root: {DB_PATH}")
+    else:
+        # Fallback only if root DB not found (rare, or first init)
+        # Try to find it in CWD or parents as before, just in case structure differs
+        potential_paths = [
+            "trading_data.db", 
+            "../../trading_data.db",
+            "../../../trading_data.db"
+        ]
+        found = False
+        for p in potential_paths:
+            if os.path.exists(os.path.abspath(p)):
+                DB_PATH = os.path.abspath(p)
+                print(f"Database found at: {DB_PATH}")
+                found = True
+                break
+        
+        if not found:
+             # Default to creating it in Root if possible, otherwise CWD
+             DB_PATH = str(expected_db)
+             print(f"Database target set to Project Root (New): {DB_PATH}")
 
 DATABASE_URL = f"sqlite:///{DB_PATH}"
 

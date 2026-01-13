@@ -19,51 +19,31 @@ class TradeService:
         Helper to fetch market data and calculate regime for a run.
         """
         try:
-            from quant_shared.models.models import StrategyRun, StrategyInstance, RunSeries, RunSeriesRunLink, RunSeriesBar
+            from quant_shared.models.models import RunSeries, RunSeriesRunLink, RunSeriesBar
             
-            # Use get() for primary key
-            run = self.db.query(StrategyRun).get(run_id)
-            if not run or not run.instance_id:
-                return pd.DataFrame()
-
-            # Access via relationship or query
-            instance = run.instance
-            if not instance:
-                 instance = self.db.query(StrategyInstance).get(run.instance_id)
-
-            if not instance:
-                return pd.DataFrame()
-
-            symbol = getattr(instance, 'symbol', None)
-            if not symbol:
-                symbols_list = getattr(instance, 'symbols_json', None)
-                if symbols_list and isinstance(symbols_list, list):
-                    symbol = symbols_list[0]
-                elif symbols_list:
-                    symbol = symbols_list
-
-            timeframe = instance.timeframe
-
-            if not symbol or not timeframe:
-                return pd.DataFrame()
-
-            series = (
-                self.db.query(RunSeries)
-                .join(RunSeriesRunLink, RunSeries.series_id == RunSeriesRunLink.series_id)
-                .filter(
-                    RunSeriesRunLink.run_id == run_id,
-                    RunSeries.symbol == symbol,
-                    RunSeries.timeframe == timeframe,
-                )
+            # 1. Try to find the series linked to this run directly
+            series_link = (
+                self.db.query(RunSeriesRunLink)
+                .filter(RunSeriesRunLink.run_id == run_id)
                 .first()
             )
-
-            if not series:
-                return pd.DataFrame()
             
-            # Load Bars
+            series_id = None
+            if series_link:
+                series_id = series_link.series_id
+            
+            if not series_id:
+                logger.debug(f"No directly linked series found for run {run_id}")
+                return pd.DataFrame()
+
+            # 2. Fetch bars for the series
             # Use statement and connection for pandas
-            stmt = self.db.query(RunSeriesBar).filter(RunSeriesBar.series_id == series.series_id).order_by(RunSeriesBar.ts_utc.asc()).statement
+            stmt = (
+                self.db.query(RunSeriesBar)
+                .filter(RunSeriesBar.series_id == series_id)
+                .order_by(RunSeriesBar.ts_utc.asc())
+                .statement
+            )
             df_bars = pd.read_sql(stmt, self.db.connection())
             
             if df_bars.empty:
@@ -72,11 +52,16 @@ class TradeService:
             if 'ts_utc' in df_bars.columns:
                 df_bars['ts_utc'] = pd.to_datetime(df_bars['ts_utc'])
             
+            # 3. Calculate Regime
             df_regime = RegimeDetector.calculate_regime(df_bars)
             if not df_regime.empty and 'ts_utc' in df_regime.columns:
                 return df_regime.sort_values('ts_utc')
 
+            print(df_regime)
+
             return pd.DataFrame()
+            
+
 
         except Exception:
             logger.warning(f"Failed to calculate regime for run {run_id}", exc_info=True)
@@ -207,6 +192,11 @@ class TradeService:
 
     def ensure_regime_tags(self, run_id: str) -> int:
         trades = self.db.query(Trade).filter(Trade.run_id == run_id).all()
+
+        logger.debug(f"Trades count @@@ { len(trades)}")
+        print(f"Trades count @@@ { len(trades)}")
+
+
         if not trades:
             return 0
 

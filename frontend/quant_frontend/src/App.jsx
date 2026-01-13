@@ -15,6 +15,7 @@ import Regime from './pages/Regime'
 import StressTest from './pages/StressTest'
 import DataManagement from './pages/DataManagement'
 import Settings from './pages/Settings'
+import Comparison from './pages/Comparison'
 
 import MlDashboard from './pages/ml/MlDashboard'
 import MlCompose from './pages/ml/MlCompose'
@@ -55,6 +56,7 @@ function App() {
                     <Route path="analysis/efficiency" element={<Efficiency />} />
                     <Route path="analysis/regime" element={<Regime />} />
                     <Route path="analysis/stress-test" element={<StressTest />} />
+                    <Route path="analysis/compare" element={<Comparison />} />
 
 
                     {/* --- QUANT LAB WORKSPACE --- */}

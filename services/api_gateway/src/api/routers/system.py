@@ -7,6 +7,7 @@ from datetime import datetime
 from quant_shared.utils.logger import attach_queue_handler, get_logger
 # Import from shared schemas
 from quant_shared.schemas.logging import LogRecord
+from api.log_store import add_log
 
 router = APIRouter()
 logger = get_logger("system_router")
@@ -118,6 +119,12 @@ async def receive_internal_log(log: LogRecord):
     Receives logs from other microservices via HTTP and broadcasts them.
     """
     try:
+        add_log({
+            "timestamp": log.timestamp.isoformat(),
+            "level": log.level,
+            "name": log.name,
+            "message": log.message
+        })
         await log_queue.put(log)
     except Exception as e:
         logger.error(f"Failed to process internal log: {e}")

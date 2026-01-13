@@ -155,6 +155,7 @@ class HttpLogHandler(logging.Handler):
             # Fallback for dev environment issues
             raise
         from datetime import datetime
+        import traceback
 
         session = requests.Session()
         if self.token:
@@ -167,15 +168,21 @@ class HttpLogHandler(logging.Handler):
                 
                 # Convert to Contract
                 try:
+                    message = record.getMessage()
+                    if record.exc_info:
+                        exception_text = "".join(traceback.format_exception(*record.exc_info))
+                        message = f"{message}\n{exception_text}"
+
                     contract_log = LogRecord(
                         timestamp=datetime.fromtimestamp(record.created),
                         level=record.levelname,
                         name=self.service_name, # Use service name as override or record.name? record.name is better for granularity
-                        message=record.getMessage(),
+                        message=message,
                         meta={
                             "logger_name": record.name,
                             "filename": record.filename,
-                            "lineno": record.lineno
+                            "lineno": record.lineno,
+                            "exception": exception_text if record.exc_info else None
                         }
                     )
                     payload = contract_log.json()
@@ -216,7 +223,7 @@ def setup_remote_logging(logger_name: str, gateway_url: str, service_name: str):
         if isinstance(h, HttpLogHandler):
             return logger
             
-    handler = HttpLogHandler(f"{gateway_url}/internal/logs", service_name)
+    handler = HttpLogHandler(f"{gateway_url}/api/system/internal/logs", service_name)
     handler.setLevel(logging.INFO)
     logger.addHandler(handler)
     return logger

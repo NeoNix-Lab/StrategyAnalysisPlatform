@@ -425,6 +425,11 @@ class MlTrainingProcess(Base):
     
     process_id = Column(String, primary_key=True) # UUID
     name = Column(String, nullable=False)
+
+    # Configuration 
+    optimizer = Column(String, default="Adam")
+    loss = Column(String, default="huber")
+    fees = Column(Float, default=0.0)
     
     # Hyperparameters
     gamma = Column(Float, default=0.99)
