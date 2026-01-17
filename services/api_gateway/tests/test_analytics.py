@@ -9,7 +9,8 @@ from quant_shared.models.models import Trade, Execution
 
 # Mock structures equivalent to database models
 class MockTrade:
-    def __init__(self, pnl_net, exit_time, side='BUY', entry_price=100.0, exit_price=105.0, mae=0.0, mfe=0.0):
+    def __init__(self, pnl_net, exit_time, side='BUY', entry_price=100.0, exit_price=105.0, mae=0.0, mfe=0.0,
+                 regime_trend=None, regime_volatility=None):
         self.pnl_net = pnl_net
         self.exit_time = exit_time
         self.side = MagicMock()
@@ -18,6 +19,8 @@ class MockTrade:
         self.exit_price = exit_price
         self.mae = mae
         self.mfe = mfe
+        self.regime_trend = regime_trend
+        self.regime_volatility = regime_volatility
         self.run_id = "test_run"
         self.strategy_id = "test_strategy"
 
@@ -98,6 +101,37 @@ def test_equity_curve_generation(analyzer, setup_query_mock):
     metrics = analyzer.calculate_portfolio_metrics(strategy_id="test_strat", run_id="test_run")
     curve = metrics.get('equity_curve', [])
     assert len(curve) == 3
+
+
+def test_regime_performance_aggregation(analyzer, setup_query_mock):
+    trades = [
+        MockTrade(pnl_net=120, exit_time=datetime(2023, 1, 1), regime_trend='BULL', regime_volatility='HIGH'),
+        MockTrade(pnl_net=-20, exit_time=datetime(2023, 1, 2), regime_trend='BULL', regime_volatility='LOW'),
+        MockTrade(pnl_net=60, exit_time=datetime(2023, 1, 3), regime_trend='BEAR', regime_volatility='NORMAL'),
+    ]
+
+    setup_query_mock(trades=trades, executions=[])
+
+    metrics = analyzer.calculate_portfolio_metrics(strategy_id="test_strat", run_id="test_run")
+    regime = metrics.get('regime_performance', {})
+    direct_regime = analyzer.calculate_regime_performance(run_id="test_run")
+    assert regime == direct_regime
+    assert regime
+
+    trend_map = {entry['name']: entry for entry in regime.get('trend', [])}
+    vol_map = {entry['name']: entry for entry in regime.get('volatility', [])}
+    matrix = regime.get('matrix', {})
+
+    assert trend_map['BULL']['pnl'] == 100.0
+    assert trend_map['BULL']['count'] == 2
+    assert trend_map['BULL']['win_rate'] == 50.0
+    assert trend_map['BULL']['profit_factor'] == 6.0
+
+    assert vol_map['HIGH']['pnl'] == 120.0
+    assert vol_map['LOW']['pnl'] == -20.0
+
+    assert matrix['BULL_HIGH']['pnl'] == 120.0
+    assert matrix['BULL_LOW']['pnl'] == -20.0
 
 def test_stability_metric(analyzer, setup_query_mock):
     # Perfectly linear equity curve: 10, 10, 10, 10

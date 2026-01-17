@@ -3,30 +3,59 @@ from sqlalchemy.orm import sessionmaker
 from .models import Base
 import os
 
+from pathlib import Path
+
 # Per ora usiamo SQLite locale
-# Default resolution logic:
-# 1. Environment variable
-# 2. Search for existing DB in parent directories (to find project root from services)
-# 3. Fallback to local new file
+# Logic: prefer TRADING_DB_PATH, then var/trading_data.db, then project root
+# We dertermine project root relative to this file's location in packages/quant_shared
+# This file is in: .../Main/packages/quant_shared/src/quant_shared/models/connection.py
+
 DB_PATH = os.getenv("TRADING_DB_PATH")
 
 if not DB_PATH:
-    # Smart fallback: search for existing DB
-    potential_paths = [
-        "trading_data.db",                # Current dir
-        "../../trading_data.db",          # 2 levels up (from services/xyz)
-        "../../../trading_data.db"        # 3 levels up
-    ]
-    for p in potential_paths:
-        if os.path.exists(os.path.abspath(p)):
-            DB_PATH = os.path.abspath(p)
-            print(f"🔄 Database found at: {DB_PATH}")
-            break
+    # Anchor to this file
+    current_file = Path(__file__).resolve()
+    # Go up 5 levels to reach 'Main' from 'packages/quant_shared/src/quant_shared/models'
+    # levels: models -> quant_shared -> src -> quant_shared -> packages -> Main
+    project_root = current_file.parents[5]
+    
+    expected_db = project_root / "trading_data.db"
+    var_db = project_root / "var" / "trading_data.db"
 
-if not DB_PATH:
-    DB_PATH = "trading_data.db" # Default fallback
+    if var_db.exists():
+        DB_PATH = str(var_db)
+        print(f"Database found in var: {DB_PATH}")
+    elif expected_db.exists():
+        DB_PATH = str(expected_db)
+        print(f"Database found at Project Root: {DB_PATH}")
+    else:
+        # Fallback only if root DB not found (rare, or first init)
+        # Try to find it in CWD or parents as before, just in case structure differs
+        potential_paths = [
+            "trading_data.db", 
+            "../../trading_data.db",
+            "../../../trading_data.db"
+        ]
+        found = False
+        for p in potential_paths:
+            if os.path.exists(os.path.abspath(p)):
+                DB_PATH = os.path.abspath(p)
+                print(f"Database found at: {DB_PATH}")
+                found = True
+                break
+        
+        if not found:
+             # Default to creating it in var if possible, otherwise Project Root
+             DB_PATH = str(var_db)
+             print(f"Database target set to var (New): {DB_PATH}")
 
 DATABASE_URL = f"sqlite:///{DB_PATH}"
+
+# Ensure parent directory exists for new database paths (e.g., var/)
+try:
+    Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
+except Exception:
+    pass
 
 from sqlalchemy import event
 

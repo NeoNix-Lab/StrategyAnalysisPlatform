@@ -22,6 +22,7 @@ from .routers import ingest
 from .routers import strategies
 from .routers import runs
 from .routers import trades
+from .routers import regime
 from .routers import metrics
 from .routers import auth
 from .routers import training
@@ -46,10 +47,38 @@ app.add_middleware(
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
+    import uuid
+    
+    # 1. Trace ID Extraction/Generation
+    trace_id = request.headers.get("X-Trace-Id")
+    if not trace_id:
+        trace_id = str(uuid.uuid4())
+    
+    # 2. Add to context (Thread-local storage would be better for extensive usage, 
+    # but for now we just log it).
+    # Ideally, we would set this in a contextvar for the logger to pick up automatically.
+    
     start_time = time.time()
-    response = await call_next(request)
+    
+    # 3. Process Request
+    try:
+        response = await call_next(request)
+    except Exception as e:
+        # In case of unhandled error, we still want to log standard info
+        # The exception handler usually catches this, but middleware sees it if it bubbles up.
+        # For now, let it bubble, FastAPI default handler will manage 500.
+        raise e
+        
     process_time = time.time() - start_time
-    logger.info(f"{request.method} {request.url.path} - {response.status_code} - {process_time:.4f}s")
+    
+    # 4. Inject Trace ID into Response Headers
+    response.headers["X-Trace-Id"] = trace_id
+    
+    # 5. Log with Trace ID
+    # We use extra dict if our logger supports it, or just append to message
+    # Since our logger is simple, we append.
+    logger.info(f"[{trace_id}] {request.method} {request.url.path} - {response.status_code} - {process_time:.4f}s")
+    
     return response
 
 @app.on_event("startup")
@@ -67,6 +96,7 @@ app.include_router(strategies.router, prefix="/api/strategies", tags=["strategie
 app.include_router(runs.router, prefix="/api/runs", tags=["runs"])
 app.include_router(trades.router, prefix="/api/trades", tags=["trades"])
 app.include_router(metrics.router, prefix="/api/metrics", tags=["metrics"])
+app.include_router(regime.router, prefix="/api/regime", tags=["regime"])
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(training.router, prefix="/api/training", tags=["training"])
 app.include_router(ml_studio.router, prefix="/api/ml/studio", tags=["ml_studio"])

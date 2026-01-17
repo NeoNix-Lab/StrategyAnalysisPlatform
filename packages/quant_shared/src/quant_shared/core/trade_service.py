@@ -5,7 +5,10 @@ from quant_shared.quantlab.metrics import MetricsEngine
 from quant_shared.quantlab.regime import RegimeDetector
 import pandas as pd
 import uuid
-import traceback
+
+from quant_shared.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 class TradeService:
     def __init__(self, db: Session):
@@ -16,32 +19,31 @@ class TradeService:
         Helper to fetch market data and calculate regime for a run.
         """
         try:
-            from quant_shared.models.models import StrategyRun, StrategyInstance, MarketSeries, MarketBar
+            from quant_shared.models.models import RunSeries, RunSeriesRunLink, RunSeriesBar
             
-            # Use get() for primary key
-            run = self.db.query(StrategyRun).get(run_id)
-            if not run or not run.instance_id:
-                return pd.DataFrame()
-
-            # Access via relationship or query
-            instance = run.instance
-            if not instance:
-                 instance = self.db.query(StrategyInstance).get(run.instance_id)
-
-            if not instance or not instance.symbol or not instance.timeframe:
-                return pd.DataFrame()
-
-            m_series = self.db.query(MarketSeries).filter(
-                MarketSeries.symbol == instance.symbol,
-                MarketSeries.timeframe == instance.timeframe
-            ).first()
-
-            if not m_series:
-                return pd.DataFrame()
+            # 1. Try to find the series linked to this run directly
+            series_link = (
+                self.db.query(RunSeriesRunLink)
+                .filter(RunSeriesRunLink.run_id == run_id)
+                .first()
+            )
             
-            # Load Bars
+            series_id = None
+            if series_link:
+                series_id = series_link.series_id
+            
+            if not series_id:
+                logger.debug(f"No directly linked series found for run {run_id}")
+                return pd.DataFrame()
+
+            # 2. Fetch bars for the series
             # Use statement and connection for pandas
-            stmt = self.db.query(MarketBar).filter(MarketBar.series_id == m_series.series_id).order_by(MarketBar.ts_utc.asc()).statement
+            stmt = (
+                self.db.query(RunSeriesBar)
+                .filter(RunSeriesBar.series_id == series_id)
+                .order_by(RunSeriesBar.ts_utc.asc())
+                .statement
+            )
             df_bars = pd.read_sql(stmt, self.db.connection())
             
             if df_bars.empty:
@@ -50,15 +52,19 @@ class TradeService:
             if 'ts_utc' in df_bars.columns:
                 df_bars['ts_utc'] = pd.to_datetime(df_bars['ts_utc'])
             
+            # 3. Calculate Regime
             df_regime = RegimeDetector.calculate_regime(df_bars)
             if not df_regime.empty and 'ts_utc' in df_regime.columns:
                 return df_regime.sort_values('ts_utc')
 
+            print(df_regime)
+
             return pd.DataFrame()
+            
+
 
         except Exception:
-            print(f"Warning: Failed to calculate regime for run {run_id}")
-            traceback.print_exc()
+            logger.warning(f"Failed to calculate regime for run {run_id}", exc_info=True)
             return pd.DataFrame()
 
     def rebuild_trades_for_run(self, run_id: str):
@@ -68,16 +74,19 @@ class TradeService:
         Note: This is a full rebuild (idempotency required).
         """
         # 1. Fetch data
-        executions = self.db.query(Execution).filter(Execution.run_id == run_id).all()
-        orders = self.db.query(Order).filter(Order.run_id == run_id).all()
+        execution_query = self.db.query(Execution).filter(Execution.run_id == run_id)
+        order_query = self.db.query(Order).filter(Order.run_id == run_id)
+        executions = execution_query.all()
+        orders = order_query.all()
+        logger.info(f"Rebuilding trades for run {run_id}")
+        logger.debug(f"Run {run_id} - executions={len(executions)} orders={len(orders)}")
         
         # 2. Reconstruct (using existing MetricsEngine logic)
         # Returns list of dicts
         trade_dicts = MetricsEngine.reconstruct_trades(executions, orders)
         if not trade_dicts:
-            print(f"⚠️ No trades reconstructed for run {run_id}; preserving existing records.")
+            logger.warning(f"No trades reconstructed for run {run_id} (executions={len(executions)}, orders={len(orders)})")
             return 0
-        
         # 3. Persist
         # Strategy: Delete existing trades for this run? Or Upsert?
         # For simplicity in this step: Delete all run trades and re-insert.
@@ -141,6 +150,7 @@ class TradeService:
         
         self.db.add_all(new_trade_objs)
         self.db.commit()
+        logger.info(f"Stored {len(new_trade_objs)} trade records for run {run_id}")
         
         analytics_router = None
         strategy_type = 'DEFAULT'
@@ -164,8 +174,9 @@ class TradeService:
                 run.metrics_json = metrics
                 self.db.commit()
         except Exception as e:
-            print(f"⚠️ Analysis failed during rebuild for run {run_id}: {e}")
-            traceback.print_exc()
+            logger.warning(f"Analysis failed during rebuild for run {run_id}: {e}", exc_info=True)
+
+
 
         if analytics_router and trade_ids:
             for tid in trade_ids:
@@ -175,4 +186,53 @@ class TradeService:
                     pass
 
         return len(new_trade_objs)
+
+    def count_trades_for_run(self, run_id: str) -> int:
+        return self.db.query(Trade).filter(Trade.run_id == run_id).count()
+
+    def ensure_regime_tags(self, run_id: str) -> int:
+        trades = self.db.query(Trade).filter(Trade.run_id == run_id).all()
+
+        logger.debug(f"Trades count @@@ { len(trades)}")
+        print(f"Trades count @@@ { len(trades)}")
+
+
+        if not trades:
+            return 0
+
+        missing = [t for t in trades if not t.regime_trend or not t.regime_volatility]
+        logger.debug(f"Run {run_id} has {len(trades)} trades and {len(missing)} missing regime tags")
+        if not missing:
+            return 0
+
+        df_regime = self._get_regime_df(run_id)
+        if df_regime.empty or 'ts_utc' not in df_regime.columns:
+            logger.warning(f"Run {run_id} missing regime data to tag {len(missing)} trades")
+            return 0
+
+        df_regime = df_regime.sort_values('ts_utc')
+        updates = 0
+        for trade in missing:
+            subset = df_regime[df_regime['ts_utc'] <= trade.entry_time]
+            if subset.empty:
+                continue
+
+            regime_row = subset.iloc[-1]
+            r_trend = regime_row.get('regime_trend')
+            r_vol = regime_row.get('regime_volatility')
+
+            updated = False
+            if r_trend and not trade.regime_trend:
+                trade.regime_trend = r_trend
+                updated = True
+            if r_vol and not trade.regime_volatility:
+                trade.regime_volatility = r_vol
+                updated = True
+            if updated:
+                updates += 1
+
+        if updates > 0:
+            self.db.commit()
+
+        return updates
 

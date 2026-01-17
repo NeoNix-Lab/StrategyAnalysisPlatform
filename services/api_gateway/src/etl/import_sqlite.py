@@ -1,7 +1,7 @@
 import sqlite3
 import pandas as pd
 from sqlalchemy.orm import Session
-from src.database.models import Bar, Order, Side, OrderType, OrderStatus
+from quant_shared.models.models import RunSeriesBar as Bar, Order, Side, OrderType, OrderStatus
 from datetime import datetime
 import os
 import logging

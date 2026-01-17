@@ -3,32 +3,95 @@
   "title": "API Gateway - Market Data Schemas",
   "version": "1.0.0",
   "definitions": {
-    "MarketSeries": {
+    "RunSeries": {
       "type": "object",
       "properties": {
-        "series_id": { "type": "string" },
-        "symbol": { "type": "string" },
-        "timeframe": { "$ref": "common.json#/definitions/Timeframe" },
-        "venue": { "type": ["string", "null"] },
-        "provider": { "type": ["string", "null"] },
-        "created_utc": { "$ref": "common.json#/definitions/Timestamp" }
+        "series_id": {
+          "type": "string"
+        },
+        "symbol": {
+          "$ref": "common.json#/definitions/Symbol"
+        },
+        "timeframe": {
+          "$ref": "common.json#/definitions/Timeframe"
+        },
+        "venue": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "run_ids": {
+          "type": "array",
+          "items": {
+            "$ref": "common.json#/definitions/UUID"
+          },
+          "minItems": 1
+        },
+        "start_utc": {
+          "$ref": "common.json#/definitions/Timestamp"
+        },
+        "end_utc": {
+          "$ref": "common.json#/definitions/Timestamp"
+        },
+        "created_utc": {
+          "$ref": "common.json#/definitions/Timestamp"
+        }
       },
-      "required": ["series_id", "symbol", "timeframe"],
+      "required": [
+        "series_id",
+        "symbol",
+        "timeframe",
+        "run_ids"
+      ],
       "additionalProperties": false
     },
-    "MarketBar": {
+    "RunSeriesBar": {
       "type": "object",
       "properties": {
-        "series_id": { "type": "string" },
-        "ts_utc": { "$ref": "common.json#/definitions/Timestamp" },
-        "open": { "type": "number" },
-        "high": { "type": "number" },
-        "low": { "type": "number" },
-        "close": { "type": "number" },
-        "volume": { "type": "number", "default": 0.0 },
-        "volumetric_json": { "type": ["object", "null"] }
+        "series_id": {
+          "type": "string"
+        },
+        "ts_utc": {
+          "$ref": "common.json#/definitions/Timestamp"
+        },
+        "open": {
+          "type": "number"
+        },
+        "high": {
+          "type": "number"
+        },
+        "low": {
+          "type": "number"
+        },
+        "close": {
+          "type": "number"
+        },
+        "volume": {
+          "type": "number",
+          "default": 0.0
+        },
+        "volumetric_json": {
+          "type": [
+            "object",
+            "null"
+          ]
+        }
       },
-      "required": ["series_id", "ts_utc", "open", "high", "low", "close"],
+      "required": [
+        "series_id",
+        "ts_utc",
+        "open",
+        "high",
+        "low",
+        "close"
+      ],
       "additionalProperties": false
     }
   }

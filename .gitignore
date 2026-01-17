@@ -3,6 +3,7 @@ __pycache__
 .venv
 venv
 env
+.pytest_cache
 *.db
 *.sqlite
 *.db-shm
@@ -14,22 +15,27 @@ env
 *.egg-info
 dist
 build
-# Documentation
-Docs/
-!Docs/ARCHITECTURE.md
-!Docs/Workflow.md
-!Docs/Metrics.md
-!Docs/Metrics_Implementation_Status.md
-!Docs/QuantowerExportWorkflowProposto.md
-!Docs/SystemV2_Reference.md
-!Docs/roadmap.md
-!Docs/Issues/
-!Docs/Issues/*.py
-!Docs/Issues/README.md
-!Docs/Issues/tests/
+# Runtime artifacts
+var/*
+!var/.gitkeep
+logs/
+logs_validation/
+services/ml_core/src/logs/
+services/ml_core/tests/logs_validation/
+services/ml_core/models/ml_artifacts/
+frontend/quant_frontend/.vite/
+bin/
+obj/
+
 
 # Issues Data (Local Cache)
 Docs/Issues/records/
 Docs/Issues/index.json
 Docs/Issues/issue-*.json
 Docs/Issues/workflows/issue-events.log
+
+
+# Workflows
+.agent/
+.windsurf/
+.shared/

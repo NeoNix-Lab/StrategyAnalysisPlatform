@@ -2,7 +2,12 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from typing import List
 import asyncio
 import logging
+import json
+from datetime import datetime
 from quant_shared.utils.logger import attach_queue_handler, get_logger
+# Import from shared schemas
+from quant_shared.schemas.logging import LogRecord
+from api.log_store import add_log
 
 router = APIRouter()
 logger = get_logger("system_router")
@@ -48,27 +53,44 @@ class ConnectionManager:
                 record = await log_queue.get()
                 
                 if not self.active_connections:
-                    # If no one listening, just drain queue effectively or pause?
-                    # For now we keep draining to avoid memory leak if queue gets full (unbounded though)
                     continue
 
-                # Format record
-                # We assume QueueHandler put a LogRecord object
-                # We manually format it to string/JSON
-                log_entry = {
-                    "timestamp": record.asctime if hasattr(record, "asctime") else record.created,
-                    "level": record.levelname,
-                    "name": record.name,
-                    "message": record.getMessage()
-                }
+                # Format record using Contract
+                try:
+                    if isinstance(record, LogRecord):
+                        # Already a contract (from internal HTTP endpoint)
+                        contract_record = record
+                    else:
+                        # Map logging.LogRecord to contracts.LogRecord
+                        contract_record = LogRecord(
+                            timestamp=datetime.fromtimestamp(record.created),
+                            level=record.levelname,
+                            name=record.name,
+                            message=record.getMessage(),
+                            meta={
+                                "filename": record.filename,
+                                "lineno": record.lineno,
+                                "funcName": record.funcName
+                            }
+                        )
+                    
+                    log_entry = json.loads(contract_record.json())
+                    
+                except Exception as e:
+                    # Fallback if contract validation fails
+                    logger.error(f"Failed to convert log to contract: {e}")
+                    log_entry = {
+                        "timestamp": datetime.utcnow().isoformat(),
+                        "level": "ERROR",
+                        "name": "system",
+                        "message": f"Log conversion error: {str(e)}"
+                    }
 
                 # Broadcast
-                # Copy list to avoid modification during iteration
                 for connection in list(self.active_connections):
                     try:
                         await connection.send_json(log_entry)
                     except Exception as e:
-                        # Handle stale connection
                         self.disconnect(connection)
                         
         except asyncio.CancelledError:
@@ -90,3 +112,22 @@ async def websocket_endpoint(websocket: WebSocket):
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
         manager.disconnect(websocket)
+
+@router.post("/internal/logs")
+async def receive_internal_log(log: LogRecord):
+    """
+    Receives logs from other microservices via HTTP and broadcasts them.
+    """
+    try:
+        add_log({
+            "timestamp": log.timestamp.isoformat(),
+            "level": log.level,
+            "name": log.name,
+            "message": log.message
+        })
+        await log_queue.put(log)
+    except Exception as e:
+        logger.error(f"Failed to process internal log: {e}")
+        return {"status": "error", "message": str(e)}
+
+    return {"status": "ok"}

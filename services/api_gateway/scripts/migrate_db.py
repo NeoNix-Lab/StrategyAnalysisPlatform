@@ -2,8 +2,20 @@ import sqlite3
 from datetime import datetime
 import uuid
 import json
+import os
+from pathlib import Path
 
-DB_PATH = "trading_data.db"
+def resolve_db_path() -> str:
+    env_path = os.getenv("TRADING_DB_PATH")
+    if env_path:
+        return env_path
+    project_root = Path(__file__).resolve().parents[3]
+    var_db = project_root / "var" / "trading_data.db"
+    if var_db.exists():
+        return str(var_db)
+    return str(project_root / "trading_data.db")
+
+DB_PATH = resolve_db_path()
 
 def migrate():
     print(f"Starting migration on {DB_PATH}...")

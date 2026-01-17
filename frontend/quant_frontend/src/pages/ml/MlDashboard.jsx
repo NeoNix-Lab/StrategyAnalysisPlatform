@@ -8,7 +8,6 @@ import { useNavigate } from 'react-router-dom';
 import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
-import '../Dashboard.css'; // Reuse Analyst Dashboard styles for uniformity
 
 const MlDashboard = () => {
     const navigate = useNavigate();
@@ -62,176 +61,174 @@ const MlDashboard = () => {
         setStats(newStats);
     };
 
+    const cardClass = "bg-bg-secondary/50 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-6 shadow-xl hover:border-violet-500/30 transition-all";
+    const kpiLabelClass = "text-sm text-text-secondary uppercase tracking-wider font-semibold mb-2";
+    const kpiValueClass = "text-3xl font-bold text-text-primary";
+
     return (
-        <div className="dashboard-container">
+        <div className="max-w-[1600px] mx-auto space-y-8 animate-fade-in">
             {/* Header with Action Button */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-                <h1 style={{ margin: 0, fontSize: '1.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                    Quant Laboratory
-                </h1>
+            <div className="flex justify-between items-center mb-8">
+                <div>
+                    <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-violet-400 to-fuchsia-400">
+                        Quant Laboratory
+                    </h1>
+                    <p className="text-text-secondary text-sm mt-1">Machine Learning Experimentation Studio</p>
+                </div>
+
                 <button
                     onClick={() => navigate('/ml/studio/compose')}
-                    style={{
-                        background: 'linear-gradient(135deg, #7c3aed, #a855f7)',
-                        color: 'white',
-                        border: 'none',
-                        padding: '0.6rem 1.25rem',
-                        borderRadius: '8px',
-                        cursor: 'pointer',
-                        fontWeight: 600,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        boxShadow: '0 4px 6px -1px rgba(124, 58, 237, 0.3)'
-                    }}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-violet-600 hover:bg-violet-500 text-white rounded-xl shadow-lg shadow-violet-900/40 transition-all font-semibold"
                 >
                     <Plus size={18} /> New Experiment
                 </button>
             </div>
 
-            {/* Main Stats Grid (Identical structure to Dashboard.jsx) */}
-            <div className="dashboard-grid">
-                <div className="card">
-                    <div className="card-icon"><Database size={24} color="#a78bfa" /></div>
-                    <h3>Total Experiments</h3>
-                    <div className="metric-value">{stats.total}</div>
+            {/* Main Stats Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
+                <div className={cardClass}>
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="p-2 bg-violet-500/10 rounded-lg"><Database size={20} className="text-violet-400" /></div>
+                        <h3 className={kpiLabelClass}>Total Experiments</h3>
+                    </div>
+                    <div className={kpiValueClass}>{stats.total}</div>
                 </div>
-                <div className="card">
-                    <div className="card-icon"><Activity size={24} color="#d8b4fe" /></div>
-                    <h3>Active Runs</h3>
-                    <div className="metric-value" style={{ color: stats.active > 0 ? '#d8b4fe' : 'inherit' }}>
+
+                <div className={cardClass}>
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="p-2 bg-fuchsia-500/10 rounded-lg"><Activity size={20} className="text-fuchsia-400" /></div>
+                        <h3 className={kpiLabelClass}>Active Runs</h3>
+                    </div>
+                    <div className={`${kpiValueClass} ${stats.active > 0 ? 'text-fuchsia-400' : ''}`}>
                         {stats.active}
                     </div>
                 </div>
-                <div className="card">
-                    <div className="card-icon"><CheckCircle size={24} color="#4ade80" /></div>
-                    <h3>Success Rate</h3>
-                    <div className="metric-value" style={{ color: '#4ade80' }}>
+
+                <div className={cardClass}>
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="p-2 bg-green-500/10 rounded-lg"><CheckCircle size={20} className="text-green-400" /></div>
+                        <h3 className={kpiLabelClass}>Success Rate</h3>
+                    </div>
+                    <div className={`${kpiValueClass} text-green-400`}>
                         {stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0}%
                     </div>
                 </div>
-                <div className="card">
-                    <div className="card-icon"><Zap size={24} color="#fbbf24" /></div>
-                    <h3>Compute Load</h3>
-                    <div className="metric-value" style={{ color: '#fbbf24' }}>34%</div>
+
+                <div className={cardClass}>
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="p-2 bg-amber-500/10 rounded-lg"><Zap size={20} className="text-amber-400" /></div>
+                        <h3 className={kpiLabelClass}>Compute Load</h3>
+                    </div>
+                    <div className={`${kpiValueClass} text-amber-400`}>34%</div>
                 </div>
-                <div className="card">
-                    <div className="card-icon"><AlertTriangle size={24} color="#f87171" /></div>
-                    <h3>Failed</h3>
-                    <div className="metric-value" style={{ color: '#f87171' }}>{stats.failed}</div>
+
+                <div className={cardClass}>
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="p-2 bg-rose-500/10 rounded-lg"><AlertTriangle size={20} className="text-rose-400" /></div>
+                        <h3 className={kpiLabelClass}>Failed</h3>
+                    </div>
+                    <div className={`${kpiValueClass} text-rose-400`}>{stats.failed}</div>
                 </div>
             </div>
 
             {/* Charts Section */}
-            <div className="charts-grid" style={{ marginTop: '2rem' }}>
-                <div className="card chart-card" style={{ gridColumn: '1 / -1' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                        <h3>Weekly Activity</h3>
-                        <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Last 7 Days</div>
+            <div className="grid grid-cols-1">
+                <div className={`${cardClass} h-[400px] flex flex-col`}>
+                    <div className="flex justify-between mb-4">
+                        <h3 className="font-bold text-lg text-text-primary">Weekly Activity</h3>
+                        <span className="text-xs text-text-secondary uppercase tracking-wider font-semibold">Last 7 Days</span>
                     </div>
-                    <div className="chart-container" style={{ height: '300px' }}>
+                    <div className="flex-1 w-full min-h-0">
                         <ResponsiveContainer width="100%" height="100%">
                             <AreaChart data={activityData}>
                                 <defs>
                                     <linearGradient id="colorRuns" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#a855f7" stopOpacity={0.3} />
-                                        <stop offset="95%" stopColor="#a855f7" stopOpacity={0} />
+                                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
+                                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
                                     </linearGradient>
                                 </defs>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.3} />
-                                <XAxis dataKey="name" stroke="#94a3b8" />
-                                <YAxis stroke="#94a3b8" />
+                                <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
+                                <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
                                 <Tooltip
                                     contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: '#fff', borderRadius: '8px' }}
                                 />
-                                <Area type="monotone" dataKey="runs" stroke="#a855f7" strokeWidth={2} fillOpacity={1} fill="url(#colorRuns)" />
+                                <Area type="monotone" dataKey="runs" stroke="#8b5cf6" strokeWidth={3} fillOpacity={1} fill="url(#colorRuns)" />
                             </AreaChart>
                         </ResponsiveContainer>
                     </div>
                 </div>
             </div>
 
-            {/* Recent Training Sessions Table (Consistent Table Style) */}
-            <div className="card" style={{ marginTop: '2rem' }}>
-                <div className="card-header" style={{ marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h3 style={{ margin: 0 }}>Recent Experiments</h3>
-                    <button
-                        style={{
-                            background: 'transparent',
-                            border: 'none',
-                            color: '#a855f7',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.5rem',
-                            fontSize: '0.9rem',
-                            padding: '0.5rem'
-                        }}
-                    >
+            {/* Recent Training Sessions Table */}
+            <div className={`${cardClass} p-0 overflow-hidden`}>
+                <div className="p-6 border-b border-slate-700/50 flex justify-between items-center bg-bg-secondary/30">
+                    <h3 className="text-lg font-bold text-text-primary m-0">Recent Experiments</h3>
+                    <button className="text-violet-400 hover:text-violet-300 text-sm font-medium flex items-center gap-1 transition-colors">
                         View All <ArrowRight size={16} />
                     </button>
                 </div>
-                <div className="table-container" style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
-                        <thead>
-                            <tr style={{ borderBottom: '1px solid #334155', textAlign: 'left', color: '#94a3b8' }}>
-                                <th style={{ padding: '1rem' }}>Experiment Name</th>
-                                <th style={{ padding: '1rem' }}>Status</th>
-                                <th style={{ padding: '1rem' }}>Model</th>
-                                <th style={{ padding: '1rem' }}>Dataset</th>
-                                <th style={{ padding: '1rem', textAlign: 'right' }}>Created</th>
-                                <th style={{ padding: '1rem', textAlign: 'right' }}>Actions</th>
+                <div className="overflow-x-auto custom-scrollbar">
+                    <table className="w-full text-sm text-left">
+                        <thead className="bg-slate-900/50 text-xs uppercase font-semibold text-text-secondary">
+                            <tr>
+                                <th className="p-4 border-b border-slate-700/50">Experiment Name</th>
+                                <th className="p-4 border-b border-slate-700/50">Status</th>
+                                <th className="p-4 border-b border-slate-700/50">Model</th>
+                                <th className="p-4 border-b border-slate-700/50">Dataset</th>
+                                <th className="p-4 border-b border-slate-700/50 text-right">Created</th>
+                                <th className="p-4 border-b border-slate-700/50 text-right">Actions</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody className="divide-y divide-slate-800/50">
                             {loading ? (
-                                <tr><td colSpan="6" style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>Loading...</td></tr>
+                                <tr><td colSpan="6" className="p-8 text-center text-text-secondary">Loading...</td></tr>
                             ) : sessions.length === 0 ? (
-                                <tr><td colSpan="6" style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>No experiments found</td></tr>
+                                <tr><td colSpan="6" className="p-8 text-center text-text-secondary">No experiments found</td></tr>
                             ) : (
                                 sessions.map((session) => (
                                     <tr
                                         key={session.session_id}
-                                        onClick={() => navigate(`/ ml / studio / session / ${session.session_id} `)}
-                                        style={{ borderBottom: '1px solid #1e293b', cursor: 'pointer', transition: 'background 0.2s' }}
-                                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(30, 41, 59, 0.5)'}
-                                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                        onClick={() => navigate(`/ml/studio/session/${session.session_id}`)}
+                                        className="hover:bg-violet-500/5 transition-colors cursor-pointer group"
                                     >
-                                        <td style={{ padding: '1rem', fontWeight: 500, color: '#f1f5f9' }}>
+                                        <td className="p-4 text-slate-100 font-medium">
                                             {session.name}
-                                            <div style={{ fontSize: '0.75rem', color: '#64748b', fontFamily: 'monospace' }}>
+                                            <div className="text-[10px] text-text-muted font-mono mt-0.5 group-hover:text-violet-400 transition-colors">
                                                 {session.session_id.substring(0, 8)}
                                             </div>
                                         </td>
-                                        <td style={{ padding: '1rem' }}>
+                                        <td className="p-4">
                                             <StatusBadge status={session.status} />
                                         </td>
-                                        <td style={{ padding: '1rem', color: '#cbd5e1' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                <Brain size={14} color="#a78bfa" />
+                                        <td className="p-4 text-slate-300">
+                                            <div className="flex items-center gap-2">
+                                                <Brain size={14} className="text-violet-400" />
                                                 {session.algorithm || 'Unknown'}
                                             </div>
                                         </td>
-                                        <td style={{ padding: '1rem', color: '#cbd5e1' }}>
+                                        <td className="p-4 text-slate-300">
                                             {session.dataset_name || 'N/A'}
                                         </td>
-                                        <td style={{ padding: '1rem', textAlign: 'right', color: '#94a3b8' }}>
+                                        <td className="p-4 text-right text-text-secondary">
                                             {new Date(session.created_at).toLocaleDateString()}
                                         </td>
-                                        <td style={{ padding: '1rem', textAlign: 'right' }}>
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); navigate(`/ml/studio/session/${session.session_id}`); }}
-                                                style={{ padding: '0.5rem', background: 'rgba(147, 51, 234, 0.15)', color: '#d8b4fe', border: 'none', borderRadius: '4px', cursor: 'pointer', marginRight: '0.5rem' }}
-                                                title="Run/Console"
-                                            >
-                                                <Play size={14} />
-                                            </button>
-                                            <button
-                                                onClick={(e) => e.stopPropagation()}
-                                                style={{ padding: '0.5rem', background: 'transparent', color: '#94a3b8', border: 'none', cursor: 'pointer' }}
-                                            >
-                                                <MoreHorizontal size={16} />
-                                            </button>
+                                        <td className="p-4 text-right">
+                                            <div className="flex justify-end gap-2">
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); navigate(`/ml/studio/session/${session.session_id}`); }}
+                                                    className="p-1.5 bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 rounded transition-colors"
+                                                    title="Run/Console"
+                                                >
+                                                    <Play size={14} />
+                                                </button>
+                                                <button
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    className="p-1.5 text-text-secondary hover:text-text-primary hover:bg-white/5 rounded transition-colors"
+                                                >
+                                                    <MoreHorizontal size={16} />
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))
@@ -244,26 +241,17 @@ const MlDashboard = () => {
     );
 };
 
-// Start Helper Component
+// Helper Component
 const StatusBadge = ({ status }) => {
-    let color = '#94a3b8';
-    let bg = 'rgba(148, 163, 184, 0.1)';
     const s = status?.toLowerCase();
 
-    if (s === 'running') { color = '#a855f7'; bg = 'rgba(168, 85, 247, 0.15)'; }
-    else if (s === 'completed') { color = '#4ade80'; bg = 'rgba(74, 222, 128, 0.15)'; }
-    else if (s === 'failed') { color = '#f87171'; bg = 'rgba(248, 113, 113, 0.15)'; }
+    let colorClass = "bg-slate-500/10 text-slate-400";
+    if (s === 'running') colorClass = "bg-violet-500/15 text-violet-400 animate-pulse";
+    if (s === 'completed') colorClass = "bg-green-500/15 text-green-400";
+    if (s === 'failed') colorClass = "bg-rose-500/15 text-rose-400";
 
     return (
-        <span style={{
-            color, background: bg,
-            padding: '0.25rem 0.75rem',
-            borderRadius: '99px',
-            fontSize: '0.75rem',
-            fontWeight: 600,
-            textTransform: 'uppercase',
-            letterSpacing: '0.05em'
-        }}>
+        <span className={`px-3 py-1 rounded-full text-[10px] uppercase font-bold tracking-wider ${colorClass}`}>
             {status}
         </span>
     );

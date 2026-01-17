@@ -1,0 +1,14 @@
+﻿
+> strategy-analysis-frontend@0.0.0 test
+> vitest --run
+
+
+[7m[1m[36m RUN [39m[22m[27m [36mv1.6.1[39m [90mD:/Documents/Active/StrategyAnalysisPlatform/Main/frontend/quant_frontend[39m
+
+ [32mÔ£ô[39m src/App.test.jsx [2m ([22m[2m1 test[22m[2m)[22m[90m 67[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m   Start at [22m 08:38:52
+[2m   Duration [22m 1.69s[2m (transform 403ms, setup 57ms, collect 672ms, tests 67ms, environment 410ms, prepare 88ms)[22m
+

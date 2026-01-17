@@ -75,9 +75,10 @@ def start_run(request: StartRunRequest, db: Session = Depends(get_db)):
         # Create dummy strategy if not exists for test/mvp purposes
         # Or raise error. Given "TEST_STRAT_INTEGRATION", likely need to create it.
         strategy = Strategy(
-            strategy_id=request.strategy_id, 
-            name=f"Auto Created {request.strategy_id}", 
-            version="1.0"
+            strategy_id=request.strategy_id,
+            name=f"Auto Created {request.strategy_id}",
+            version="1.0",
+            parameters_json=[]
         )
         db.add(strategy)
         db.flush()
@@ -93,7 +94,7 @@ def start_run(request: StartRunRequest, db: Session = Depends(get_db)):
         strategy_id=request.strategy_id,
         instance_name=f"Run {datetime.utcnow().isoformat()}",
         parameters_json=request.parameters,
-        symbol=symbol,
+        symbols_json=[symbol] if symbol else [],
         timeframe=timeframe
     )
     db.add(instance)
@@ -151,4 +152,28 @@ def get_run_trades(run_id: str, db: Session = Depends(get_db)):
     
     if executions and orders:
         return MetricsEngine.reconstruct_trades(executions, orders)
-    return []
+
+@router.get("/{run_id}/series")
+def get_run_series(run_id: str, db: Session = Depends(get_db)):
+    from quant_shared.models.models import RunSeries, RunSeriesRunLink
+    
+    series = (
+        db.query(RunSeries)
+        .join(RunSeriesRunLink, RunSeries.series_id == RunSeriesRunLink.series_id)
+        .filter(RunSeriesRunLink.run_id == run_id)
+        .all()
+    )
+    
+    return [
+        {
+            "series_id": s.series_id,
+            "symbol": s.symbol,
+            "timeframe": s.timeframe,
+            "venue": s.venue,
+            "provider": s.provider,
+            "start_utc": s.start_utc,
+            "end_utc": s.end_utc
+        }
+        for s in series
+    ]
+

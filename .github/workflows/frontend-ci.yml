@@ -2,13 +2,15 @@ name: Frontend CI
 
 on:
   push:
-    branches: [ "main", "develop", "version-2" ]
+    branches: [ "main", "develop", "version-2", "feat/ssot-contracts" ]
     paths:
       - 'frontend/**'
+      - '.github/workflows/frontend-ci.yml'
   pull_request:
-    branches: [ "main", "develop", "version-2" ]
+    branches: [ "main", "develop", "version-2", "feat/ssot-contracts" ]
     paths:
       - 'frontend/**'
+      - '.github/workflows/frontend-ci.yml'
 
 permissions:
   contents: read

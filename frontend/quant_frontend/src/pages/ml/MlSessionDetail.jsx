@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Play, Box, Database, Clock, Plus, Zap, Layers } from 'lucide-react';
+import { ArrowLeft, Play, Database, Clock, Plus, Zap, Layers, RefreshCw } from 'lucide-react';
 
 const MlSessionDetail = () => {
     const { sessionId } = useParams();
@@ -8,6 +8,10 @@ const MlSessionDetail = () => {
     const [session, setSession] = useState(null);
     const [loading, setLoading] = useState(true);
     const [datasets, setDatasets] = useState([]);
+    const [selectedIterationId, setSelectedIterationId] = useState(null);
+    const [iterationLogs, setIterationLogs] = useState([]);
+    const [logsLoading, setLogsLoading] = useState(false);
+    const [logsError, setLogsError] = useState(null);
 
     // New Iteration State
     const [showNewIter, setShowNewIter] = useState(false);
@@ -92,6 +96,26 @@ const MlSessionDetail = () => {
         }).catch(err => console.error(err));
     }, [sessionId]);
 
+    // Auto-refresh session data every 5 seconds when there are running iterations
+    useEffect(() => {
+        if (!session || !session.iterations) return;
+
+        const hasRunningIterations = session.iterations.some(iter => iter.status === 'RUNNING');
+        if (!hasRunningIterations) return;
+
+        const interval = setInterval(async () => {
+            try {
+                const res = await fetch(`http://localhost:8000/api/ml/studio/sessions/${sessionId}`);
+                const sessionData = await res.json();
+                setSession(sessionData);
+            } catch (err) {
+                console.error('Failed to refresh session data:', err);
+            }
+        }, 5000);
+
+        return () => clearInterval(interval);
+    }, [session, sessionId]);
+
     const handleCreateIteration = async () => {
         if (!selectedDataset) return;
         if (validationResult && !validationResult.valid) return;
@@ -116,6 +140,62 @@ const MlSessionDetail = () => {
             console.error(err);
         }
     };
+
+    const handleRerunIteration = async (iteration) => {
+        if (!window.confirm(`Are you sure you want to re-run this iteration on ${iteration.dataset_name}?`)) {
+            return;
+        }
+
+        try {
+            const res = await fetch(`http://localhost:8000/api/ml/studio/iterations/${iteration.iteration_id}/run`, {
+                method: 'POST'
+            });
+
+            if (res.ok) {
+                // Refresh the session data to show updated status
+                const sessionRes = await fetch(`http://localhost:8000/api/ml/studio/sessions/${sessionId}`);
+                const sessionData = await sessionRes.json();
+                setSession(sessionData);
+            } else {
+                alert('Failed to re-run iteration');
+            }
+        } catch (err) {
+            console.error(err);
+            alert('Failed to re-run iteration');
+        }
+    };
+
+    const fetchIterationLogs = useCallback(async (iterationId) => {
+        if (!iterationId) return;
+        setLogsLoading(true);
+        setLogsError(null);
+        try {
+            const res = await fetch(`http://localhost:8000/api/ml/studio/iterations/${iterationId}/logs?limit=500`);
+            if (!res.ok) throw new Error("Failed to fetch logs");
+            const data = await res.json();
+            setIterationLogs(Array.isArray(data) ? data : []);
+        } catch (err) {
+            console.error(err);
+            setLogsError("Failed to load logs");
+        } finally {
+            setLogsLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (!selectedIterationId) return;
+        fetchIterationLogs(selectedIterationId);
+    }, [selectedIterationId, fetchIterationLogs]);
+
+    useEffect(() => {
+        if (!session || !selectedIterationId) return;
+        const selectedIteration = session.iterations?.find(iter => iter.iteration_id === selectedIterationId);
+        const shouldPoll = selectedIteration && ["RUNNING", "QUEUED", "PENDING"].includes(selectedIteration.status);
+        if (!shouldPoll) return;
+
+        const interval = setInterval(() => fetchIterationLogs(selectedIterationId), 10000);
+        return () => clearInterval(interval);
+    }, [session, selectedIterationId, fetchIterationLogs]);
 
     if (loading) return <div className="p-8 text-slate-400">Loading session...</div>;
     if (!session) return <div className="p-8 text-red-400">Session not found</div>;
@@ -170,7 +250,7 @@ const MlSessionDetail = () => {
                             }`}>
                             {session.status}
                         </span>
-                        <div className="text-xs text-slate-500">Created: {new Date(session.created_at).toLocaleDateString()}</div>
+                        <div className="text-xs text-slate-500">Created: {new Date(session.created_utc).toLocaleDateString()}</div>
                     </div>
                 </div>
             </div>
@@ -367,15 +447,33 @@ const MlSessionDetail = () => {
                                     </span>
                                 </td>
                                 <td className="px-6 py-4 text-right text-xs">
-                                    {new Date().toLocaleDateString()}
+                                    {iter.start_utc ? new Date(iter.start_utc).toLocaleDateString() : 'Not started'}
                                 </td>
                                 <td className="px-6 py-4 text-right">
-                                    <button
-                                        onClick={() => navigate(`/ml/studio/session/${sessionId}/run/${iter.iteration_id}`)}
-                                        className="text-purple-400 hover:text-purple-300 font-medium text-xs flex items-center justify-end gap-1 ml-auto group-hover:translate-x-1 transition-transform"
-                                    >
-                                        Console <ArrowLeft size={12} className="rotate-180" />
-                                    </button>
+                                    <div className="flex items-center justify-end gap-2">
+                                        {(iter.status === 'COMPLETED' || iter.status === 'FAILED') && (
+                                            <button
+                                                onClick={() => handleRerunIteration(iter)}
+                                                className="text-green-400 hover:text-green-300 font-medium text-xs flex items-center gap-1 transition-colors"
+                                                title="Re-run this iteration"
+                                            >
+                                                <Play size={12} /> Re-run
+                                            </button>
+                                        )}
+                                        <button
+                                            onClick={() => setSelectedIterationId(iter.iteration_id)}
+                                            className={`text-xs font-medium flex items-center gap-1 transition-colors ${selectedIterationId === iter.iteration_id ? 'text-blue-300' : 'text-blue-400 hover:text-blue-300'}`}
+                                            title="Show backend logs"
+                                        >
+                                            Logs
+                                        </button>
+                                        <button
+                                            onClick={() => navigate(`/ml/studio/session/${sessionId}/run/${iter.iteration_id}`)}
+                                            className="text-purple-400 hover:text-purple-300 font-medium text-xs flex items-center justify-end gap-1 ml-auto group-hover:translate-x-1 transition-transform"
+                                        >
+                                            Console <ArrowLeft size={12} className="rotate-180" />
+                                        </button>
+                                    </div>
                                 </td>
                             </tr>
                         ))}
@@ -397,6 +495,59 @@ const MlSessionDetail = () => {
                         )}
                     </tbody>
                 </table>
+            </div>
+
+            <div className="mt-6 bg-slate-950 rounded-xl border border-slate-800 p-4 font-mono text-xs">
+                <div className="flex items-center justify-between mb-2">
+                    <div className="text-slate-500 uppercase tracking-wider text-[10px]">
+                        Backend Logs (ML Core)
+                        {selectedIterationId && (
+                            <span className="text-slate-600 ml-2">#{selectedIterationId.slice(0, 8)}</span>
+                        )}
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <span className="text-[10px] text-slate-600">{iterationLogs.length} lines</span>
+                        <button
+                            onClick={() => fetchIterationLogs(selectedIterationId)}
+                            disabled={!selectedIterationId || logsLoading}
+                            className="p-1.5 text-slate-400 hover:text-white transition-colors rounded-lg hover:bg-slate-800/60 disabled:opacity-50"
+                            title="Refresh logs"
+                        >
+                            <RefreshCw size={12} />
+                        </button>
+                    </div>
+                </div>
+
+                {!selectedIterationId && (
+                    <div className="text-slate-700 italic">Select an iteration to view backend logs.</div>
+                )}
+
+                {selectedIterationId && logsLoading && (
+                    <div className="text-slate-600 italic">Loading logs...</div>
+                )}
+
+                {selectedIterationId && logsError && (
+                    <div className="text-red-400">{logsError}</div>
+                )}
+
+                {selectedIterationId && !logsLoading && !logsError && (
+                    <div className="space-y-1">
+                        {iterationLogs.length === 0 && (
+                            <div className="text-slate-700 italic">No logs yet for this iteration.</div>
+                        )}
+                        {iterationLogs.map((log, i) => {
+                            const isError = log.includes("ERROR") || log.includes("Exception") || log.includes("Traceback");
+                            return (
+                                <pre
+                                    key={`${selectedIterationId}-${i}`}
+                                    className={`border-l-2 pl-2 whitespace-pre-wrap break-words ${isError ? 'text-red-400 border-red-500 bg-red-900/10' : 'text-slate-400 border-slate-800'}`}
+                                >
+                                    {log}
+                                </pre>
+                            );
+                        })}
+                    </div>
+                )}
             </div>
 
         </div>

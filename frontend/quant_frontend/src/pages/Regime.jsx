@@ -1,10 +1,11 @@
 import { Fragment, useMemo, useState } from 'react'
 import { useStrategyData } from '../hooks/useStrategyData'
 import { useStrategy } from '../context/StrategyContext'
+import api from '../api/axios'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, FunnelChart } from 'recharts'
 
 const Regime = () => {
-    const { trades, loading, refresh } = useStrategyData()
+    const { trades, loading, refresh, regimePerformance } = useStrategyData()
     const { selectedRun } = useStrategy()
     const [rebuilding, setRebuilding] = useState(false)
     const [rebuildError, setRebuildError] = useState(null)
@@ -14,22 +15,17 @@ const Regime = () => {
         setRebuilding(true)
         setRebuildError(null)
         try {
-            const res = await fetch(`/api/trades/rebuild/${selectedRun}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            })
-            if (!res.ok) {
-                throw new Error('Errore durante la ricostruzione dei trade')
-            }
+            await api.post(`/regime/${selectedRun}/rebuild`)
             await refresh()
         } catch (err) {
-            setRebuildError(err.message || 'Errore sconosciuto')
+            const detail = err?.response?.data?.detail
+            setRebuildError(detail || err.message || 'Errore sconosciuto')
         } finally {
             setRebuilding(false)
         }
     }
 
-    const regimeStats = useMemo(() => {
+    const fallbackRegimeStats = useMemo(() => {
         if (!trades.length) return { trend: [], volatility: [], matrix: {} }
 
         const calculateMetrics = (subset) => {
@@ -49,21 +45,18 @@ const Regime = () => {
             }
         }
 
-        // Trend Stats
         const trends = ['BULL', 'BEAR', 'RANGE']
         const trendStats = trends.map(trend => {
             const subset = trades.filter(t => t.regime_trend === trend)
             return { name: trend, ...calculateMetrics(subset) }
         })
 
-        // Volatility Stats
         const vols = ['HIGH', 'LOW', 'NORMAL']
         const volStats = vols.map(vol => {
             const subset = trades.filter(t => t.regime_volatility === vol)
             return { name: vol, ...calculateMetrics(subset) }
         })
 
-        // Matrix Stats
         const matrix = {}
         trends.forEach(trend => {
             vols.forEach(vol => {
@@ -74,6 +67,8 @@ const Regime = () => {
 
         return { trend: trendStats, volatility: volStats, matrix }
     }, [trades])
+
+    const regimeStats = regimePerformance || fallbackRegimeStats
 
     if (loading) return <div className="loading">Loading regime analysis...</div>
 
@@ -137,27 +132,6 @@ const Regime = () => {
                         </ResponsiveContainer>
                     </div>
                 </div>
-            </div>
-
-            <div className='test-flowchart'>
-                <h3>Test</h3>
-                <ResponsiveContainer width="100%" height="100%">
-                    <h3>Test</h3>
-
-                    {/* <FunnelChart data={regimeStats.volatility}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                        <XAxis dataKey="name" stroke="#94a3b8" />
-                        <YAxis stroke="#94a3b8" />
-                        <Tooltip contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155' }} />
-                        <Legend />
-                        <Bar dataKey="pnl" name="Net Profit (€)" fill="#818cf8">
-                            {regimeStats.volatility.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.pnl >= 0 ? '#4ade80' : '#f87171'} />
-                            ))}
-                        </Bar>
-
-                    </FunnelChart> */}
-                </ResponsiveContainer>
             </div>
 
             {/* Matrix View */}

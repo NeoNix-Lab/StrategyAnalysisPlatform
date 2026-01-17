@@ -1,2 +1,3 @@
 from .analytics_router import AnalyticsRouter
+from .regime_performance import RegimePerformanceAggregator
 from .standard_analyzer import StandardAnalyzer

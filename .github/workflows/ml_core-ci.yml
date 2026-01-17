@@ -2,15 +2,17 @@ name: ML Core CI
 
 on:
   push:
-    branches: [ "main", "develop", "version-2" ]
+    branches: [ "main", "develop", "version-2", "feat/ssot-contracts" ]
     paths:
       - 'services/ml_core/**'
       - 'packages/quant_shared/**'
+      - '.github/workflows/ml_core-ci.yml'
   pull_request:
-    branches: [ "main", "develop", "version-2" ]
+    branches: [ "main", "develop", "version-2", "feat/ssot-contracts" ]
     paths:
       - 'services/ml_core/**'
       - 'packages/quant_shared/**'
+      - '.github/workflows/ml_core-ci.yml'
 
 permissions:
   contents: read
@@ -35,12 +37,13 @@ jobs:
         pip install -e packages/quant_shared
         pip install -e services/ml_core
         if [ -f "services/ml_core/requirements.txt" ]; then pip install -r services/ml_core/requirements.txt; fi
+        pip install pytest httpx
 
     - name: Test with pytest
       working-directory: services/ml_core
       run: |
         export PYTHONPATH=$PYTHONPATH:$(pwd)/src
-        pytest -v
+        python -m pytest -v
 
     - name: Create Issue on Failure
       if: failure()

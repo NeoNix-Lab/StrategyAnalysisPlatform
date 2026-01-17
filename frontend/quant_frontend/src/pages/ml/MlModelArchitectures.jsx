@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Save, Layers, Settings, Database, Trash2 } from 'lucide-react';
+import { Plus, Save, Layers, Settings, Database, Trash2, ArrowLeft, ChevronRight } from 'lucide-react';
 import ModelBuilder from './components/ModelBuilder';
-import '../Dashboard.css';
 
 const MlModelArchitectures = () => {
     const [models, setModels] = useState([]);
@@ -64,8 +63,7 @@ const MlModelArchitectures = () => {
             });
             if (res.ok) {
                 await fetchModels();
-                setEditMode(false);
-                setSelectedId(null);
+                // Keep editing
             } else {
                 alert("Failed to save model");
             }
@@ -73,75 +71,97 @@ const MlModelArchitectures = () => {
     };
 
     return (
-        <div style={{ display: 'grid', gridTemplateColumns: '250px 1fr', gap: '2rem', height: 'calc(100vh - 140px)' }}>
-
-            {/* List Panel */}
-            <div className="card" style={{ display: 'flex', flexDirection: 'column', padding: '0', overflow: 'hidden' }}>
-                <div style={{ padding: '1rem', borderBottom: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h3 style={{ margin: 0, fontSize: '1rem' }}>Architectures</h3>
-                    <button onClick={handleCreateNew} style={{ background: 'transparent', border: 'none', color: '#60a5fa', cursor: 'pointer' }}>
-                        <Plus size={18} />
+        <div className="flex h-[calc(100vh-60px)] -m-8">
+            {/* List Sidebar */}
+            <div className="w-[300px] flex-none border-r border-slate-800 bg-slate-900/50 flex flex-col">
+                <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900/80 backdrop-blur-sm">
+                    <h3 className="m-0 text-sm font-bold text-slate-300 uppercase tracking-wider">Models</h3>
+                    <button onClick={handleCreateNew} className="p-2 rounded-lg bg-blue-600/10 text-blue-400 hover:bg-blue-600 hover:text-white transition-all">
+                        <Plus size={16} />
                     </button>
                 </div>
-                <div style={{ overflowY: 'auto', flex: 1 }}>
+
+                <div className="flex-1 overflow-y-auto custom-scrollbar p-2">
                     {loading && !selectedId ? (
-                        <div style={{ padding: '1rem', color: '#64748b' }}>Loading...</div>
+                        <div className="p-8 text-center text-slate-500 text-sm">Loading architectures...</div>
                     ) : (
                         models.map(m => (
                             <div
                                 key={m.model_id}
                                 onClick={() => handleSelect(m.model_id)}
-                                style={{
-                                    padding: '1rem',
-                                    borderBottom: '1px solid #1e293b',
-                                    cursor: 'pointer',
-                                    background: selectedId === m.model_id ? 'rgba(147, 51, 234, 0.1)' : 'transparent',
-                                    borderLeft: selectedId === m.model_id ? '3px solid #d8b4fe' : '3px solid transparent'
-                                }}
+                                className={`p-4 mb-2 rounded-xl cursor-pointer transition-all border group relative overflow-hidden
+                                ${selectedId === m.model_id
+                                        ? 'bg-violet-600/10 border-violet-500/50'
+                                        : 'bg-transparent border-transparent hover:bg-slate-800/50'
+                                    }`}
                             >
-                                <div style={{ fontWeight: 500, color: '#f1f5f9' }}>{m.name}</div>
-                                <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{m.description || 'No description'}</div>
+                                <div className="flex justify-between items-start mb-1">
+                                    <div className={`font-semibold text-sm ${selectedId === m.model_id ? 'text-violet-200' : 'text-slate-300 group-hover:text-slate-200'}`}>
+                                        {m.name}
+                                    </div>
+                                    {selectedId === m.model_id && <ChevronRight size={16} className="text-violet-500" />}
+                                </div>
+                                <div className="text-xs text-slate-500 truncate">{m.description || 'No description'}</div>
                             </div>
                         ))
                     )}
                 </div>
             </div>
 
-            {/* Editor Panel */}
-            <div className="card" style={{ display: 'flex', flexDirection: 'column', padding: '1.5rem', gap: '1rem' }}>
+            {/* Main Workspace */}
+            <div className="flex-1 flex flex-col bg-[#020617] relative overflow-hidden">
+                {/* Background Pattern */}
+                <div className="absolute inset-0 bg-[linear-gradient(rgba(30,41,59,0.3)_1px,transparent_1px),linear-gradient(90deg,rgba(30,41,59,0.3)_1px,transparent_1px)] [background-size:40px_40px] opacity-20 pointer-events-none"></div>
+
                 {editMode ? (
                     <>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <input
-                                type="text"
-                                value={name}
-                                onChange={e => setName(e.target.value)}
-                                style={{ background: 'transparent', border: 'none', fontSize: '1.5rem', fontWeight: 700, color: '#f1f5f9', width: '60%', outline: 'none' }}
-                                placeholder="Model Name"
-                            />
-                            <button
-                                onClick={handleSave}
-                                className="rebuild-btn"
-                                style={{ padding: '0.5rem 1rem', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'flex', gap: '0.5rem', alignItems: 'center' }}
-                            >
-                                <Save size={16} /> Save
-                            </button>
+                        {/* Workspace Header / Chrome */}
+                        <div className="h-20 px-8 flex items-center justify-between border-b border-slate-800/50 bg-slate-900/30 backdrop-blur-sm relative z-20">
+                            <div className="flex-1 max-w-2xl flex flex-col gap-1">
+                                <input
+                                    type="text"
+                                    value={name}
+                                    onChange={e => setName(e.target.value)}
+                                    className="bg-transparent border-none text-xl font-bold text-slate-100 placeholder:text-slate-600 focus:outline-none w-full"
+                                    placeholder="Model Name"
+                                />
+                                <input
+                                    type="text"
+                                    value={description}
+                                    onChange={e => setDescription(e.target.value)}
+                                    className="bg-transparent border-none text-sm text-slate-400 placeholder:text-slate-600 focus:outline-none w-full"
+                                    placeholder="Add a brief description..."
+                                />
+                            </div>
+
+                            <div className="flex items-center gap-4">
+                                <div className="text-xs font-mono text-slate-500 px-3 py-1 bg-slate-900 rounded border border-slate-800">
+                                    {layers.length} Layers
+                                </div>
+                                <button
+                                    onClick={handleSave}
+                                    className="px-6 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-500 transition-all font-medium text-sm shadow-lg shadow-violet-900/20 flex items-center gap-2"
+                                >
+                                    <Save size={16} /> Save Changes
+                                </button>
+                            </div>
                         </div>
-                        <input
-                            type="text"
-                            value={description}
-                            onChange={e => setDescription(e.target.value)}
-                            style={{ background: '#0f172a', border: '1px solid #334155', padding: '0.5rem', borderRadius: '4px', color: '#cbd5e1' }}
-                            placeholder="Description (optional)"
-                        />
-                        <div style={{ flex: 1, overflowY: 'auto', border: '1px solid #334155', borderRadius: '8px', padding: '1rem', background: '#0f172a' }}>
+
+                        {/* Builder Canvas */}
+                        <div className="flex-1 overflow-hidden p-6 relative z-10">
                             <ModelBuilder layers={layers} setLayers={setLayers} />
                         </div>
                     </>
                 ) : (
-                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
-                        <Layers size={48} style={{ opacity: 0.2, marginBottom: '1rem' }} />
-                        <p>Select a model to edit or create a new one.</p>
+                    <div className="flex-1 flex flex-col items-center justify-center text-slate-600 select-none z-10">
+                        <div className="w-24 h-24 rounded-full bg-slate-900/50 flex items-center justify-center mb-6 border border-slate-800">
+                            <Layers size={48} className="opacity-40" />
+                        </div>
+                        <h2 className="text-xl font-semibold text-slate-300 mb-2">Select a Model</h2>
+                        <p className="text-sm max-w-sm text-center">Choose an architecture from the sidebar or create a new one to start building.</p>
+                        <button onClick={handleCreateNew} className="mt-8 px-6 py-3 bg-slate-800 text-slate-300 rounded-lg border border-slate-700 hover:bg-slate-700 transition-all flex items-center gap-2">
+                            <Plus size={18} /> Create New Architecture
+                        </button>
                     </div>
                 )}
             </div>

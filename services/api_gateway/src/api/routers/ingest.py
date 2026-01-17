@@ -4,12 +4,12 @@ import logging
 from datetime import datetime
 import uuid
 import hashlib
+import json
 
 from quant_shared.models.connection import get_db
 from quant_shared.models.models import (
     Strategy, StrategyInstance, StrategyRun, 
-    Order, Execution, RunSeries, Bar,
-    MarketSeries, MarketBar, RunSubscription,
+    Order, Execution, RunSeries, RunSeriesBar, RunSeriesRunLink,
     Side, OrderType, OrderStatus, PositionImpactType, RunType, RunStatus
 )
 from quant_shared.schemas.schemas import (
@@ -23,8 +23,36 @@ logger = logging.getLogger(__name__)
 
 # --- Helper Functions ---
 
+def normalize_strategy_parameters(params):
+    """Normalize parameter metadata so comparisons stay deterministic."""
+    if not params:
+        return []
+
+    normalized = []
+    for param in params:
+        entry = param.dict() if hasattr(param, "dict") else param
+        normalized.append(json.loads(json.dumps(entry, sort_keys=True)))
+
+    return normalized
+
 def upsert_strategy(db: Session, data: StrategyCreate):
+    normalized_params = normalize_strategy_parameters(data.parameters_json)
+
     strat = db.query(Strategy).filter(Strategy.strategy_id == data.strategy_id).first()
+
+    if not strat:
+        strat = (
+            db.query(Strategy)
+            .filter(
+                Strategy.name == data.name,
+                Strategy.version == data.version,
+                Strategy.parameters_json == normalized_params
+            )
+            .first()
+        )
+        if strat and strat.strategy_id != data.strategy_id:
+            logger.info(f"Using existing strategy {strat.strategy_id} for {data.strategy_id}")
+
     if not strat:
         strat = Strategy(
             strategy_id=data.strategy_id,
@@ -32,16 +60,18 @@ def upsert_strategy(db: Session, data: StrategyCreate):
             version=data.version,
             vendor=data.vendor,
             source_ref=data.source_ref,
-            notes=data.notes
+            notes=data.notes,
+            parameters_json=normalized_params
         )
         db.add(strat)
     else:
-        # Update updatable fields if they are not None ?
-        # Strategy definition is mostly static, but version might change.
-        if data.version:
-            strat.version = data.version
-        if data.name:
-            strat.name = data.name
+        strat.name = data.name
+        strat.version = data.version
+        strat.vendor = data.vendor
+        strat.source_ref = data.source_ref
+        strat.notes = data.notes
+        strat.parameters_json = normalized_params
+
     db.commit()
     db.refresh(strat)
     return strat
@@ -322,39 +352,48 @@ async def on_bars_batch(data: list[BarCreate], db: Session = Depends(get_db)):
 async def upsert_bar_logic(db: Session, data: BarCreate):
     # "Unified Market Data Layer" Logic
     
-    # 1. Calculate MarketSeries ID (Hash)
+    # 1. Calculate RunSeries ID (Hash)
+    # Note: Using same hashing strategy as MarketSeries for consistency
     series_key = f"{data.symbol}_{data.timeframe}_{data.venue}_{data.provider}"
     series_id = hashlib.md5(series_key.encode()).hexdigest()
     
-    # 2. Ensure MarketSeries Exists
-    market_series = db.query(MarketSeries).filter(MarketSeries.series_id == series_id).first()
-    if not market_series:
-        market_series = MarketSeries(
+    # 2. Ensure RunSeries Exists
+    series = db.query(RunSeries).filter(RunSeries.series_id == series_id).first()
+    if not series:
+        series = RunSeries(
             series_id=series_id,
             symbol=data.symbol,
             timeframe=data.timeframe,
             venue=data.venue,
             provider=data.provider,
-            created_utc=datetime.utcnow()
+            created_utc=datetime.utcnow(),
+            start_utc=data.ts_utc,
+            end_utc=data.ts_utc
         )
-        db.add(market_series)
+        db.add(series)
         db.flush() # Flush to make ID available, but don't commit yet if in batch
+    else:
+        # Update bounds if necessary
+        if series.start_utc is None or data.ts_utc < series.start_utc:
+            series.start_utc = data.ts_utc
+        if series.end_utc is None or data.ts_utc > series.end_utc:
+            series.end_utc = data.ts_utc
 
-    # 3. Ensure Run Subscription (Run -> MarketSeries)
-    sub = db.query(RunSubscription).filter(
-        RunSubscription.run_id == data.run_id,
-        RunSubscription.series_id == series_id
+    # 3. Ensure Run Series Link (Run -> RunSeries)
+    link = db.query(RunSeriesRunLink).filter(
+        RunSeriesRunLink.run_id == data.run_id,
+        RunSeriesRunLink.series_id == series_id
     ).first()
     
-    if not sub:
-        sub = RunSubscription(run_id=data.run_id, series_id=series_id)
-        db.add(sub)
+    if not link:
+        link = RunSeriesRunLink(run_id=data.run_id, series_id=series_id)
+        db.add(link)
         db.flush() # Ensure visible for next iter in batch
     
-    # 4. Upsert Bar in MarketBar
-    existing = db.query(MarketBar).filter(
-        MarketBar.series_id == series_id,
-        MarketBar.ts_utc == data.ts_utc
+    # 4. Upsert Bar in RunSeriesBar
+    existing = db.query(RunSeriesBar).filter(
+        RunSeriesBar.series_id == series_id,
+        RunSeriesBar.ts_utc == data.ts_utc
     ).first()
     
     if existing:
@@ -366,7 +405,7 @@ async def upsert_bar_logic(db: Session, data: BarCreate):
         existing.volume = data.volume
         existing.volumetric_json = data.volumetric_json
     else:
-        new_bar = MarketBar(
+        new_bar = RunSeriesBar(
             series_id=series_id,
             ts_utc=data.ts_utc,
             open=data.open,
@@ -375,7 +414,6 @@ async def upsert_bar_logic(db: Session, data: BarCreate):
             close=data.close,
             volume=data.volume,
             volumetric_json=data.volumetric_json
-
         )
         db.add(new_bar)
         db.flush() # Ensure visible for next iter in batch

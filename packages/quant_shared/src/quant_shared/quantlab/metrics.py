@@ -2,6 +2,10 @@ from typing import List, Dict, Any, Optional
 import pandas as pd
 import numpy as np
 
+#TODO: utilizzare questo approccio in modo discrezionale via ui (potrebbe essere utile per valutare le performance temporanee di strategie di headging)
+# ma l approccio de siderato sarebbe quello di inserire i trade collegati alle esecuzioni via ingest ed eventualmente utilizzare sistemi di rigenerazione dei dati
+# mancanti se e solo se necessario 
+
 class MetricsEngine:
     @staticmethod
     def reconstruct_trades(executions: List[Any], orders: List[Any]) -> List[Dict[str, Any]]:

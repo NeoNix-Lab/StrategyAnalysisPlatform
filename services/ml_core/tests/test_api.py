@@ -33,7 +33,7 @@ def test_training_flow():
             "type": "input",
             "layer": {
                 "type": "Dense",
-                "params": {"input_shape": [10, 2]} # 2 features: close, volume
+                "params": {"units": 16, "input_shape": [10, 2]} # 2 features: close, volume
             }
         },
         {
@@ -55,13 +55,15 @@ def test_training_flow():
     # 3. Request Payload
     payload = {
         "run_id": "test_run_001",
-        "model_architecture": layers,
-        "training_params": {
-            "batch_size": 4, # Small batch for test
-            "epochs": 1,     # 1 epoch
-            "window_size": 10
-        },
-        "data": data
+        "config": {
+            "model_architecture": layers,
+            "training_params": {
+                "batch_size": 4, # Small batch for test
+                "epochs": 1,     # 1 epoch
+                "window_size": 10
+            },
+            "data": data
+        }
     }
 
     # 4. Send Request

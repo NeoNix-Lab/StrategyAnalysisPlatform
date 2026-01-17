@@ -2,13 +2,15 @@ name: Shared Core CI
 
 on:
   push:
-    branches: [ "main", "develop", "version-2" ]
+    branches: [ "main", "develop", "version-2", "feat/ssot-contracts" ]
     paths:
       - 'packages/quant_shared/**'
+      - '.github/workflows/quant-shared-ci.yml'
   pull_request:
-    branches: [ "main", "develop", "version-2" ]
+    branches: [ "main", "develop", "version-2", "feat/ssot-contracts" ]
     paths:
       - 'packages/quant_shared/**'
+      - '.github/workflows/quant-shared-ci.yml'
 
 permissions:
   contents: read
@@ -32,11 +34,13 @@ jobs:
         python -m pip install --upgrade pip
         pip install -e packages/quant_shared
         if [ -f "packages/quant_shared/requirements.txt" ]; then pip install -r packages/quant_shared/requirements.txt; fi
+        pip install pytest
 
     - name: Test with pytest
       working-directory: packages/quant_shared
       run: |
-        pytest -v
+        export PYTHONPATH=$PYTHONPATH:$(pwd)/src
+        python -m pytest -v
 
     - name: Create Issue on Failure
       if: failure()

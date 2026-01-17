@@ -1,8 +1,20 @@
+import os
+from pathlib import Path
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from src.database.models import Order, Execution
 
-SQLALCHEMY_DATABASE_URL = "sqlite:///trading_data.db"
+def resolve_db_path() -> str:
+    env_path = os.getenv("TRADING_DB_PATH")
+    if env_path:
+        return env_path
+    project_root = Path(__file__).resolve().parents[3]
+    var_db = project_root / "var" / "trading_data.db"
+    if var_db.exists():
+        return str(var_db)
+    return str(project_root / "trading_data.db")
+
+SQLALCHEMY_DATABASE_URL = f"sqlite:///{resolve_db_path()}"
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine)
 db = SessionLocal()
