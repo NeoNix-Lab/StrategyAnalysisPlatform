@@ -56,7 +56,8 @@ class EnvFlex(gym.Env):
             status_labels: List[str],
             fees=0,
             initial_balance=100000,
-            additional_columns = []
+            additional_columns = [],
+            force_exit_map: Optional[dict] = None
     ):
         """
         Initialize the EnvFlex environment.
@@ -91,6 +92,7 @@ class EnvFlex(gym.Env):
         self.additional_columns = additional_columns
         self.initial_balance = initial_balance
         self.fees = fees
+        self.force_exit_map = force_exit_map or {} # Store map
         
         # State Tracking Variables (Mutable by execution_fn)
         self.current_balance = initial_balance
@@ -178,32 +180,30 @@ class EnvFlex(gym.Env):
         """
         Execute one time-step within the environment.
         """
-        # 1. EXECUTION PHASE (The "Physics")
+        action_label = self.action_labels[action]
+
+        # 1. REWARD PHASE (The "Judge") - MOVED BEFORE EXECUTION
+        # User Request: Reward based on Pre-Update state and Current Data
+        try:
+            reward = self.reward_fn(self, action)
+        except Exception as e:
+            # print(f"Reward calc error: {e}")
+            reward = 0.0
+
+        # 2. EXECUTION PHASE (The "Physics")
         # Update internal state (balance, status, entry_price) based on action
         try:
-            # Inject dynamic namespaces if not present (handled by DynamicRewardLoader usually but safe to have)
+            # Inject dynamic namespaces if not present
             if not hasattr(self, 'data_accessor_injected'):
-                # Monkey-patch 'data' property dynamically if possible, or assume reward fn uses env.data_row 
-                # (OR we mapped env.data -> env.data_row in wrapper)
                 pass 
                 
             self.execution_fn(self, action)
         except Exception as e:
             print(f"Execution Logic Error: {e}")
 
-
         # 3. OBSERVATION PHASE
+        # Get obs for the NEXT step (conceptually), or just current window
         obs = self._get_observation()
-        
-        # 4. REWARD PHASE (The "Judge")
-        try:
-            # Pass 'self' to allow access to updated balance/status/pnl
-            reward = self.reward_fn(self, action)
-        except Exception as e:
-            # print(f"Reward calc error: {e}")
-            reward = 0.0
-
-        action_label = self.action_labels[action]
 
         # 5. LOGGING PHASE
         # Record state to DataFrame history
@@ -212,6 +212,7 @@ class EnvFlex(gym.Env):
             self.df.at[self.current_step, 'reword'] = reward
             self.df.at[self.current_step, 'balance'] = self.current_balance
             self.df.at[self.current_step, 'position_status'] = self._current_status
+           
             
             # Optional: Log entry price if column exists
             if 'entry_price' in self.df.columns:
@@ -221,21 +222,88 @@ class EnvFlex(gym.Env):
         self.current_step += 1
         self.done = self.current_step >= len(self.df)
         
+        # Force Exit Logic at Episode End
+        if self.done and self.force_exit_map:
+            # Check if current status has a forced exit action
+            exit_action = self.force_exit_map.get(self._current_status)
+            if exit_action is not None:
+                try:
+                    # Execute the forced action (e.g., Close Position)
+                    # We do NOT calculate reward here for the agent's updated policy (it's too late),
+                    # but we DO execution to realize PnL for logging/metrics.
+                    self.execution_fn(self, exit_action)
+                    
+                    # Optional: Log this final "cleanup" step? 
+                    # If we want to see the closure in logs, we might need a virtual extra step 
+                    # or just update the last step's stats (balance/status) in place.
+                    # Current decision: Update internal state so it reflects in final metrics (Total PnL).
+                except Exception as e:
+                    print(f"Force Exit Error: {e}")
+
         if not self.done:
             next_obs = self._get_observation()
         else:
             next_obs = np.zeros(self.observation_space.shape, dtype=np.float32)
 
-        info = {
-            'action_label': action_label,
-            'step': self.current_step,
-            'balance': self.current_balance,
-            'position_status': self._current_status,
-            'entry_price': self.entry_price,
-            'unrealized_pnl': self.unrealized_pnl
-        }
+        # Optimization: Return the actual DF row (converted to dict)
+        # This contains both features and logged state (action, balance, etc.)
+        info = {}
+        try:
+             # We use current_step (already incremented)
+             if self.current_step < len(self.df):
+                 info = self.df.iloc[self.current_step].to_dict()
+                 
+        except Exception:
+             pass
         
         return next_obs, reward, self.done, info
+
+    def get_inference_log(self, price_column: str = "close") -> list:
+        """
+        Efficiently retrieve the reconstruction history from the internal DataFrame.
+        This avoids manual collection in the Trainer loop.
+        """
+        # Columns to export
+        target_cols = [
+            "timestamp", 
+            price_column, 
+            "step", "action", "reword", "balance", 
+            "position_status", "entry_price"
+        ]
+        
+        # Ensure columns exist
+        final_cols = []
+        rename_map = {}
+        
+        for col in target_cols:
+            if col in self.df.columns:
+                final_cols.append(col)
+                if col == price_column: 
+                    rename_map[col] = "price"
+                if col == "reword":
+                    rename_map[col] = "reward"
+            # REMOVED: Silent fallback to "close". 
+            # We respect the User's choice. If 'price_column' is missing, 
+            # the specialized 'price' field will be missing in the log, 
+            # alerting the user to a config error rather than hiding it.
+            
+        # Filter rows up to current_step
+        valid_range = self.df.iloc[:self.current_step + 1]
+        
+        # Export to records
+        records = valid_range[final_cols].rename(columns=rename_map).to_dict(orient="records")
+        
+        # Feature: Support Index as Timestamp if column is missing
+        if "timestamp" not in final_cols:
+            import pandas as pd
+            if isinstance(self.df.index, pd.DatetimeIndex):
+                # Inject index as timestamp
+                # Since we sliced valid_range, the index is preserved
+                valid_indices = valid_range.index
+                for i, rec in enumerate(records):
+                    rec["timestamp"] = valid_indices[i].isoformat()
+        
+        return records
 
     def _get_observation(self) -> np.ndarray:
         """

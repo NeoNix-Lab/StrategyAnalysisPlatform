@@ -6,7 +6,7 @@ Optimized for Graph Execution via @tf.function.
 import os
 import time
 import logging
-from typing import Optional, Tuple, Dict, Any, List
+from typing import Optional, Tuple, Dict, Any, List, Callable
 
 import numpy as np
 import tensorflow as tf
@@ -107,20 +107,27 @@ class Trainer:
         self.target_network.set_weights(loaded.get_weights())
         self.logger.info(f"Model loaded from {path}")
 
-    def train(self, num_episodes: int, batch_size: int, mode: str = 'batch') -> None:
+    def train(self, num_episodes: int, batch_size: int, mode: str = 'batch', is_inference: bool = False, price_column: str = "close", stop_signal: Optional[Callable[[], bool]] = None) -> List[Dict[str, Any]]:
         # Ensure network is compiled (safeguard)
         if not hasattr(self.main_network, 'optimizer') or not self.main_network.optimizer:
             self.compile_networks()
 
+        all_history = []
+
         for ep in range(num_episodes):
+            if stop_signal and stop_signal():
+                self.logger.info("Training interrupted by stop signal.")
+                break
+
             episode_path = os.path.join(self.base_path, f"episode_{ep}")
             os.makedirs(episode_path, exist_ok=True)
             self.logger.info(
-                "Episode %s start | window=%s features=%s epsilon=%.4f",
+                "Episode %s start | window=%s features=%s epsilon=%.4f inference=%s",
                 ep,
                 self.env.window_size,
                 self.env.observation_space.shape[1],
-                self.epsilon
+                self.epsilon,
+                is_inference
             )
             
             # Reset Env
@@ -130,20 +137,30 @@ class Trainer:
             
             # For logging stats
             step_count = 0
-
+            
             while not done:
+                if stop_signal and stop_signal():
+                    self.logger.info("Training interrupted during episode step.")
+                    # Force exit cleanly
+                    break
+
                 action = self.epsilon_greedy_action(obs)
+                
                 next_obs, reward, done, info = self.env.step(action)
                 episode_reward += reward
 
-                self.replay_buffer.push(obs, action, reward, next_obs, done)
+                if not is_inference:
+                    self.replay_buffer.push(obs, action, reward, next_obs, done)
+                    
+                    # Learning step
+                    bs = 1 if mode == 'step' else batch_size
+                    if len(self.replay_buffer) >= bs:
+                        batch = self.replay_buffer.sample(bs)
+                        if batch:
+                            self._learn_from_batch(batch)
                 
-                # Learning step
-                bs = 1 if mode == 'step' else batch_size
-                if len(self.replay_buffer) >= bs:
-                    batch = self.replay_buffer.sample(bs)
-                    if batch:
-                        self._learn_from_batch(batch)
+                # OPTIMIZATION: Logic removed. We rely on EnvFlex internal logging.
+                # History is batch-retrieved at end of episode.
 
                 obs = next_obs
                 step_count += 1
@@ -160,8 +177,17 @@ class Trainer:
 
             # End of episode
             self.logger.info(f"Episode {ep} finished. Steps: {step_count} Reward: {episode_reward:.2f} Epsilon: {self.epsilon:.4f}")
-            # Save model at end of episode
-            self.save_model(os.path.join(episode_path, 'model.h5'))
+            
+            if is_inference:
+                # Optimized Retrieval
+                episode_history = self.env.get_inference_log(price_column=price_column)
+                all_history.extend(episode_history)
+
+        # Save final model after all episodes (only if Training)
+        if not is_inference:
+            self.save_model()
+            
+        return all_history
 
     def epsilon_greedy_action(self, state: np.ndarray) -> int:
         if np.random.rand() < self.epsilon:

@@ -25,6 +25,10 @@ const MlRewardFunctions = () => {
     // Structure: { [CurrentStatusLabel]: { [ActionLabel]: { next_state: Label, effect: Enum, update_price: Bool } } }
     const [transitionMatrix, setTransitionMatrix] = useState({});
 
+    // Force Exit / Termination Policy
+    // Structure: { [StatusLabel]: ActionLabel }
+    const [forceExitMap, setForceExitMap] = useState({});
+
     // Validation Context
     const [datasets, setDatasets] = useState([]);
     const [selectedDatasetId, setSelectedDatasetId] = useState('');
@@ -120,6 +124,7 @@ const MlRewardFunctions = () => {
                 } else {
                     setTransitionMatrix({});
                 }
+                setForceExitMap(execParams.force_exit_map || {});
                 setPriceColumn(execParams.price_column || 'close');
 
                 setEditMode(true); // Auto switch to edit/view mode
@@ -138,7 +143,10 @@ const MlRewardFunctions = () => {
         setStatusLabels("FLAT, LONG, SHORT");
         setStatusLabels("FLAT, LONG, SHORT");
         setSelectedDatasetId('');
+        setStatusLabels("FLAT, LONG, SHORT");
+        setSelectedDatasetId('');
         setTransitionMatrix({});
+        setForceExitMap({});
         setEditMode(true);
         setValidationResult(null);
         setShowConfig(false);
@@ -152,7 +160,8 @@ const MlRewardFunctions = () => {
                 reference_dataset_id: selectedDatasetId || null,
                 execution_params: {
                     transition_matrix: transitionMatrix,
-                    price_column: priceColumn
+                    price_column: priceColumn,
+                    force_exit_map: forceExitMap
                 }
             }
         };
@@ -480,6 +489,78 @@ const MlRewardFunctions = () => {
                                     </div>
                                 </div>
 
+                                {/* Force Exit (Termination Policy) Matrix */}
+                                <div className="bg-slate-900/30 border border-slate-700/50 rounded-xl p-0 animate-fade-in overflow-hidden mt-4">
+                                    <div className="flex items-center justify-between p-4 text-slate-300 font-medium text-sm bg-slate-800/30 border-b border-slate-700/50">
+                                        <div className="flex items-center gap-2">
+                                            <XCircle size={14} className="text-red-400" />
+                                            <span>Termination Policy (Force Exit)</span>
+                                        </div>
+                                    </div>
+                                    <div className="p-4 overflow-x-auto">
+                                        <p className="text-[10px] text-slate-500 mb-3">
+                                            Define automatic cleanup actions to execute if the episode ends while in a specific state.
+                                            This action is executed for PnL realization only, without affecting the reward.
+                                        </p>
+                                        <table className="w-full text-left border-collapse">
+                                            <thead>
+                                                <tr>
+                                                    <th className="p-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-700/50">Ending Status</th>
+                                                    <th className="p-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-700/50">Forced Action</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {statusList.map((status, idx) => {
+                                                    // Find mapped action (stored as Label key in state for UI simplicity)
+                                                    // In backend we convert StatusIndex -> ActionIndex
+                                                    // Here we map StatusLabel -> ActionLabel
+                                                    // Note: We need the index for the backend map, but here we work with labels.
+                                                    // Wait, `forceExitMap` state structure needs to be consistent. 
+                                                    // Let's use Index->Index in state to be safe? 
+                                                    // The backend Runner receives: {int(StatusIdx): int(ActionIdx)}.
+                                                    // The UI State `forceExitMap` receives whatever `execution_params` has.
+                                                    // Runner does: `raw_exit_map = execution_params.get("force_exit_map")`.
+                                                    // Let's store logic as `{ [StatusIndex]: ActionIndex }` in state to match runner expectation?
+                                                    // Or stick to `{ [StatusLabel]: ActionLabel }` and convert in payload?
+                                                    // The previous code in Runner: `force_exit_map = {int(k): int(v) ...}` implies keys are indexes.
+                                                    // So UI should store indexes.
+
+                                                    const statusIdx = idx; // statusList matches space definition
+                                                    const currentActionIdx = forceExitMap[statusIdx];
+
+                                                    return (
+                                                        <tr key={status} className="border-b border-slate-800/30 hover:bg-white/5 transition-colors">
+                                                            <td className="p-3 text-xs font-mono text-slate-400 border-r border-slate-800/50 bg-slate-900/20">
+                                                                {status} <span className="text-[10px] opacity-50">({idx})</span>
+                                                            </td>
+                                                            <td className="p-2">
+                                                                <select
+                                                                    className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-slate-300 focus:border-red-500 outline-none"
+                                                                    value={currentActionIdx !== undefined ? currentActionIdx : ""}
+                                                                    onChange={e => {
+                                                                        const val = e.target.value;
+                                                                        setForceExitMap(prev => {
+                                                                            const next = { ...prev };
+                                                                            if (val === "") delete next[statusIdx];
+                                                                            else next[statusIdx] = parseInt(val, 10);
+                                                                            return next;
+                                                                        });
+                                                                    }}
+                                                                >
+                                                                    <option value="">-- No Action --</option>
+                                                                    {actionList.map((act, aIdx) => (
+                                                                        <option key={act} value={aIdx}>{act} ({aIdx})</option>
+                                                                    ))}
+                                                                </select>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
                                 {/* Validation Output Console */}
                                 {validationResult && (
                                     <div className={`p-4 rounded-lg border text-sm animate-fade-in max-h-48 overflow-y-auto
@@ -606,7 +687,7 @@ const MlRewardFunctions = () => {
                     </div>
                 )}
             </div>
-        </div>
+        </div >
     );
 };
 

@@ -58,6 +58,7 @@ class TrainingRunner:
             except Exception:
                 pass
 
+
     def start_training_run(self, run_id: str, config: Dict[str, Any]):
         """
         Starts a high-performance RL training loop using EnvFlex and DQN Trainer.
@@ -155,7 +156,10 @@ class TrainingRunner:
             # 3. Environment Setup (Refactored)
             # Define Execution and Reward functions
             # In the future, these can be selected via 'training_params' from the UI
-            from core.strategies import StrategyLibrary
+            try:
+                from .core.strategies import StrategyLibrary
+            except ImportError:
+                from core.strategies import StrategyLibrary
             
             # Dynamic Loading or Fallback
             reward_fn = None
@@ -165,7 +169,11 @@ class TrainingRunner:
             reward_code = training_params.get("reward_code")
             if reward_code:
                 try:
-                    from core.dynamic_loader import DynamicRewardLoader
+                    try:
+                        from .core.dynamic_loader import DynamicRewardLoader
+                    except ImportError:
+                        from core.dynamic_loader import DynamicRewardLoader
+                        
                     logger.info(f"Loading dynamic reward function for Run {run_id}")
                     # Note: We need action/status labels for namespace generation
                     # We pass them to loader.
@@ -184,14 +192,28 @@ class TrainingRunner:
 
             # Check for FSM Execution Params
             execution_params = training_params.get("execution_params")
+            price_column = "close" # Default
+            force_exit_map = None
+            
             if execution_params and "transition_matrix" in execution_params:
                 try:
-                    from core.fsm_execution import FSMExecutionEngine
+                    try:
+                        from .core.fsm_execution import FSMExecutionEngine
+                    except ImportError:
+                        from core.fsm_execution import FSMExecutionEngine
+
                     logger.info(f"Loading FSM Execution Engine for Run {run_id}")
                     
                     status_labels = training_params.get("status_labels", ["FLAT", "LONG", "SHORT"])
                     transition_matrix = execution_params.get("transition_matrix", {})
                     price_column = execution_params.get("price_column", "close")
+                    
+                    # Extract and validate force_exit_map
+                    raw_exit_map = execution_params.get("force_exit_map", {})
+                    if raw_exit_map:
+                         # Convert keys/values to int (JSON keys are strings)
+                         force_exit_map = {int(k): int(v) for k, v in raw_exit_map.items()}
+
                     
                     engine = FSMExecutionEngine(
                         transition_matrix=transition_matrix,
@@ -216,8 +238,13 @@ class TrainingRunner:
                 action_labels=action_labels,
                 status_labels=training_params.get("status_labels", ["FLAT", "LONG", "SHORT"]),
                 initial_balance=training_params.get("initial_balance", 10000),
-                fees=training_params.get("fees", 0.0)
+                fees=training_params.get("fees", 0.0),
+                force_exit_map=force_exit_map
             )
+
+            # Determine Mode (Train vs Test)
+            split_config = config.get("split_config")
+            is_test_mode = split_config is not None and split_config.get("test") == 1.0
 
             # 4. Model Construction
             if not model_arch:
@@ -241,6 +268,12 @@ class TrainingRunner:
             # Dynamic Optimizer
             opt_name = training_params.get("optimizer", "Adam")
             lr = training_params.get("learning_rate", 0.001)
+            
+            # If TEST mode, cleaner to use dummy optimizer or none, but Keras model.compile usually needs one.
+            # We just won't call train_step with gradient tape updates if we refactor Trainer, 
+            # OR we set epsilon to 0 and rely on existing Trainer.
+            # For now, let's configure Trainer parameters for Inference.
+
             try:
                 # Attempt to get optimizer from Keras
                 optimizer_cls = getattr(tf.keras.optimizers, opt_name)
@@ -264,6 +297,21 @@ class TrainingRunner:
             default_log_root = PROJECT_ROOT / "var" / "logs" / "training"
             log_root = _resolve_root_path(os.getenv("ML_CORE_LOG_DIR"), default_log_root)
             log_dir = str(log_root / run_id)
+            
+            # Instantiate Trainer (Restoring missing logic)
+            epochs = training_params.get("epochs", 1)
+            num_episodes = training_params.get("num_episodes", 10)
+            batch_size = training_params.get("batch_size", 32)
+            
+            # If inference mode, force epsilon=0
+            epsilon_start = training_params.get("epsilon_start", 1.0) if not is_test_mode else 0.0
+            epsilon_end = training_params.get("epsilon_end", 0.05) if not is_test_mode else 0.0
+            
+            # Ensure epsilon_decay_steps is a valid int
+            epsilon_decay_steps = training_params.get("epsilon_decay_steps")
+            if epsilon_decay_steps is None:
+                epsilon_decay_steps = 1000
+            
             trainer = Trainer(
                 env=env,
                 main_network=model,
@@ -271,25 +319,70 @@ class TrainingRunner:
                 loss_fn=loss_fn,
                 gamma=training_params.get("gamma", 0.99),
                 tau=training_params.get("tau", 0.005),
-                epsilon_start=training_params.get("epsilon_start", 1.0),
-                epsilon_end=training_params.get("epsilon_end", 0.01),
-                epsilon_decay_steps=training_params.get("epsilon_decay_steps") if training_params.get("epsilon_decay_steps") is not None else 1000,
+                epsilon_start=epsilon_start,
+                epsilon_end=epsilon_end,
+                epsilon_decay_steps=epsilon_decay_steps,
                 log_dir=log_dir,
-                training_name=run_id,
-                epochs=training_params.get("epochs", 5),
-                log_every_steps=training_params.get("log_every_steps", 2000)
+                training_name=f"run_{run_id}",
+                epochs=epochs,
+                log_every_steps=training_params.get("log_every_steps", 1000)
             )
             self.trainer = trainer
-
-            # 6. Execution
-            logger.info(f"Starting actual training for {run_id}...")
-            # We wrap the trainer call to allow interruption
-            num_episodes = training_params.get("epochs", 5)
-            batch_size = training_params.get("batch_size", 32)
             
+            # [NEW] Load pre-trained model if specified (Backtest Mode)
+            load_model_path = config.get("load_model_path")
+            logger.info(f"Runner Config - load_model_path: {load_model_path}")
+            
+            if load_model_path:
+                if os.path.exists(load_model_path):
+                    logger.info(f"Loading pre-trained model from: {load_model_path}")
+                    try:
+                        trainer.load_model(load_model_path)
+                    except Exception as e:
+                        logger.error(f"Failed to load model: {e}")
+                        self._set_status(run_id, "FAILED")
+                        return
+                else:
+                    logger.warning(f"Model path specified but file not found: {load_model_path}")
+                    # Should we fail here? Yes, because backtest on random weights is useless.
+                    self._set_status(run_id, "FAILED") 
+                    return
+
             # Note: The trainer.train loop is self-contained. 
             # In a production env, we'd hook into step/episode callbacks for status updates.
-            trainer.train(num_episodes=num_episodes, batch_size=batch_size)
+            # We pass a lambda checking self.running for graceful stop.
+            history = trainer.train(
+                num_episodes=num_episodes, 
+                batch_size=batch_size, 
+                is_inference=is_test_mode,
+                price_column=price_column,
+                stop_signal=lambda: not self.running
+            )
+            
+            # [NEW] Record Model Path for future backtests
+            if not is_test_mode:
+                # Trainer saves to model.h5 inside its own timestamped subdirectory (base_path)
+                # We must use that exact path.
+                if hasattr(trainer, 'base_path'):
+                     model_path = os.path.abspath(os.path.join(trainer.base_path, 'model.h5'))
+                else:
+                     # Fallback if Trainer internal changes
+                     model_path = os.path.abspath(os.path.join(log_dir, 'model.h5'))
+                
+                self._update_run_metrics(run_id, {"model_path": model_path})
+
+            if is_test_mode and history:
+                import json
+                history_path = os.path.join(log_dir, "inference_history.json")
+                try:
+                    with open(history_path, 'w') as f:
+                        json.dump(history, f, indent=2)
+                    logger.info(f"Inference history saved to {history_path}")
+                    
+                    # Store path in metrics for UI/Reconstruction to find
+                    self._update_run_metrics(run_id, {"inference_history_path": history_path})
+                except Exception as e:
+                     logger.error(f"Failed to save inference history: {e}")
 
             logger.info(f"Training Completed for Run {run_id}")
             self._finalize_run(run_id, status=RunStatus.COMPLETED)
@@ -398,6 +491,21 @@ class TrainingRunner:
             iter_obj.status = status.value if hasattr(status, 'value') else status
             iter_obj.end_utc = datetime.utcnow()
             self.db.commit()
+
+    def _update_run_metrics(self, run_id: str, new_metrics: Dict[str, Any]):
+        try:
+            iter_obj = self.db.query(MlIteration).filter(MlIteration.iteration_id == run_id).first()
+            if iter_obj:
+                metrics = iter_obj.metrics_json or {}
+                metrics.update(new_metrics)
+                # Assign back to trigger update (SQLAlchemy dirty check might need deepcopy or reassignment)
+                iter_obj.metrics_json = dict(metrics) 
+                self.db.commit()
+                # [DEBUG] Verify persistence
+                self.db.refresh(iter_obj)
+                logger.info(f"Updated metrics for {run_id}. Current state: {iter_obj.metrics_json}")
+        except Exception as e:
+            logger.error(f"Failed to update metrics for {run_id}: {e}")
 
     def stop(self):
         self.running = False

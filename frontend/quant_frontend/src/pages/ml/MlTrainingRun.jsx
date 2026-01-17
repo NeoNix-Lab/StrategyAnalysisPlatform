@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Play, Activity, Clock, ArrowLeft, Terminal, RefreshCw } from 'lucide-react';
+import { Play, Activity, Clock, ArrowLeft, Terminal, RefreshCw, BarChart2 } from 'lucide-react';
 import TrainingCharts from './components/TrainingCharts';
 
 const MlTrainingRun = () => {
@@ -29,6 +29,8 @@ const MlTrainingRun = () => {
     const [historyMetrics, setHistoryMetrics] = useState([]);
     const [equityData, setEquityData] = useState([]);
 
+    const [hasInferenceHistory, setHasInferenceHistory] = useState(false);
+
     const fetchStatus = async () => {
         try {
             // Fetch specific iteration details (including metrics)
@@ -51,6 +53,9 @@ const MlTrainingRun = () => {
                 }
                 if (rawMetrics.history) {
                     setHistoryMetrics(rawMetrics.history);
+                }
+                if (rawMetrics.inference_history_path) {
+                    setHasInferenceHistory(true);
                 }
             }
 
@@ -159,13 +164,25 @@ const MlTrainingRun = () => {
         setShowBacktestModal(true);
     };
 
+    const handleViewResults = async () => {
+        try {
+            const res = await fetch(`http://localhost:8000/api/ml/studio/iterations/${iterationId}/reconstruct`, { method: 'POST' });
+            if (!res.ok) throw new Error("Reconstruction failed");
+            const data = await res.json();
+            window.open(`/strategies/runs/${data.run_id}`, '_blank');
+        } catch (err) {
+            alert("Failed to view results: " + err.message);
+        }
+    };
+
     const handleRunBacktest = async () => {
         if (!iteration) return;
         setIsSubmittingTest(true);
         try {
             const body = {
                 target_dataset_id: backtestDatasetId,
-                source_iteration_id: iterationId
+                source_iteration_id: iterationId,
+                split_config: { train: 0, test: 1.0, work: 0 } // Full range or custom
             };
 
             const res = await fetch(`http://localhost:8000/api/ml/studio/test`, {
@@ -196,25 +213,6 @@ const MlTrainingRun = () => {
                 <div className="absolute inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
                     <div className="bg-slate-900 border border-slate-700 p-6 rounded-xl w-full max-w-md shadow-2xl">
                         <h3 className="text-xl font-bold text-slate-200 mb-4">Run Backtest</h3>
-                        <p className="text-slate-400 text-sm mb-6">
-                            This will run the trained model (frozen) on the selected dataset to evaluate performance.
-                            The results will be saved as a Strategy Run.
-                        </p>
-
-                        <div className="mb-4">
-                            <label className="block text-xs uppercase text-slate-500 font-bold mb-2">Target Dataset ID</label>
-                            <input
-                                type="text"
-                                value={backtestDatasetId}
-                                onChange={(e) => setBacktestDatasetId(e.target.value)}
-                                className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-slate-200 font-mono text-sm focus:border-blue-500 outline-none"
-                                placeholder="Enter Dataset ID..."
-                            />
-                            <p className="text-[10px] text-slate-500 mt-1">
-                                Currently manually input ID. Future: Dropdown.
-                            </p>
-                        </div>
-
                         <div className="flex justify-end gap-3 mt-8">
                             <button
                                 onClick={() => setShowBacktestModal(false)}
@@ -231,7 +229,7 @@ const MlTrainingRun = () => {
                             </button>
                         </div>
                     </div>
-                </div>
+                </div >
             )}
 
             <button
@@ -322,6 +320,15 @@ const MlTrainingRun = () => {
                                     <Activity size={16} /> Run Backtest
                                 </button>
                             )}
+
+                            {status === 'COMPLETED' && hasInferenceHistory && (
+                                <button
+                                    onClick={handleViewResults}
+                                    className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 shadow-lg shadow-emerald-500/20 transition-all ml-2"
+                                >
+                                    <BarChart2 size={16} /> View Results
+                                </button>
+                            )}
                         </>
                     )}
 
@@ -337,12 +344,14 @@ const MlTrainingRun = () => {
             </header>
 
             {/* Error Banner */}
-            {errorMsg && (
-                <div className="mb-6 bg-red-500/10 border border-red-500/50 p-4 rounded-xl text-red-200 font-mono text-sm overflow-x-auto whitespace-pre-wrap">
-                    <strong className="block text-red-400 mb-1">CRITICAL ERROR:</strong>
-                    {errorMsg}
-                </div>
-            )}
+            {
+                errorMsg && (
+                    <div className="mb-6 bg-red-500/10 border border-red-500/50 p-4 rounded-xl text-red-200 font-mono text-sm overflow-x-auto whitespace-pre-wrap">
+                        <strong className="block text-red-400 mb-1">CRITICAL ERROR:</strong>
+                        {errorMsg}
+                    </div>
+                )
+            }
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
                 {/* Main Chart Area */}
@@ -404,7 +413,7 @@ const MlTrainingRun = () => {
                     </div>
                 </div>
             </div>
-        </div>
+        </div >
     );
 };
 

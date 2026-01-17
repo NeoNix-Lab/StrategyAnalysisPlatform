@@ -18,6 +18,7 @@ from quant_shared.models.models import (
     MlTrainingSession, MlModelArchitecture, MlRewardFunction, 
     MlTrainingProcess, MlIteration
 )
+from services.reconstruction import ArtifactReconstructor
 
 router = APIRouter()
 logger = logging.getLogger("ml_studio")
@@ -153,6 +154,13 @@ class IterationResponse(BaseModel):
     session_id: str
     dataset_id: str
     status: str
+    name: Optional[str] = None
+    created_utc: Optional[datetime] = None
+    start_utc: Optional[datetime] = None
+    end_utc: Optional[datetime] = None
+    metrics_json: Optional[Any] = None
+    split_config_json: Optional[Any] = None
+    logs_json: Optional[Any] = None
     
     class Config:
         from_attributes = True
@@ -633,11 +641,21 @@ def run_iteration(iid: str, db: Session = Depends(get_db)):
         if isinstance(parsed_layers, list):
             model_arch = parsed_layers
 
+    # [FIX] Extract split_config for Backtest Mode
+    split_config = None
+    if iteration.split_config_json:
+        split_config = parse_json_like(iteration.split_config_json)
+
     config = {
         "dataset_id": iteration.dataset_id,
         "training_params": training_params,
-        "model_architecture": model_arch
+        "model_architecture": model_arch,
+        "split_config": split_config
     }
+    
+    # [FIX] If split_config contains model path (Backtest Mode), pass it to config root
+    if split_config and "load_model_path" in split_config:
+        config["load_model_path"] = split_config["load_model_path"]
 
     ml_core_url = os.getenv("ML_CORE_URL", "http://localhost:5000")
     try:
@@ -694,3 +712,98 @@ def update_iteration_logging(iid: str, config: IterationLoggingConfig):
 def get_iteration_logs(iid: str, limit: int = 500):
     entries = get_logs(filter_term=iid, limit=limit)
     return [f"{e.get('timestamp')} [{e.get('level')}] {e.get('message')}" for e in entries]
+
+@router.post("/iterations/{iteration_id}/reconstruct")
+def reconstruct_backtest(iteration_id: str, db: Session = Depends(get_db)):
+    """
+    Trigger post-processing reconstruction of an ML Backtest into a standard StrategyRun.
+    """
+    try:
+        reconstructor = ArtifactReconstructor(db)
+        strategy_run = reconstructor.reconstruct_from_iteration(iteration_id)
+        if not strategy_run:
+             raise HTTPException(status_code=404, detail="No history found to reconstruct")
+             
+        return {"run_id": strategy_run.run_id}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Reconstruction error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Reconstruction failed: {str(e)}")
+
+class TestRunRequest(BaseModel):
+    target_dataset_id: str
+    source_iteration_id: str
+    split_config: Dict[str, float]
+
+@router.post("/test", response_model=IterationResponse)
+def start_test_run(req: TestRunRequest, db: Session = Depends(get_db)):
+    """
+    Creates a new Iteration based on an existing one, but targeting a specific dataset
+    and configured for INFERENCE (Test Mode).
+    """
+    # 1. Get Source Iteration to clone basic details
+    source_iter = db.query(MlIteration).filter(MlIteration.iteration_id == req.source_iteration_id).first()
+    if not source_iter:
+        raise HTTPException(404, "Source iteration not found")
+        
+    # 2. Create New Iteration linked to same Session
+    new_iter_id = str(uuid.uuid4())
+    
+    # 3. Prepare Config with Model Path from Source
+    # Source iteration should have 'model_path' in its metrics if it completed successfully.
+    load_model_path = None
+    if source_iter.metrics_json:
+        try:
+            metrics = json.loads(source_iter.metrics_json) if isinstance(source_iter.metrics_json, str) else source_iter.metrics_json
+            logger.info(f"Source Metrics for {source_iter.iteration_id}: {metrics}")
+            if isinstance(metrics, dict):
+                load_model_path = metrics.get("model_path")
+                logger.info(f"Extracted model_path: {load_model_path}")
+        except Exception as e:
+            logger.error(f"Error parsing metrics for {source_iter.iteration_id}: {e}")
+            pass
+            
+    # We still need to construct the training_params (from session -> process like run_iteration)
+    # But for now, we rely on run_iteration logic or we need to duplicate it/call it?
+    # Actually, start_test_run calls run_iteration(new_iter_id, db). 
+    # But run_iteration fetches config fresh from Session/Process.
+    # It doesn't know about load_model_path unless we save it to the iteration or pass it somehow.
+    
+    # PROBLEM: run_iteration builds config from DB Session. It doesn't look at "source iteration".
+    # FIX: We should store 'load_model_path' in the NEW iteration's metadata or split_config?
+    # Or cleaner: explicitly pass overrides to run_iteration? 
+    # Current run_iteration doesn't take overrides.
+    
+    # Strategy: Store load_model_path in the split_config JSON of the new iteration!
+    # runner.py receives split_config, but currently ignores extra keys? 
+    # No, runner.py receives config dict. ml_studio.run_iteration builds it.
+    
+    # Let's modify run_iteration to look for 'load_model_path' in split_config_json if present?
+    # Or better: ml_studio.run_iteration should check if iteration.split_config contains "load_model_path".
+    
+    # Revised Step 3:
+    if load_model_path:
+        if req.split_config:
+            req.split_config["load_model_path"] = load_model_path
+        else:
+            req.split_config = {"train": 0, "test": 1.0, "load_model_path": load_model_path}
+
+    split_json = json.dumps(req.split_config) if req.split_config else None
+    
+    new_iter = MlIteration(
+        iteration_id=new_iter_id,
+        session_id=source_iter.session_id,
+        dataset_id=req.target_dataset_id,
+        name=f"Backtest of {source_iter.name}", 
+        split_config_json=split_json,
+        status="PENDING"
+    )
+    db.add(new_iter)
+    db.commit()
+    db.refresh(new_iter)
+    
+    # Trigger Run
+    run_iteration(new_iter_id, db)
+    
+    return new_iter
