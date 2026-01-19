@@ -14,6 +14,35 @@ class StrategyLibrary:
     # --- EXECUTION LOGIC (The "Physics" / Appendix) ---
     
     @staticmethod
+    def _get_price(env, default: float = 0.0) -> float:
+        row = getattr(env, "data", None)
+        if row is not None:
+            if hasattr(row, "get"):
+                val = row.get("close")
+                if val is None:
+                    val = row.get("price")
+                if val is not None:
+                    try:
+                        return float(val)
+                    except (TypeError, ValueError):
+                        pass
+            if hasattr(row, "__getitem__"):
+                try:
+                    return float(row["close"])
+                except Exception:
+                    pass
+
+        dataset = getattr(env, "dataset", None)
+        step = getattr(env, "current_step", None)
+        if dataset is not None and step is not None:
+            try:
+                return float(dataset.at[step, "close"])
+            except Exception:
+                pass
+
+        return float(default)
+
+    @staticmethod
     def simple_long_short_execution(env, action: int):
         """
         Standard execution logic for FLAT, LONG, SHORT.
@@ -31,7 +60,7 @@ class StrategyLibrary:
         """
         # Read current market data
         # Assuming Dataframe has 'close'
-        current_price = env.data.at[env.current_step, 'close']
+        current_price = StrategyLibrary._get_price(env, default=0.0)
         
         status = env._current_status
         fees = env.fees
@@ -91,7 +120,7 @@ class StrategyLibrary:
         """
         Calculates reward based on Realized PnL (on close) and small Unrealized PnL (for holding).
         """
-        current_price = env.data.at[env.current_step, 'close']
+        current_price = StrategyLibrary._get_price(env, default=0.0)
         status = env._current_status
         reward = 0.0
         

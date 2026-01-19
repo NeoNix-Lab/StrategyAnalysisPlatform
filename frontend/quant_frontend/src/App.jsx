@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate, Outlet } from 'react-router-dom'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import Layout from './components/layout/Layout'
 import LoginPage from './pages/auth/LoginPage'
 import RegisterPage from './pages/auth/RegisterPage'
@@ -16,6 +16,7 @@ import StressTest from './pages/StressTest'
 import DataManagement from './pages/DataManagement'
 import Settings from './pages/Settings'
 import Comparison from './pages/Comparison'
+import Connections from './pages/Connections'
 
 import MlDashboard from './pages/ml/MlDashboard'
 import MlCompose from './pages/ml/MlCompose'
@@ -40,43 +41,45 @@ function App() {
                 <Route path="/register" element={<RegisterPage />} />
 
                 {/* Private Routes */}
-                {/* Main Application Routes (Auth removed temporarily) */}
-                <Route path="/" element={<Layout />}>
-                    <Route index element={<Navigate to="/dashboard" replace />} />
+                <Route element={<PrivateRoutes />}>
+                    <Route path="/" element={<Layout />}>
+                        <Route index element={<Navigate to="/dashboard" replace />} />
 
-                    {/* --- ANALYST WORKSPACE --- */}
-                    <Route path="dashboard" element={<Dashboard />} />
-                    <Route path="executions" element={<Executions />} />
-                    <Route path="trades" element={<Trades />} />
-                    <Route path="trades/:tradeId" element={<TradeDetails />} />
-                    <Route path="trades/:tradeId/replay" element={<TradeReplayPage />} />
+                        {/* --- ANALYST WORKSPACE --- */}
+                        <Route path="dashboard" element={<Dashboard />} />
+                        <Route path="executions" element={<Executions />} />
+                        <Route path="trades" element={<Trades />} />
+                        <Route path="trades/:tradeId" element={<TradeDetails />} />
+                        <Route path="trades/:tradeId/replay" element={<TradeReplayPage />} />
 
-                    <Route path="analysis/setups" element={<Setups />} />
-                    <Route path="analysis/reports" element={<Reports />} />
-                    <Route path="analysis/efficiency" element={<Efficiency />} />
-                    <Route path="analysis/regime" element={<Regime />} />
-                    <Route path="analysis/stress-test" element={<StressTest />} />
-                    <Route path="analysis/compare" element={<Comparison />} />
+                        <Route path="analysis/setups" element={<Setups />} />
+                        <Route path="analysis/reports" element={<Reports />} />
+                        <Route path="analysis/efficiency" element={<Efficiency />} />
+                        <Route path="analysis/regime" element={<Regime />} />
+                        <Route path="analysis/stress-test" element={<StressTest />} />
+                        <Route path="analysis/compare" element={<Comparison />} />
 
 
-                    {/* --- QUANT LAB WORKSPACE --- */}
-                    <Route path="ml" element={<Navigate to="/ml/studio" replace />} />
+                        {/* --- QUANT LAB WORKSPACE --- */}
+                        <Route path="ml" element={<Navigate to="/ml/studio" replace />} />
 
-                    {/* Wrapped Studio Routes with Layout */}
-                    <Route path="ml/studio" element={<MlStudioLayout />}>
-                        <Route index element={<MlDashboard />} />
-                        <Route path="compose" element={<MlCompose />} />
-                        <Route path="registry" element={<MlModelRegistry />} />
-                        <Route path="rewards" element={<MlRewardFunctions />} />
-                        <Route path="models" element={<MlModelArchitectures />} />
-                        <Route path="processes" element={<MlTrainingProcesses />} />
-                        <Route path="session/:sessionId" element={<MlSessionDetail />} />
-                        <Route path="session/:sessionId/run/:iterationId" element={<MlTrainingRun />} />
+                        {/* Wrapped Studio Routes with Layout */}
+                        <Route path="ml/studio" element={<MlStudioLayout />}>
+                            <Route index element={<MlDashboard />} />
+                            <Route path="compose" element={<MlCompose />} />
+                            <Route path="registry" element={<MlModelRegistry />} />
+                            <Route path="rewards" element={<MlRewardFunctions />} />
+                            <Route path="models" element={<MlModelArchitectures />} />
+                            <Route path="processes" element={<MlTrainingProcesses />} />
+                            <Route path="session/:sessionId" element={<MlSessionDetail />} />
+                            <Route path="session/:sessionId/run/:iterationId" element={<MlTrainingRun />} />
+                        </Route>
+
+                        <Route path="datasets" element={<Datasets />} />
+                        <Route path="connections" element={<Connections />} />
+                        <Route path="data" element={<DataManagement />} />
+                        <Route path="settings" element={<Settings />} />
                     </Route>
-
-                    <Route path="datasets" element={<Datasets />} />
-                    <Route path="data" element={<DataManagement />} />
-                    <Route path="settings" element={<Settings />} />
                 </Route>
 
                 {/* Catch all */}

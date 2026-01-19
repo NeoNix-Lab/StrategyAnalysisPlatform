@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import axios from 'axios'
+import api from '../api/axios'
 import { ArrowLeft, TrendingUp, TrendingDown, Clock, DollarSign } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, ReferenceDot } from 'recharts'
 
@@ -17,7 +17,7 @@ const TradeDetails = () => {
             try {
                 setLoading(true)
                 // 1. Get Trade Details
-                const tradeRes = await axios.get(`http://127.0.0.1:8000/api/trades/${tradeId}`)
+                const tradeRes = await api.get(`/trades/${tradeId}`)
                 const tradeData = tradeRes.data
                 setTrade(tradeData)
 
@@ -31,7 +31,7 @@ const TradeDetails = () => {
                 const startTime = new Date(entryTime.getTime() - buffer).toISOString()
                 const endTime = new Date(exitTime.getTime() + buffer).toISOString()
 
-                const barsRes = await axios.get(`http://127.0.0.1:8000/api/bars/`, {
+                const barsRes = await api.get(`/bars/`, {
                     params: {
                         symbol: tradeData.symbol,
                         start_time: startTime,

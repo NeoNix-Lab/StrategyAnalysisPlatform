@@ -1,8 +1,20 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Play, Activity, Clock, ArrowLeft, Terminal, RefreshCw, BarChart2 } from 'lucide-react';
 import TrainingCharts from './components/TrainingCharts';
+import RunConfiguration from './components/RunConfiguration';
+import api from '../../api/axios';
+
+const parseLogLine = (line) => {
+    const match = line.match(/^(.+?)\s+\[([A-Z]+)\]\s+(.+)$/);
+    if (!match) {
+        return { timestamp: null, level: 'INFO', message: line, raw: line };
+    }
+    const [, timestamp, level, message] = match;
+    const cleanedMessage = message.replace(/^\[[^\]]+\]\s*/, '');
+    return { timestamp, level, message: cleanedMessage, raw: line };
+};
 
 const MlTrainingRun = () => {
     const { sessionId, iterationId } = useParams();
@@ -31,13 +43,106 @@ const MlTrainingRun = () => {
 
     const [hasInferenceHistory, setHasInferenceHistory] = useState(false);
 
+    // View State
+    const [activeTab, setActiveTab] = useState('charts'); // 'charts' | 'config'
+
+    const toNumber = (value) => {
+        if (value === undefined || value === null) return null;
+        const raw = String(value).trim().toLowerCase();
+        if (raw === 'n/a' || raw === 'na' || raw === '') return null;
+        const parsed = Number.parseFloat(raw);
+        return Number.isFinite(parsed) ? parsed : null;
+    };
+
+    const parsedLogMetrics = useMemo(() => {
+        if (!logs.length) return [];
+
+        const metricsByEpisode = new Map();
+        const progressPattern = /Episode\s+(\d+)\s+progress\s+\|\s+step=(\d+)\s+avg_reward=([-\d.]+)\s+epsilon=([-\d.]+)\s+balance=([-\d.]+|n\/a)/i;
+        const finishedPattern = /Episode\s+(\d+)\s+finished\.?\s+Steps:\s+(\d+)\s+Reward:\s+([-\d.]+)\s+Epsilon:\s+([-\d.]+)\s+Balance:\s+([-\d.]+|n\/a)/i;
+        const lossPattern = /loss(?:=|:)\s*([-\d.]+)/i;
+
+        const updateEpisode = (epoch, updates) => {
+            const existing = metricsByEpisode.get(epoch) || { epoch };
+            const merged = { ...existing };
+            Object.entries(updates).forEach(([key, value]) => {
+                if (value !== null && value !== undefined) {
+                    merged[key] = value;
+                }
+            });
+            metricsByEpisode.set(epoch, merged);
+        };
+
+        logs.forEach((line) => {
+            const parsed = parseLogLine(line);
+            const message = parsed.message || '';
+
+            let match = progressPattern.exec(message);
+            if (match) {
+                const epoch = Number.parseInt(match[1], 10);
+                const step = Number.parseInt(match[2], 10);
+                const avgReward = toNumber(match[3]);
+                const epsilon = toNumber(match[4]);
+                const balance = toNumber(match[5]);
+                const lossMatch = lossPattern.exec(message);
+                const loss = lossMatch ? toNumber(lossMatch[1]) : null;
+                updateEpisode(epoch, {
+                    epoch,
+                    reward: avgReward,
+                    epsilon,
+                    length: step,
+                    balance,
+                    loss
+                });
+                return;
+            }
+
+            match = finishedPattern.exec(message);
+            if (match) {
+                const epoch = Number.parseInt(match[1], 10);
+                const steps = Number.parseInt(match[2], 10);
+                const reward = toNumber(match[3]);
+                const epsilon = toNumber(match[4]);
+                const balance = toNumber(match[5]);
+                const lossMatch = lossPattern.exec(message);
+                const loss = lossMatch ? toNumber(lossMatch[1]) : null;
+                updateEpisode(epoch, {
+                    epoch,
+                    reward,
+                    epsilon,
+                    length: steps,
+                    balance,
+                    loss
+                });
+            }
+        });
+
+        return Array.from(metricsByEpisode.values()).sort((a, b) => a.epoch - b.epoch);
+    }, [logs]);
+
+    const trainerLogs = useMemo(() => {
+        if (!logs.length) return [];
+        const markers = [
+            'Training init |',
+            'Episode ',
+            'Model saved',
+            'Model loaded',
+            'Training interrupted'
+        ];
+        return logs
+            .filter((line) => markers.some((marker) => line.includes(marker)))
+            .map(parseLogLine);
+    }, [logs]);
+
+    const trainerLogLimit = verbose ? 30 : 12;
+    const trainerLogSlice = trainerLogs.slice(-trainerLogLimit);
+    const chartMetrics = historyMetrics.length ? historyMetrics : parsedLogMetrics;
+
     const fetchStatus = async () => {
         try {
             // Fetch specific iteration details (including metrics)
-            const res = await fetch(`http://localhost:8000/api/ml/studio/iterations/${iterationId}`);
-            if (!res.ok) throw new Error("Failed to fetch iteration");
-
-            const iter = await res.json();
+            const res = await api.get(`/ml/studio/iterations/${iterationId}`);
+            const iter = res.data;
             setIteration(iter);
             setStatus(iter.status);
 
@@ -59,24 +164,19 @@ const MlTrainingRun = () => {
                 }
             }
 
-            // [NEW] Fetch Metrics (Equity Curve) - SUSPENDED (Endpoint missing)
-            /*
-            try {
-                const metricsRes = await fetch(`http://localhost:8000/api/metrics/run/${iterationId}`);
-                if (metricsRes.ok) {
-                    const metrics = await metricsRes.json();
-                    if (metrics.equity_curve) {
-                        setEquityData(metrics.equity_curve);
-                    }
-                }
-            } catch (ignore) { console.warn("Metrics fetch failed", ignore); }
-            */
-
             // Fetch Logs from dedicated endpoint
-            const logsRes = await fetch(`http://localhost:8000/api/ml/studio/iterations/${iterationId}/logs`);
-            if (logsRes.ok) {
-                const logsData = await logsRes.json();
-                setLogs(logsData);
+            const logsRes = await api.get(`/ml/studio/iterations/${iterationId}/logs`);
+            setLogs(logsRes.data);
+
+            // Fetch structured metrics from backend (preferred over log parsing)
+            try {
+                const metricsRes = await api.get(`/ml/studio/iterations/${iterationId}/metrics`);
+                const history = metricsRes?.data?.history;
+                if (Array.isArray(history) && history.length > 0) {
+                    setHistoryMetrics(history);
+                }
+            } catch (metricsErr) {
+                console.error(metricsErr);
             }
         } catch (err) {
             console.error(err);
@@ -88,13 +188,10 @@ const MlTrainingRun = () => {
         setLogVerbositySaving(true);
         setLogVerbosityStatus(null);
         try {
-            const res = await fetch(`http://localhost:8000/api/ml/studio/iterations/${iterationId}/logging`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ log_every_steps: steps })
+            const res = await api.post(`/ml/studio/iterations/${iterationId}/logging`, {
+                log_every_steps: steps
             });
-            if (!res.ok) throw new Error("Failed to update logging");
-            const data = await res.json();
+            const data = res.data;
             if (data && typeof data.log_every_steps === 'number') {
                 setLogEverySteps(data.log_every_steps);
             }
@@ -115,6 +212,7 @@ const MlTrainingRun = () => {
         setHistoryMetrics([]);
         setEquityData([]);
         setErrorMsg(null);
+        setActiveTab('charts');
         fetchStatus(); // Initial fetch
         setLogVerbosityStatus(null);
     }, [sessionId, iterationId]);
@@ -133,9 +231,10 @@ const MlTrainingRun = () => {
 
     const handleStart = async () => {
         try {
-            await fetch(`http://localhost:8000/api/ml/studio/iterations/${iterationId}/run`, { method: 'POST' });
+            await api.post(`/ml/studio/iterations/${iterationId}/run`);
             setStatus('RUNNING'); // Optimistic update
             setLogs(prev => [...prev, "Command sent: Start Training..."]);
+            setActiveTab('charts'); // Switch to charts on start
         } catch (err) {
             console.error(err);
         }
@@ -143,7 +242,7 @@ const MlTrainingRun = () => {
 
     const handleStop = async () => {
         try {
-            await fetch(`http://localhost:8000/api/ml/studio/iterations/${iterationId}/stop`, { method: 'POST' });
+            await api.post(`/ml/studio/iterations/${iterationId}/stop`);
             // Don't optimistic update status here, wait for poll (or do CANCELLING)
             setLogs(prev => [...prev, "Command sent: Stop Training..."]);
         } catch (err) {
@@ -166,9 +265,8 @@ const MlTrainingRun = () => {
 
     const handleViewResults = async () => {
         try {
-            const res = await fetch(`http://localhost:8000/api/ml/studio/iterations/${iterationId}/reconstruct`, { method: 'POST' });
-            if (!res.ok) throw new Error("Reconstruction failed");
-            const data = await res.json();
+            const res = await api.post(`/ml/studio/iterations/${iterationId}/reconstruct`);
+            const data = res.data;
             window.open(`/strategies/runs/${data.run_id}`, '_blank');
         } catch (err) {
             alert("Failed to view results: " + err.message);
@@ -185,15 +283,8 @@ const MlTrainingRun = () => {
                 split_config: { train: 0, test: 1.0, work: 0 } // Full range or custom
             };
 
-            const res = await fetch(`http://localhost:8000/api/ml/studio/test`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
-            });
-
-            if (!res.ok) throw new Error("Failed to start backtest");
-
-            const newRun = await res.json();
+            const res = await api.post(`/ml/studio/test`, body);
+            const newRun = res.data;
             // Navigate to the new Test Run (which is just an iteration)
             navigate(`/ml/studio/session/${iteration.session_id}/run/${newRun.iteration_id}`);
         } catch (err) {
@@ -354,26 +445,103 @@ const MlTrainingRun = () => {
             }
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
-                {/* Main Chart Area */}
+                {/* Main Content Area */}
                 <div className="lg:col-span-2 bg-slate-800 rounded-xl border border-slate-700 p-4 flex flex-col">
-                    <h3 className="text-sm font-medium text-slate-400 mb-4 flex items-center gap-2">
-                        <Activity size={16} className="text-blue-400" />
-                        Live Metrics
-                    </h3>
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
+                            <Activity size={16} className={activeTab === 'charts' ? "text-blue-400" : "text-slate-500"} />
+                            <span className={activeTab === 'charts' ? "text-slate-200" : ""}>Live Metrics</span>
+                        </h3>
 
-                    {/* Charts Component handles empty states internally */}
-                    <div className="flex-1 min-h-0 relative">
-                        <TrainingCharts data={historyMetrics} equityData={equityData} />
+                        <div className="flex p-1 bg-slate-900 rounded-lg border border-slate-700">
+                            <button
+                                onClick={() => setActiveTab('charts')}
+                                className={`px-3 py-1 text-xs font-medium rounded transition-colors ${activeTab === 'charts' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-400 hover:text-slate-300'
+                                    }`}
+                            >
+                                Charts
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('config')}
+                                className={`px-3 py-1 text-xs font-medium rounded transition-colors ${activeTab === 'config' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-400 hover:text-slate-300'
+                                    }`}
+                            >
+                                Configuration
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Content */}
+                    <div className="flex-1 min-h-0 relative overflow-y-auto custom-scrollbar">
+                        {activeTab === 'charts' ? (
+                            <div className="flex flex-col gap-4">
+                                <TrainingCharts data={chartMetrics} equityData={equityData} />
+                                <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-4">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-slate-400 font-semibold">
+                                            <Terminal size={14} className="text-purple-400" />
+                                            Trainer Feed
+                                        </div>
+                                        <div className="text-[10px] text-slate-500">
+                                            {trainerLogs.length === 0
+                                                ? 'No trainer logs yet'
+                                                : `Showing ${trainerLogSlice.length} of ${trainerLogs.length}`}
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-2 max-h-56 overflow-y-auto custom-scrollbar">
+                                        {trainerLogSlice.length === 0 && (
+                                            <div className="text-xs text-slate-600 italic">Waiting for trainer output...</div>
+                                        )}
+                                        {trainerLogSlice.map((entry, idx) => {
+                                            const level = entry.level || 'INFO';
+                                            const isError = level === 'ERROR' || entry.message.includes('Exception') || entry.message.includes('Traceback');
+                                            const timeLabel = entry.timestamp
+                                                ? new Date(entry.timestamp).toLocaleTimeString()
+                                                : '--:--:--';
+                                            return (
+                                                <div
+                                                    key={`${idx}-${entry.raw}`}
+                                                    className={`flex items-start gap-3 rounded-lg border px-3 py-2 ${isError
+                                                        ? 'border-red-500/30 bg-red-900/10'
+                                                        : 'border-slate-800 bg-slate-950/60'
+                                                        }`}
+                                                >
+                                                    <span
+                                                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${level === 'ERROR'
+                                                            ? 'text-red-300 border-red-500/40 bg-red-500/10'
+                                                            : level === 'WARNING'
+                                                                ? 'text-amber-300 border-amber-500/40 bg-amber-500/10'
+                                                                : 'text-emerald-300 border-emerald-500/30 bg-emerald-500/10'
+                                                            }`}
+                                                    >
+                                                        {level}
+                                                    </span>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="text-[10px] text-slate-500">{timeLabel}</div>
+                                                        <div className={`text-xs break-words ${isError ? 'text-red-200' : 'text-slate-200'}`}>
+                                                            {entry.message}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <RunConfiguration logs={logs} />
+                        )}
                     </div>
 
                     {/* DEBUG RAW DATA */}
-                    {verbose && (
+                    {verbose && activeTab === 'charts' && (
                         <div className="mt-4 p-2 bg-slate-900 rounded border border-slate-700 text-[10px] font-mono whitespace-pre-wrap overflow-auto max-h-40">
                             <strong>DEBUG DATA STATE:</strong>
-                            <br />History Len: {historyMetrics?.length}
+                            <br />History Len: {chartMetrics?.length}
                             <br />Equity Len: {equityData?.length}
-                            <br />Sample: {JSON.stringify(historyMetrics?.[0] || "No Data")}
-                            <br />Raw Metrics: {JSON.stringify(historyMetrics)}
+                            <br />Sample: {JSON.stringify(chartMetrics?.[0] || "No Data")}
+                            <br />Raw Metrics: {JSON.stringify(chartMetrics)}
                         </div>
                     )}
                 </div>

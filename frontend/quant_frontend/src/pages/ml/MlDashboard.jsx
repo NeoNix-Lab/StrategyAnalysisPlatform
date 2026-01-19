@@ -9,6 +9,8 @@ import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
 
+import api from '../../api/axios';
+
 const MlDashboard = () => {
     const navigate = useNavigate();
     const [sessions, setSessions] = useState([]);
@@ -37,12 +39,10 @@ const MlDashboard = () => {
 
     const fetchSessions = async () => {
         try {
-            const response = await fetch('/api/ml/studio/sessions');
-            if (response.ok) {
-                const data = await response.json();
-                setSessions(data);
-                calculateStats(data);
-            }
+            const response = await api.get('/ml/studio/sessions');
+            const data = response.data;
+            setSessions(data);
+            calculateStats(data);
         } catch (error) {
             console.error("Failed to fetch sessions:", error);
         } finally {

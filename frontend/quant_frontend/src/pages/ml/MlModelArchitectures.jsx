@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Save, Layers, Settings, Database, Trash2, ArrowLeft, ChevronRight } from 'lucide-react';
 import ModelBuilder from './components/ModelBuilder';
+import api from '../../api/axios';
 
 const MlModelArchitectures = () => {
     const [models, setModels] = useState([]);
@@ -24,8 +25,8 @@ const MlModelArchitectures = () => {
 
     const fetchModels = async () => {
         try {
-            const res = await fetch('/api/ml/studio/models');
-            if (res.ok) setModels(await res.json());
+            const res = await api.get('/ml/studio/models');
+            setModels(res.data);
         } catch (e) { console.error(e); }
         finally { setLoading(false); }
     };
@@ -33,15 +34,13 @@ const MlModelArchitectures = () => {
     const handleSelect = async (id) => {
         setLoading(true);
         try {
-            const res = await fetch(`/api/ml/studio/models/${id}`);
-            if (res.ok) {
-                const data = await res.json();
-                setSelectedId(id);
-                setName(data.name);
-                setLayers(data.layers_json);
-                setDescription(data.description || '');
-                setEditMode(true);
-            }
+            const res = await api.get(`/ml/studio/models/${id}`);
+            const data = res.data;
+            setSelectedId(id);
+            setName(data.name);
+            setLayers(data.layers_json);
+            setDescription(data.description || '');
+            setEditMode(true);
         } finally { setLoading(false); }
     };
 
@@ -56,18 +55,13 @@ const MlModelArchitectures = () => {
     const handleSave = async () => {
         const payload = { name, layers_json: layers, description };
         try {
-            const res = await fetch('/api/ml/studio/models', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            if (res.ok) {
-                await fetchModels();
-                // Keep editing
-            } else {
-                alert("Failed to save model");
-            }
-        } catch (e) { console.error(e); }
+            await api.post('/ml/studio/models', payload);
+            await fetchModels();
+            // Keep editing
+        } catch (e) {
+            console.error(e);
+            alert("Failed to save model");
+        }
     };
 
     return (

@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from typing import Any, Dict, List, Optional
 from quant_shared.models.connection import get_db
-from quant_shared.models.models import Dataset, MlDatasetSample
+from quant_shared.models.models import Dataset, MlDatasetSample, User, Role
+from src.auth import service
 from pydantic import BaseModel
 from datetime import datetime
 import uuid
@@ -15,7 +16,7 @@ import os
 import os
 
 # Import the data converter
-from etl.data_converter import DataConverter
+from src.etl.data_converter import DataConverter
 
 router = APIRouter()
 
@@ -134,19 +135,30 @@ class DatasetResponse(BaseModel):
     class Config:
         from_attributes = True
 
-@router.get("/", response_model=List[DatasetResponse])
-def get_datasets(db: Session = Depends(get_db)):
-    return db.query(Dataset).order_by(Dataset.created_utc.desc()).all()
+@router.get("", response_model=List[DatasetResponse])
+def get_datasets(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(service.get_current_active_user)
+):
+    query = db.query(Dataset)
+    if current_user.role != Role.ADMIN:
+        query = query.filter(Dataset.user_id == current_user.user_id)
+    return query.order_by(Dataset.created_utc.desc()).all()
 
-@router.post("/", response_model=DatasetResponse)
-def create_dataset(dataset: DatasetCreate, db: Session = Depends(get_db)):
+@router.post("", response_model=DatasetResponse)
+def create_dataset(
+    dataset: DatasetCreate, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(service.get_current_active_user)
+):
     new_dataset = Dataset(
         dataset_id=str(uuid.uuid4()),
         name=dataset.name,
         description=dataset.description,
         sources_json=dataset.sources_json,
         feature_config_json=dataset.feature_config_json,
-        created_utc=datetime.utcnow()
+        created_utc=datetime.utcnow(),
+        user_id=current_user.user_id
     )
     db.add(new_dataset)
     db.commit()
@@ -161,7 +173,12 @@ class DatasetSampleCreate(BaseModel):
     targets_json: Optional[Dict[str, Any]] = None
 
 @router.post("/{dataset_id}/samples")
-def upload_samples(dataset_id: str, samples: List[DatasetSampleCreate], db: Session = Depends(get_db)):
+def upload_samples(
+    dataset_id: str, 
+    samples: List[DatasetSampleCreate], 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(service.get_current_active_user)
+):
     """
     Bulk upload of concrete data samples.
     """
@@ -171,6 +188,9 @@ def upload_samples(dataset_id: str, samples: List[DatasetSampleCreate], db: Sess
     ds = db.query(Dataset).filter(Dataset.dataset_id == dataset_id).first()
     if not ds:
         raise HTTPException(status_code=404, detail="Dataset not found")
+        
+    if ds.user_id != current_user.user_id and current_user.role != Role.ADMIN:
+        raise HTTPException(status_code=403, detail="Not allowed")
         
     # Bulk insert
     db_samples = [
@@ -190,7 +210,11 @@ def upload_samples(dataset_id: str, samples: List[DatasetSampleCreate], db: Sess
     return {"status": "ok", "count": len(samples)}
 
 @router.post("/{dataset_id}/materialize")
-def materialize_dataset(dataset_id: str, db: Session = Depends(get_db)):
+def materialize_dataset(
+    dataset_id: str, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(service.get_current_active_user)
+):
     """
     Converts 'sources_json' (MarketSeries pointers) into concrete 'MlDatasetSample' rows.
     """
@@ -199,6 +223,9 @@ def materialize_dataset(dataset_id: str, db: Session = Depends(get_db)):
     ds = db.query(Dataset).filter(Dataset.dataset_id == dataset_id).first()
     if not ds:
         raise HTTPException(status_code=404, detail="Dataset not found")
+
+    if ds.user_id != current_user.user_id and current_user.role != Role.ADMIN:
+        raise HTTPException(status_code=403, detail="Not allowed")
         
     if not ds.sources_json:
         raise HTTPException(status_code=400, detail="No sources defined")
@@ -254,8 +281,21 @@ class DatasetSampleResponse(BaseModel):
         from_attributes = True
 
 @router.get("/{dataset_id}/samples", response_model=List[DatasetSampleResponse])
-def get_dataset_samples(dataset_id: str, limit: int = 50, db: Session = Depends(get_db)):
+def get_dataset_samples(
+    dataset_id: str, 
+    limit: int = 50, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(service.get_current_active_user)
+):
     from quant_shared.models.models import MlDatasetSample
+    
+    ds = db.query(Dataset).filter(Dataset.dataset_id == dataset_id).first()
+    if not ds:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+        
+    if ds.user_id != current_user.user_id and current_user.role != Role.ADMIN:
+        raise HTTPException(status_code=403, detail="Not allowed")
+
     return db.query(MlDatasetSample).filter(
         MlDatasetSample.dataset_id == dataset_id
     ).order_by(MlDatasetSample.sample_id.asc()).limit(limit).all()
@@ -265,7 +305,8 @@ async def upload_file_to_dataset(
     dataset_id: str,
     file: UploadFile = File(...),
     config: Optional[str] = Form(None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(service.get_current_active_user)
 ):
     """
     Upload and convert a data file (CSV, JSON, SQL) to dataset samples
@@ -274,6 +315,9 @@ async def upload_file_to_dataset(
     ds = db.query(Dataset).filter(Dataset.dataset_id == dataset_id).first()
     if not ds:
         raise HTTPException(status_code=404, detail="Dataset not found")
+    
+    if ds.user_id != current_user.user_id and current_user.role != Role.ADMIN:
+        raise HTTPException(status_code=403, detail="Not allowed")
     
     # Parse configuration
     conversion_config = {}
@@ -350,7 +394,8 @@ async def upload_file_and_create_dataset(
     description: Optional[str] = Form(None),
     file: UploadFile = File(...),
     config: Optional[str] = Form(None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(service.get_current_active_user)
 ):
     """
     Create a new dataset and upload file data in one operation
@@ -376,7 +421,10 @@ async def upload_file_and_create_dataset(
 
         
         # Check if dataset exists by name (Upsert Logic)
-        existing_dataset = db.query(Dataset).filter(Dataset.name == name).first()
+        existing_dataset = db.query(Dataset).filter(
+            Dataset.name == name,
+            Dataset.user_id == current_user.user_id
+        ).first()
         
         if existing_dataset:
             # Update existing
@@ -395,7 +443,6 @@ async def upload_file_and_create_dataset(
             target_dataset.sources_json = list(target_dataset.sources_json) + [new_source] # Ensure list mutation
             
             dataset_action = "updated"
-        else:
             # Create new
             target_dataset = Dataset(
                 dataset_id=str(uuid.uuid4()),
@@ -403,7 +450,8 @@ async def upload_file_and_create_dataset(
                 description=description,
                 sources_json=[{"source": "file_upload", "filename": file.filename, "format": file_ext, "uploaded_at": str(datetime.utcnow())}],
                 feature_config_json=conversion_config.get('feature_columns'),
-                created_utc=datetime.utcnow()
+                created_utc=datetime.utcnow(),
+                user_id=current_user.user_id
             )
             db.add(target_dataset)
             dataset_action = "created"

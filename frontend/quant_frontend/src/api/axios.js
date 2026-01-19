@@ -8,16 +8,52 @@ const api = axios.create({
     headers: {
         'Content-Type': 'application/json',
     },
-    withCredentials: true // Crucial for sending/receiving HttpOnly cookies
 });
+
+const getStoredToken = () => {
+    try {
+        return localStorage.getItem('token');
+    } catch {
+        return null;
+    }
+};
+
+const clearStoredToken = () => {
+    try {
+        localStorage.removeItem('token');
+    } catch {
+        // Ignore storage errors
+    }
+    delete api.defaults.headers.common['Authorization'];
+};
+
+const applyAuthHeader = (headers, token) => {
+    if (!token || !headers) return;
+    if (typeof headers.set === 'function') {
+        headers.set('Authorization', `Bearer ${token}`);
+    } else if (!headers.Authorization) {
+        headers.Authorization = `Bearer ${token}`;
+    }
+};
+
+const existingToken = getStoredToken();
+if (existingToken) {
+    api.defaults.headers.common['Authorization'] = `Bearer ${existingToken}`;
+}
 
 // Request interceptor to add Distributed Tracing ID
 api.interceptors.request.use(
     (config) => {
+        config.headers = config.headers || {};
         // Generate a new Trace ID for every request if not present
         if (!config.headers['X-Trace-Id']) {
             config.headers['X-Trace-Id'] = crypto.randomUUID();
         }
+
+        // Inject Authorization Header for JWT auth
+        const token = getStoredToken();
+        applyAuthHeader(config.headers, token);
+
         return config;
     },
     (error) => Promise.reject(error)
@@ -32,9 +68,14 @@ api.interceptors.response.use(
     },
     (error) => {
         if (error.response && error.response.status === 401) {
-            // If we get a 401, it means the session is invalid/expired.
-            // We might want to trigger a global logout event here or let the AuthContext handle it.
-            // For now, we reject the promise so the caller handles it.
+            const url = error.config?.url || '';
+            const isAuthRoute = url.includes('/auth/login') || url.includes('/auth/register');
+            if (!isAuthRoute) {
+                clearStoredToken();
+                if (typeof window !== 'undefined') {
+                    window.dispatchEvent(new Event('auth:unauthorized'));
+                }
+            }
         }
         return Promise.reject(error);
     }

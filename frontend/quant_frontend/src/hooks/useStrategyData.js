@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import axios from 'axios'
+import api from '../api/axios'
 import { useStrategy } from '../context/StrategyContext'
 
 export const useStrategyData = () => {
@@ -10,8 +10,6 @@ export const useStrategyData = () => {
     const [regimePerformance, setRegimePerformance] = useState(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
-
-    const API_URL = 'http://127.0.0.1:8000/api'
 
     const fetchData = async () => {
         if (!selectedRun) {
@@ -26,7 +24,7 @@ export const useStrategyData = () => {
             setRegimePerformance(null)
 
             // 1. Fetch Run Stats (Metrics)
-            const runRes = await axios.get(`${API_URL}/runs/${selectedRun}`)
+            const runRes = await api.get(`/runs/${selectedRun}`)
             const runData = runRes.data
 
             if (runData.metrics_json) {
@@ -53,12 +51,12 @@ export const useStrategyData = () => {
             }
 
             // 2. Fetch Executions
-            const execRes = await axios.get(`${API_URL}/executions/run/${selectedRun}`)
+            const execRes = await api.get(`/executions/run/${selectedRun}`)
             setExecutions(execRes.data)
 
             // 3. Fetch Reconstructed Trades
             try {
-                const tradesRes = await axios.get(`${API_URL}/runs/${selectedRun}/trades`)
+                const tradesRes = await api.get(`/runs/${selectedRun}/trades`)
                 const processedTrades = tradesRes.data.map((t, index) => ({
                     ...t,
                     index: index + 1,
@@ -72,7 +70,7 @@ export const useStrategyData = () => {
             }
 
             try {
-                const regimeRes = await axios.get(`${API_URL}/regime/${selectedRun}`)
+                const regimeRes = await api.get(`/regime/${selectedRun}`)
                 setRegimePerformance(regimeRes.data.regime_performance)
             } catch (regimeErr) {
                 console.warn("Failed to fetch regime performance", regimeErr)

@@ -14,10 +14,14 @@ namespace StrategyExporterTemplate.Services
         private readonly HttpClient _client;
         private readonly string _baseUrl;
 
-        public HttpExporter(string baseUrl)
+        public HttpExporter(string baseUrl, string apiKey = null)
         {
             _baseUrl = baseUrl.TrimEnd('/');
             _client = new HttpClient();
+            if (!string.IsNullOrWhiteSpace(apiKey))
+            {
+                _client.DefaultRequestHeaders.Add("X-API-Key", apiKey);
+            }
         }
 
         public async Task SendAsync<T>(string endpoint, T data)
@@ -42,6 +46,19 @@ namespace StrategyExporterTemplate.Services
             {
                 Core.Instance.Loggers.Log($"Exporter Exception [{endpoint}]: {ex.Message}", LoggingLevel.Error);
             }
+        }
+
+        public async Task<IngestRunStartResponseDto> StartRunAsync(IngestRunStartRequestDto data)
+        {
+            var response = await SendForResponseAsync<IngestRunStartRequestDto, IngestRunStartResponseDto>(
+                "api/ingest/run/start",
+                data
+            );
+            if (response == null)
+            {
+                throw new InvalidOperationException("Run start response was empty.");
+            }
+            return response;
         }
 
         public async Task ExportBarsAsync(IEnumerable<BarDto> bars)
@@ -79,6 +96,29 @@ namespace StrategyExporterTemplate.Services
         public void Dispose()
         {
             _client?.Dispose();
+        }
+
+        private async Task<TResponse> SendForResponseAsync<TRequest, TResponse>(string endpoint, TRequest data)
+        {
+            var json = JsonSerializer.Serialize(data);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var response = await _client.PostAsync($"{_baseUrl}/{endpoint}", content);
+            var body = await response.Content.ReadAsStringAsync();
+            if (!response.IsSuccessStatusCode)
+            {
+                Core.Instance.Loggers.Log($"Exporter Error [{endpoint}]: {response.StatusCode} {body}", LoggingLevel.Error);
+                throw new InvalidOperationException($"Exporter request failed: {response.StatusCode}");
+            }
+
+            if (string.IsNullOrWhiteSpace(body))
+            {
+                return default;
+            }
+
+            return JsonSerializer.Deserialize<TResponse>(body, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
         }
     }
 }

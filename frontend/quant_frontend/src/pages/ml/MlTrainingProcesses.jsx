@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Save, Zap, Settings, Trash2 } from 'lucide-react';
 import ProcessConfig from './components/ProcessConfig';
+import api from '../../api/axios';
 
 const MlTrainingProcesses = () => {
     const [processes, setProcesses] = useState([]);
@@ -26,8 +27,8 @@ const MlTrainingProcesses = () => {
 
     const fetchProcesses = async () => {
         try {
-            const res = await fetch('/api/ml/studio/processes');
-            if (res.ok) setProcesses(await res.json());
+            const res = await api.get('/ml/studio/processes');
+            setProcesses(res.data);
         } catch (e) { console.error(e); }
         finally { setLoading(false); }
     };
@@ -35,17 +36,15 @@ const MlTrainingProcesses = () => {
     const handleSelect = async (id) => {
         setLoading(true);
         try {
-            const res = await fetch(`/api/ml/studio/processes/${id}`);
-            if (res.ok) {
-                const data = await res.json();
-                setSelectedId(id);
-                setName(data.name);
-                // Extract only config fields
-                const { process_id, name, description, ...rest } = data;
-                setConfig(rest);
-                setDescription(description || '');
-                setEditMode(true);
-            }
+            const res = await api.get(`/ml/studio/processes/${id}`);
+            const data = res.data;
+            setSelectedId(id);
+            setName(data.name);
+            // Extract only config fields
+            const { process_id, name, description, ...rest } = data;
+            setConfig(rest);
+            setDescription(description || '');
+            setEditMode(true);
         } finally { setLoading(false); }
     };
 
@@ -68,19 +67,14 @@ const MlTrainingProcesses = () => {
     const handleSave = async () => {
         const payload = { name, ...config, description };
         try {
-            const res = await fetch('/api/ml/studio/processes', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            if (res.ok) {
-                await fetchProcesses();
-                setEditMode(false);
-                setSelectedId(null);
-            } else {
-                alert("Failed to save process");
-            }
-        } catch (e) { console.error(e); }
+            await api.post('/ml/studio/processes', payload);
+            await fetchProcesses();
+            setEditMode(false);
+            setSelectedId(null);
+        } catch (e) {
+            console.error(e);
+            alert("Failed to save process");
+        }
     };
 
     const cardClass = "bg-bg-secondary/50 backdrop-blur-sm border border-slate-700/50 rounded-2xl flex flex-col overflow-hidden";

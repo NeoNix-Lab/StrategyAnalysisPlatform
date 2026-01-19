@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Outlet, Link, useLocation } from 'react-router-dom'
-import { LayoutDashboard, List, Activity, Database, Settings, LineChart, Target, BookOpen, Zap, BarChart2, ChevronLeft, ChevronRight, LogOut, Brain } from 'lucide-react'
+import { LayoutDashboard, List, Activity, Database, Settings, LineChart, Target, BookOpen, Zap, BarChart2, ChevronLeft, ChevronRight, LogOut, Brain, Plug } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import StrategySelector from './StrategySelector'
 
@@ -91,6 +91,9 @@ const Layout = () => {
                                 <NavLink to="/analysis/regime" icon={<BarChart2 size={20} />} label="Regime" activeClass={`${activeBgClass} ${activeColorClass}`} />
                                 <NavLink to="/analysis/stress-test" icon={<Zap size={20} />} label="Stress Test" activeClass={`${activeBgClass} ${activeColorClass}`} />
                                 <NavLink to="/analysis/compare" icon={<List size={20} />} label="Comparison" activeClass={`${activeBgClass} ${activeColorClass}`} />
+
+                                <div className="text-[10px] uppercase font-bold text-slate-500 mt-5 mb-2 pl-4 tracking-wider">System</div>
+                                <NavLink to="/connections" icon={<Plug size={20} />} label="Connections" activeClass={`${activeBgClass} ${activeColorClass}`} />
                             </>
                         ) : (
                             <>
@@ -102,6 +105,7 @@ const Layout = () => {
                                 <NavLink to="/datasets" icon={<Database size={20} />} label="Datasets" activeClass={`${activeBgClass} ${activeColorClass}`} />
 
                                 <div className="text-[10px] uppercase font-bold text-slate-500 mt-5 mb-2 pl-4 tracking-wider">System</div>
+                                <NavLink to="/connections" icon={<Plug size={20} />} label="Connections" activeClass={`${activeBgClass} ${activeColorClass}`} />
                                 <NavLink to="/data" icon={<Database size={20} />} label="Data Management" activeClass={`${activeBgClass} ${activeColorClass}`} />
                             </>
                         )}

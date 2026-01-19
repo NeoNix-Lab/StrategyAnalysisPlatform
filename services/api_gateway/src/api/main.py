@@ -30,6 +30,16 @@ from .routers import ml_studio
 from .routers import ml_studio
 from .routers import datasets
 from .routers import system
+from .routers import connections
+
+def _get_cors_origins() -> list[str]:
+    raw = os.getenv("CORS_ALLOW_ORIGINS")
+    if raw:
+        return [origin.strip() for origin in raw.split(",") if origin.strip()]
+    return [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]
 
 app = FastAPI(
     title="Strategy Analysis Platform API",
@@ -39,8 +49,8 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=_get_cors_origins(),
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -102,6 +112,7 @@ app.include_router(training.router, prefix="/api/training", tags=["training"])
 app.include_router(ml_studio.router, prefix="/api/ml/studio", tags=["ml_studio"])
 app.include_router(datasets.router, prefix="/api/datasets", tags=["datasets"])
 app.include_router(system.router, prefix="/api/system", tags=["system"])
+app.include_router(connections.router, prefix="/api/connections", tags=["connections"])
 
 @app.get("/health")
 def health_check():

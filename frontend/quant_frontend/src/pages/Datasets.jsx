@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { Copy, Database, RefreshCw, Search, Plus, X, Layers, Activity, HardDrive, Eye, UploadCloud, FileText, CheckCircle, AlertTriangle, ArrowRight, Settings } from 'lucide-react'
-import axios from 'axios'
+import api from '../api/axios'
 
 const formatDate = (value) => {
     if (!value) return '—'
@@ -94,7 +94,7 @@ const Datasets = () => {
         }
 
         try {
-            const res = await axios.post('http://127.0.0.1:8000/api/datasets/preview-upload', formData, {
+            const res = await api.post('/datasets/preview-upload', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             })
             return res.data
@@ -179,7 +179,7 @@ const Datasets = () => {
                     feature_config_json: ["open", "high", "low", "close", "volume"]
                 }
 
-                await axios.post('http://127.0.0.1:8000/api/datasets/', payload)
+                await api.post('/datasets', payload)
 
             } else {
                 // ... File Upload Logic ...
@@ -203,7 +203,7 @@ const Datasets = () => {
                 formData.append('file', importedFile)
                 formData.append('config', JSON.stringify(config))
 
-                await axios.post('http://127.0.0.1:8000/api/datasets/upload-file-create', formData, {
+                await api.post('/datasets/upload-file-create', formData, {
                     headers: { 'Content-Type': 'multipart/form-data' }
                 })
             }
@@ -227,7 +227,7 @@ const Datasets = () => {
         if (!confirm("Materialize data from Market Series?")) return
         setMaterializing(true)
         try {
-            const res = await axios.post(`http://127.0.0.1:8000/api/datasets/${id}/materialize`)
+            const res = await api.post(`/datasets/${id}/materialize`)
             alert(`Completed: ${res.data.materialized_count} samples created.`)
         } catch (e) {
             alert("Error: " + (e.response?.data?.detail || e.message))
@@ -241,7 +241,7 @@ const Datasets = () => {
         setSamples([])
         setShowSamples(true)
         try {
-            const res = await axios.get(`http://127.0.0.1:8000/api/datasets/${id}/samples?limit=20`)
+            const res = await api.get(`/datasets/${id}/samples?limit=20`)
             setSamples(res.data)
         } catch (e) {
             console.error(e)
@@ -254,7 +254,7 @@ const Datasets = () => {
         setLoading(true)
         setError(null)
         try {
-            const response = await axios.get('http://127.0.0.1:8000/api/datasets/')
+            const response = await api.get('/datasets')
             const payload = response.data
             setDatasets(payload)
             setSelectedId((current) => {

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createChart, ColorType } from 'lightweight-charts';
 import { Play, Pause, FastForward, SkipBack, X, Gauge, AlertCircle, Clock } from 'lucide-react';
+import api from '../api/axios';
 
 export const TradeReplayer = ({ tradeId, onClose }) => {
     const [trade, setTrade] = useState(null);
@@ -28,24 +29,26 @@ export const TradeReplayer = ({ tradeId, onClose }) => {
         const fetchTradeAndMetadata = async () => {
             try {
                 // A. Fetch Trade
-                const resTrade = await fetch(`/api/trades/${tradeId}`);
-                if (!resTrade.ok) throw new Error('Failed to fetch trade details');
-                const tradeData = await resTrade.json();
+                const resTrade = await api.get(`/trades/${tradeId}`);
+                const tradeData = resTrade.data;
                 setTrade(tradeData);
 
                 // B. Fetch Available Series for this Run
-                const resSeries = await fetch(`/api/runs/${tradeData.run_id}/series`);
+                let seriesList = [];
+                try {
+                    const resSeries = await api.get(`/runs/${tradeData.run_id}/series`);
+                    seriesList = resSeries.data;
+                } catch (e) {
+                    console.warn("Failed to fetch series metadata", e);
+                }
 
                 let validTimeframes = ['1m', '5m', '15m', '1h']; // Default Fallback
 
-                if (resSeries.ok) {
-                    const seriesList = await resSeries.json();
-                    if (Array.isArray(seriesList) && seriesList.length > 0) {
-                        // Extract unique timeframes
-                        validTimeframes = [...new Set(seriesList.map(s => s.timeframe))];
-                        // Sort logic can be complex (1m, 5m etc), simple alpha sort for now
-                        validTimeframes.sort();
-                    }
+                if (Array.isArray(seriesList) && seriesList.length > 0) {
+                    // Extract unique timeframes
+                    validTimeframes = [...new Set(seriesList.map(s => s.timeframe))];
+                    // Sort logic can be complex (1m, 5m etc), simple alpha sort for now
+                    validTimeframes.sort();
                 }
 
                 setAvailableTimeframes(validTimeframes);
@@ -78,17 +81,18 @@ export const TradeReplayer = ({ tradeId, onClose }) => {
             try {
                 // 2.1 Fetch Available Series for this Run to find Metadata
                 // We're looking for the 'full' time range of the series, not just the trade's duration
-                const resSeries = await fetch(`/api/runs/${trade.run_id}/series`);
                 let seriesBounds = null;
-
-                if (resSeries.ok) {
-                    const seriesList = await resSeries.json();
+                try {
+                    const resSeries = await api.get(`/runs/${trade.run_id}/series`);
+                    const seriesList = resSeries.data;
 
                     // Find matching series for current config
                     const match = seriesList.find(s => s.symbol === trade.symbol && s.timeframe === timeframe);
                     if (match && match.start_utc && match.end_utc) {
                         seriesBounds = { start: match.start_utc, end: match.end_utc };
                     }
+                } catch (e) {
+                    console.warn("Failed to fetch series for bounds", e);
                 }
 
                 // Buffer: 2 hours before, 2 hours after (Fallback)
@@ -109,15 +113,11 @@ export const TradeReplayer = ({ tradeId, onClose }) => {
                     end = new Date(exitTime.getTime() + 2 * 60 * 60 * 1000).toISOString();
                 }
 
-                const url = `/api/bars/?run_id=${trade.run_id}&symbol=${trade.symbol}&timeframe=${timeframe}&start_utc=${start}&end_utc=${end}`;
-                const res = await fetch(url);
+                const url = `/bars/?run_id=${trade.run_id}&symbol=${trade.symbol}&timeframe=${timeframe}&start_utc=${start}&end_utc=${end}`;
+                const res = await api.get(url);
+                const data = res.data; // api returns data directly
 
-                if (!res.ok) {
-                    const errData = await res.json().catch(() => ({}));
-                    throw new Error(errData.detail || "Errore nel caricamento dei dati di mercato");
-                }
 
-                const data = await res.json();
 
                 if (!Array.isArray(data) || data.length === 0) {
                     setAllBars([]);

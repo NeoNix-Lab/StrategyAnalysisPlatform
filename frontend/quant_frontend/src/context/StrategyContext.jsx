@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react'
-import axios from 'axios'
+import api from '../api/axios'
 
 const StrategyContext = createContext()
 
@@ -14,13 +14,12 @@ export const StrategyProvider = ({ children }) => {
 
     const [loading, setLoading] = useState(true)
 
-    const API_URL = 'http://127.0.0.1:8000/api'
-
     // Fetch Strategies
     useEffect(() => {
         const fetchStrategies = async () => {
             try {
-                const res = await axios.get(`${API_URL}/strategies/`)
+                // Use relative path with configured api instance (baseURL is /api)
+                const res = await api.get('/strategies/')
                 setStrategies(res.data)
                 if (res.data.length > 0) {
                     setSelectedStrategy(res.data[0].strategy_id)
@@ -43,7 +42,7 @@ export const StrategyProvider = ({ children }) => {
         }
         const fetchInstances = async () => {
             try {
-                const res = await axios.get(`${API_URL}/strategies/${selectedStrategy}/instances`)
+                const res = await api.get(`/strategies/${selectedStrategy}/instances`)
                 setInstances(res.data)
                 if (res.data.length > 0) {
                     setSelectedInstance(res.data[0].instance_id)
@@ -74,7 +73,7 @@ export const StrategyProvider = ({ children }) => {
 
         const fetchRuns = async () => {
             try {
-                const res = await axios.get(`${API_URL}/runs/instance/${selectedInstance}`)
+                const res = await api.get(`/runs/instance/${selectedInstance}`)
                 // Sort descending by start_utc
                 const sorted = res.data.sort((a, b) => new Date(b.start_utc) - new Date(a.start_utc))
                 setRuns(sorted)

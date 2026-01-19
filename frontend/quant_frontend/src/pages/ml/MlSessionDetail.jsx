@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Play, Database, Clock, Plus, Zap, Layers, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Play, Database, Clock, Plus, Zap, RefreshCw, Brain, Settings, Code, ChevronDown, ChevronUp } from 'lucide-react';
+import api from '../../api/axios';
 
 const MlSessionDetail = () => {
     const { sessionId } = useParams();
@@ -12,6 +13,9 @@ const MlSessionDetail = () => {
     const [iterationLogs, setIterationLogs] = useState([]);
     const [logsLoading, setLogsLoading] = useState(false);
     const [logsError, setLogsError] = useState(null);
+
+    // UI State
+    const [expandedSection, setExpandedSection] = useState(null); // 'model' | 'process' | 'function' | null
 
     // New Iteration State
     const [showNewIter, setShowNewIter] = useState(false);
@@ -27,9 +31,8 @@ const MlSessionDetail = () => {
     // Fetch Reward Code when session is loaded
     useEffect(() => {
         if (session && session.function && session.function.id) {
-            fetch(`http://localhost:8000/api/ml/studio/functions/${session.function.id}`)
-                .then(res => res.json())
-                .then(data => setRewardCode(data.code))
+            api.get(`/ml/studio/functions/${session.function.id}`)
+                .then(res => setRewardCode(res.data.code))
                 .catch(err => console.error("Failed to fetch reward code", err));
         }
     }, [session]);
@@ -51,13 +54,8 @@ const MlSessionDetail = () => {
 
     const fetchDatasetPreview = async () => {
         try {
-            const res = await fetch(`http://localhost:8000/api/datasets/${selectedDataset}/preview`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ limit: 5, offset: 0 })
-            });
-            const data = await res.json();
-            setPreviewData(data);
+            const res = await api.post(`/datasets/${selectedDataset}/preview`, { limit: 5, offset: 0 });
+            setPreviewData(res.data);
         } catch (err) {
             console.error("Preview fetch failed", err);
         }
@@ -67,16 +65,11 @@ const MlSessionDetail = () => {
         setValidating(true);
         setValidationResult(null);
         try {
-            const res = await fetch('http://localhost:8000/api/ml/studio/functions/validate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    code: rewardCode,
-                    dataset_id: selectedDataset,
-                })
+            const res = await api.post('/ml/studio/functions/validate', {
+                code: rewardCode,
+                dataset_id: selectedDataset,
             });
-            const data = await res.json();
-            setValidationResult(data);
+            setValidationResult(res.data);
         } catch (err) {
             console.error(err);
             setValidationResult({ valid: false, error: "Validation request failed" });
@@ -87,8 +80,8 @@ const MlSessionDetail = () => {
 
     useEffect(() => {
         Promise.all([
-            fetch(`http://localhost:8000/api/ml/studio/sessions/${sessionId}`).then(res => res.json()),
-            fetch('http://localhost:8000/api/datasets/').then(res => res.json())
+            api.get(`/ml/studio/sessions/${sessionId}`).then(res => res.data),
+            api.get('/datasets').then(res => res.data)
         ]).then(([sessionData, datasetsData]) => {
             setSession(sessionData);
             setDatasets(datasetsData);
@@ -105,8 +98,8 @@ const MlSessionDetail = () => {
 
         const interval = setInterval(async () => {
             try {
-                const res = await fetch(`http://localhost:8000/api/ml/studio/sessions/${sessionId}`);
-                const sessionData = await res.json();
+                const res = await api.get(`/ml/studio/sessions/${sessionId}`);
+                const sessionData = res.data;
                 setSession(sessionData);
             } catch (err) {
                 console.error('Failed to refresh session data:', err);
@@ -121,21 +114,15 @@ const MlSessionDetail = () => {
         if (validationResult && !validationResult.valid) return;
 
         try {
-            const res = await fetch('http://localhost:8000/api/ml/studio/iterations', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    session_id: sessionId,
-                    dataset_id: selectedDataset,
-                    split_config: splitConfig
-                })
+            await api.post('/ml/studio/iterations', {
+                session_id: sessionId,
+                dataset_id: selectedDataset,
+                split_config: splitConfig
             });
 
-            if (res.ok) {
-                // Refresh session or navigate? Maybe stay and show the new iteration
-                // For now, reload
-                window.location.reload();
-            }
+            // Refresh session or navigate? Maybe stay and show the new iteration
+            // For now, reload
+            window.location.reload();
         } catch (err) {
             console.error(err);
         }
@@ -147,18 +134,11 @@ const MlSessionDetail = () => {
         }
 
         try {
-            const res = await fetch(`http://localhost:8000/api/ml/studio/iterations/${iteration.iteration_id}/run`, {
-                method: 'POST'
-            });
+            await api.post(`/ml/studio/iterations/${iteration.iteration_id}/run`);
 
-            if (res.ok) {
-                // Refresh the session data to show updated status
-                const sessionRes = await fetch(`http://localhost:8000/api/ml/studio/sessions/${sessionId}`);
-                const sessionData = await sessionRes.json();
-                setSession(sessionData);
-            } else {
-                alert('Failed to re-run iteration');
-            }
+            // Refresh the session data to show updated status
+            const sessionRes = await api.get(`/ml/studio/sessions/${sessionId}`);
+            setSession(sessionRes.data);
         } catch (err) {
             console.error(err);
             alert('Failed to re-run iteration');
@@ -170,9 +150,8 @@ const MlSessionDetail = () => {
         setLogsLoading(true);
         setLogsError(null);
         try {
-            const res = await fetch(`http://localhost:8000/api/ml/studio/iterations/${iterationId}/logs?limit=500`);
-            if (!res.ok) throw new Error("Failed to fetch logs");
-            const data = await res.json();
+            const res = await api.get(`/ml/studio/iterations/${iterationId}/logs?limit=500`);
+            const data = res.data;
             setIterationLogs(Array.isArray(data) ? data : []);
         } catch (err) {
             console.error(err);
@@ -210,49 +189,337 @@ const MlSessionDetail = () => {
                 <ArrowLeft size={18} /> Back to Studio
             </button>
 
-            {/* Header Card */}
-            <div className="relative overflow-hidden rounded-xl border border-slate-700 mb-8 shadow-2xl"
-                style={{
-                    background: 'linear-gradient(145deg, #0f172a 0%, #1e293b 100%)',
-                }}>
-                <div className="absolute top-0 right-0 p-32 bg-purple-600/10 blur-[100px] rounded-full pointer-events-none"></div>
+            {/* Header / Config Cards */}
+            <div className="mb-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-                <div className="relative p-8 flex justify-between items-start">
-                    <div>
-                        <div className="flex items-center gap-3 mb-3">
-                            <div className="p-3 bg-purple-500/10 rounded-lg border border-purple-500/20">
-                                <Zap className="text-purple-400" size={24} />
+                {/* 1. Model Card */}
+                <div
+                    onClick={() => setExpandedSection(expandedSection === 'model' ? null : 'model')}
+                    className={`
+                        relative overflow-hidden rounded-xl border transition-all duration-300 cursor-pointer group
+                        ${expandedSection === 'model'
+                            ? 'bg-slate-900/90 border-blue-500/50 shadow-[0_0_30px_-5px_rgba(59,130,246,0.3)] col-span-1 lg:col-span-3'
+                            : 'bg-[#0f172a] border-slate-700 hover:border-slate-500 hover:shadow-lg'
+                        }
+                    `}
+                >
+                    <div className="absolute top-0 right-0 p-24 bg-blue-500/5 blur-[80px] rounded-full pointer-events-none"></div>
+
+                    <div className="p-6 relative z-10">
+                        <div className="flex items-start justify-between">
+                            <div className="flex items-center gap-4">
+                                <div className={`
+                                    p-3 rounded-xl border transition-colors
+                                    ${expandedSection === 'model'
+                                        ? 'bg-blue-500/20 border-blue-500/30'
+                                        : 'bg-slate-800 border-slate-700 group-hover:border-slate-600'
+                                    }
+                                `}>
+                                    <Brain size={24} className={expandedSection === 'model' ? 'text-blue-400' : 'text-slate-400'} />
+                                </div>
+                                <div>
+                                    <div className="text-xs uppercase tracking-wider font-semibold text-slate-500 mb-0.5">Model Architecture</div>
+                                    <div className="text-lg font-bold text-slate-200 group-hover:text-white transition-colors">
+                                        {session.model?.name || 'Unknown Model'}
+                                    </div>
+                                </div>
                             </div>
-                            <div>
-                                <h1 className="text-3xl font-bold text-white tracking-tight">{session.name}</h1>
-                                <div className="text-xs text-purple-400 font-mono mt-1 opacity-70">ID: {session.session_id}</div>
-                            </div>
+                            {expandedSection === 'model' ? <ChevronUp size={20} className="text-slate-500" /> : <ChevronDown size={20} className="text-slate-600" />}
                         </div>
 
-                        <div className="flex gap-6 text-sm text-slate-400 mt-6">
-                            <div className="flex items-center gap-2 px-4 py-2 bg-[#0b1121] rounded-lg border border-slate-800">
-                                <Layers size={14} className="text-blue-400" />
-                                <span className="text-slate-500">Model:</span>
-                                <span className="text-slate-200 font-medium">{session.model?.name}</span>
-                            </div>
-                            <div className="flex items-center gap-2 px-4 py-2 bg-[#0b1121] rounded-lg border border-slate-800">
-                                <Clock size={14} className="text-green-400" />
-                                <span className="text-slate-500">Process:</span>
-                                <span className="text-slate-200 font-medium">{session.process?.name}</span>
-                            </div>
-                        </div>
-                    </div>
+                        {/* Expanded Content */}
+                        {expandedSection === 'model' && session.model && (
+                            <div className="mt-6 pt-6 border-t border-slate-800 animate-in fade-in slide-in-from-top-2 duration-300">
+                                <p className="text-slate-400 text-sm mb-6 max-w-3xl leading-relaxed">
+                                    {session.model.description || "No description provided for this architecture."}
+                                </p>
 
-                    <div className="flex flex-col items-end gap-3">
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${session.status === 'PLANNED' ? 'bg-slate-700 text-slate-300' :
-                            session.status === 'ACTIVE' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' :
-                                'bg-slate-700 text-slate-300'
-                            }`}>
-                            {session.status}
-                        </span>
-                        <div className="text-xs text-slate-500">Created: {new Date(session.created_utc).toLocaleDateString()}</div>
+                                <div className="bg-[#0b1121] rounded-lg border border-slate-800 p-4">
+                                    <div className="text-xs font-mono text-blue-400 mb-3 uppercase tracking-wider">Layer Configuration</div>
+                                    <div className="space-y-2">
+                                        {session.model.layers_json ? (
+                                            Array.isArray(session.model.layers_json) ? (
+                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                                                    {session.model.layers_json.map((layer, idx) => (
+                                                        <div key={idx} className="bg-slate-800/50 p-3 rounded border border-slate-700/50 flex flex-col gap-1">
+                                                            <div className="text-xs font-bold text-slate-300">{layer.type || 'Layer'}</div>
+                                                            <div className="text-[10px] text-slate-500 font-mono overflow-hidden text-ellipsis whitespace-nowrap">
+                                                                {Object.entries(layer).map(([k, v]) => k !== 'type' ? `${k}:${v} ` : '').join('')}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <pre className="text-xs text-slate-500 overflow-x-auto">{JSON.stringify(session.model.layers_json, null, 2)}</pre>
+                                            )
+                                        ) : (
+                                            <div className="text-slate-600 italic text-sm">No explicit layer configuration found.</div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
+
+                {/* 2. Process Card */}
+                <div
+                    onClick={() => setExpandedSection(expandedSection === 'process' ? null : 'process')}
+                    className={`
+                        relative overflow-hidden rounded-xl border transition-all duration-300 cursor-pointer group
+                        ${expandedSection === 'process'
+                            ? 'bg-slate-900/90 border-green-500/50 shadow-[0_0_30px_-5px_rgba(34,197,94,0.3)] col-span-1 lg:col-span-3'
+                            : 'bg-[#0f172a] border-slate-700 hover:border-slate-500 hover:shadow-lg'
+                        }
+                    `}
+                >
+                    <div className="absolute top-0 right-0 p-24 bg-green-500/5 blur-[80px] rounded-full pointer-events-none"></div>
+
+                    <div className="p-6 relative z-10">
+                        <div className="flex items-start justify-between">
+                            <div className="flex items-center gap-4">
+                                <div className={`
+                                    p-3 rounded-xl border transition-colors
+                                    ${expandedSection === 'process'
+                                        ? 'bg-green-500/20 border-green-500/30'
+                                        : 'bg-slate-800 border-slate-700 group-hover:border-slate-600'
+                                    }
+                                `}>
+                                    <Settings size={24} className={expandedSection === 'process' ? 'text-green-400' : 'text-slate-400'} />
+                                </div>
+                                <div>
+                                    <div className="text-xs uppercase tracking-wider font-semibold text-slate-500 mb-0.5">Training Process</div>
+                                    <div className="text-lg font-bold text-slate-200 group-hover:text-white transition-colors">
+                                        {session.process?.name || 'Default Process'}
+                                    </div>
+                                </div>
+                            </div>
+                            {expandedSection === 'process' ? <ChevronUp size={20} className="text-slate-500" /> : <ChevronDown size={20} className="text-slate-600" />}
+                        </div>
+
+                        {/* Expanded Content */}
+                        {expandedSection === 'process' && session.process && (
+                            <div className="mt-6 pt-6 border-t border-slate-800 animate-in fade-in slide-in-from-top-2 duration-300">
+                                <p className="text-slate-400 text-sm mb-6 max-w-3xl leading-relaxed">
+                                    {session.process.description || "Standard training process configuration."}
+                                </p>
+
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    {[
+                                        { label: 'Optimizer', value: session.process.optimizer, color: 'text-purple-400' },
+                                        { label: 'Loss Function', value: session.process.loss, color: 'text-red-400' },
+                                        { label: 'Learning Rate', value: session.process.learning_rate, color: 'text-yellow-400' },
+                                        { label: 'Batch Size', value: session.process.batch_size, color: 'text-blue-400' },
+                                        { label: 'Epochs', value: session.process.epochs, color: 'text-green-400' },
+                                        { label: 'Gamma', value: session.process.gamma, color: 'text-orange-400' },
+                                        { label: 'Epsilon Start', value: session.process.epsilon_start, color: 'text-pink-400' },
+                                        { label: 'Epsilon End', value: session.process.epsilon_end, color: 'text-pink-400' },
+                                        { label: 'Decay Function', value: session.process.decay_function, color: 'text-pink-400' },
+                                        { label: 'Decay Scope', value: session.process.decay_scope, color: 'text-pink-400' },
+                                        { label: 'Force Steps', value: session.process.force_decay_steps, color: 'text-pink-400' },
+                                        { label: 'Decay Rate', value: session.process.epsilon_decay, color: 'text-pink-400' },
+                                        { label: 'Window Size', value: session.process.window_size, color: 'text-cyan-400' },
+                                    ].map((item, i) => (
+                                        <div key={i} className="bg-[#0b1121] p-3 rounded-lg border border-slate-800">
+                                            <div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">{item.label}</div>
+                                            <div className={`font-mono font-medium ${item.color}`}>{item.value !== null ? item.value : '-'}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* 3. Function Card */}
+                <div
+                    onClick={() => setExpandedSection(expandedSection === 'function' ? null : 'function')}
+                    className={`
+                        relative overflow-hidden rounded-xl border transition-all duration-300 cursor-pointer group
+                        ${expandedSection === 'function'
+                            ? 'bg-slate-900/90 border-purple-500/50 shadow-[0_0_30px_-5px_rgba(168,85,247,0.3)] col-span-1 lg:col-span-3'
+                            : 'bg-[#0f172a] border-slate-700 hover:border-slate-500 hover:shadow-lg'
+                        }
+                    `}
+                >
+                    <div className="absolute top-0 right-0 p-24 bg-purple-500/5 blur-[80px] rounded-full pointer-events-none"></div>
+
+                    <div className="p-6 relative z-10">
+                        <div className="flex items-start justify-between">
+                            <div className="flex items-center gap-4">
+                                <div className={`
+                                    p-3 rounded-xl border transition-colors
+                                    ${expandedSection === 'function'
+                                        ? 'bg-purple-500/20 border-purple-500/30'
+                                        : 'bg-slate-800 border-slate-700 group-hover:border-slate-600'
+                                    }
+                                `}>
+                                    <Code size={24} className={expandedSection === 'function' ? 'text-purple-400' : 'text-slate-400'} />
+                                </div>
+                                <div>
+                                    <div className="text-xs uppercase tracking-wider font-semibold text-slate-500 mb-0.5">Reward Function</div>
+                                    <div className="text-lg font-bold text-slate-200 group-hover:text-white transition-colors">
+                                        {session.function?.name || 'Custom Logic'}
+                                    </div>
+                                </div>
+                            </div>
+                            {expandedSection === 'function' ? <ChevronUp size={20} className="text-slate-500" /> : <ChevronDown size={20} className="text-slate-600" />}
+                        </div>
+
+                        {/* Expanded Content */}
+                        {expandedSection === 'function' && session.function && (
+                            <div className="mt-6 pt-6 border-t border-slate-800 animate-in fade-in slide-in-from-top-2 duration-300">
+                                <p className="text-slate-400 text-sm mb-6 max-w-3xl leading-relaxed">
+                                    {session.function.description || "No description provided for this reward function."}
+                                </p>
+
+                                {/* Metadata Parsing */}
+                                {(() => {
+                                    let meta = {};
+                                    try {
+                                        meta = session.function.metadata_json
+                                            ? (typeof session.function.metadata_json === 'string'
+                                                ? JSON.parse(session.function.metadata_json)
+                                                : session.function.metadata_json)
+                                            : {};
+                                    } catch (e) {
+                                        console.error("Failed to parse function metadata", e);
+                                    }
+
+                                    const actionLabels = meta.action_labels || [];
+                                    const statusLabels = meta.status_labels || [];
+                                    const execParams = meta.execution_params || {};
+                                    const transitionMatrix = execParams.transition_matrix || {};
+                                    const forceExitMap = execParams.force_exit_map || {};
+
+                                    return (
+                                        <div className="space-y-6">
+
+                                            {/* Spaces Config */}
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div className="bg-[#0b1121] rounded-lg border border-slate-800 p-4">
+                                                    <div className="text-xs uppercase tracking-wider text-slate-500 font-bold mb-3">Action Space</div>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {actionLabels.length > 0 ? actionLabels.map((lbl, i) => (
+                                                            <span key={i} className="px-2 py-1 bg-slate-800 rounded border border-slate-700 text-xs font-mono text-blue-300">
+                                                                {lbl} <span className="text-slate-600 ml-1">({i})</span>
+                                                            </span>
+                                                        )) : <span className="text-slate-600 italic text-xs">Default (HOLD, BUY, SELL)</span>}
+                                                    </div>
+                                                </div>
+                                                <div className="bg-[#0b1121] rounded-lg border border-slate-800 p-4">
+                                                    <div className="text-xs uppercase tracking-wider text-slate-500 font-bold mb-3">Status Space</div>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {statusLabels.length > 0 ? statusLabels.map((lbl, i) => (
+                                                            <span key={i} className="px-2 py-1 bg-slate-800 rounded border border-slate-700 text-xs font-mono text-purple-300">
+                                                                {lbl} <span className="text-slate-600 ml-1">({i})</span>
+                                                            </span>
+                                                        )) : <span className="text-slate-600 italic text-xs">Default (FLAT, LONG, SHORT)</span>}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* FSM Matrix */}
+                                            {Object.keys(transitionMatrix).length > 0 && (
+                                                <div className="bg-[#0b1121] rounded-lg border border-slate-800 overflow-hidden">
+                                                    <div className="px-4 py-3 border-b border-slate-800 bg-slate-900/50 flex justify-between items-center">
+                                                        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                                                            <Settings size={12} /> Execution Logic (FSM)
+                                                        </span>
+                                                        <span className="text-[10px] text-slate-500 font-mono">Price Column: {execParams.price_column || 'close'}</span>
+                                                    </div>
+                                                    <div className="overflow-x-auto">
+                                                        <table className="w-full text-left border-collapse">
+                                                            <thead>
+                                                                <tr className="bg-slate-900/30">
+                                                                    <th className="p-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-800">State</th>
+                                                                    <th className="p-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-800">Action</th>
+                                                                    <th className="p-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-800">Next State</th>
+                                                                    <th className="p-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-800">Effect</th>
+                                                                    <th className="p-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-800 text-center">Update Price</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="divide-y divide-slate-800/50">
+                                                                {(meta.status_labels || ["FLAT", "LONG", "SHORT"]).map(status => (
+                                                                    <React.Fragment key={status}>
+                                                                        {(meta.action_labels || ["HOLD", "BUY", "SELL"]).map((action, idx) => {
+                                                                            const config = transitionMatrix[status]?.[action];
+                                                                            if (!config) return null;
+
+                                                                            const isDefault = config.next_state === status && config.effect === 'NONE' && !config.update_price;
+
+                                                                            return (
+                                                                                <tr key={`${status}-${action}`} className={`hover:bg-slate-800/30 transition-colors ${isDefault ? 'opacity-60 hover:opacity-100' : ''}`}>
+                                                                                    {idx === 0 && (
+                                                                                        <td rowSpan={(meta.action_labels || ["HOLD", "BUY", "SELL"]).length} className="p-3 text-xs font-mono text-slate-400 border-r border-slate-800 align-top bg-slate-900/20">
+                                                                                            {status}
+                                                                                        </td>
+                                                                                    )}
+                                                                                    <td className="p-3 text-xs font-mono text-blue-300/80 pl-4">{action}</td>
+                                                                                    <td className="p-3 text-xs text-slate-300 font-medium">
+                                                                                        {config.next_state !== status ? <span className="text-purple-400">{config.next_state}</span> : <span className="text-slate-600">{status}</span>}
+                                                                                    </td>
+                                                                                    <td className="p-3 text-xs text-slate-300">
+                                                                                        {config.effect !== 'NONE' ? <span className="text-orange-400 font-mono text-[10px]">{config.effect}</span> : <span className="text-slate-700">-</span>}
+                                                                                    </td>
+                                                                                    <td className="p-3 text-center">
+                                                                                        {config.update_price ? <div className="w-1.5 h-1.5 rounded-full bg-green-500 mx-auto"></div> : null}
+                                                                                    </td>
+                                                                                </tr>
+                                                                            );
+                                                                        })}
+                                                                    </React.Fragment>
+                                                                ))}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Termination Policy */}
+                                            {Object.keys(forceExitMap).length > 0 && (
+                                                <div className="bg-red-900/10 rounded-lg border border-red-900/30 overflow-hidden">
+                                                    <div className="px-4 py-2 border-b border-red-900/20 bg-red-900/20 flex items-center gap-2">
+                                                        <span className="text-xs font-bold text-red-300 uppercase tracking-wider">Termination Policy</span>
+                                                        <span className="text-[10px] text-red-400/60">(Force Exit)</span>
+                                                    </div>
+                                                    <div className="p-3 grid grid-cols-2 md:grid-cols-4 gap-3">
+                                                        {Object.entries(forceExitMap).map(([statusIdx, actionIdx]) => {
+                                                            const sLabel = (meta.status_labels || [])[statusIdx] || statusIdx;
+                                                            const aLabel = (meta.action_labels || [])[actionIdx] || actionIdx;
+                                                            return (
+                                                                <div key={statusIdx} className="bg-slate-900/50 p-2 rounded border border-red-500/10 flex items-center justify-between">
+                                                                    <span className="text-xs font-mono text-slate-400">{sLabel}</span>
+                                                                    <span className="text-xs text-slate-600">→</span>
+                                                                    <span className="text-xs font-mono text-red-400">{aLabel}</span>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                        </div>
+                                    );
+                                })()}
+
+                                <div className="mt-6 bg-[#0b1121] rounded-lg border border-slate-800 overflow-hidden">
+                                    <div className="flex items-center justify-between px-4 py-2 bg-slate-900 border-b border-slate-800">
+                                        <span className="text-xs font-mono text-purple-400 flex items-center gap-2">
+                                            <Code size={12} /> Source Code
+                                        </span>
+                                    </div>
+                                    <div className="p-4 overflow-x-auto">
+                                        <pre className="text-xs font-mono text-slate-300 leading-relaxed">
+                                            {session.function.code || "// No code available"}
+                                        </pre>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
             </div>
 
             {/* Iterations Section */}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useStrategy } from '../context/StrategyContext'
-import axios from 'axios'
+import api from '../api/axios'
 import {
     LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts'
@@ -26,7 +26,7 @@ const ComparisonSelector = ({ mode, onSelect }) => {
     // Sync strategies if context ones update (or fetch if missing)
     useEffect(() => {
         if (!contextStrategies || contextStrategies.length === 0) {
-            axios.get('http://127.0.0.1:8000/api/strategies/')
+            api.get('/strategies/')
                 .then(res => setStrategies(res.data))
                 .catch(err => console.error("Failed to fetch selector strategies", err))
         } else {
@@ -48,7 +48,7 @@ const ComparisonSelector = ({ mode, onSelect }) => {
         setRuns([])
         setSelectedInstanceId(null)
 
-        axios.get(`http://127.0.0.1:8000/api/strategies/${selectedStrategyId}/instances`)
+        api.get(`/strategies/${selectedStrategyId}/instances`)
             .then(res => {
                 setInstances(res.data)
                 if (res.data.length > 0 && mode === 'runs') {
@@ -65,7 +65,7 @@ const ComparisonSelector = ({ mode, onSelect }) => {
         if (mode !== 'runs' || !selectedInstanceId) return
         setRuns([])
 
-        axios.get(`http://127.0.0.1:8000/api/runs/instance/${selectedInstanceId}`)
+        api.get(`/runs/instance/${selectedInstanceId}`)
             .then(res => {
                 // Sort descending by date
                 setRuns(res.data.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)))
@@ -221,8 +221,8 @@ const Comparison = () => {
                 await Promise.all(missingIds.map(async (runId) => {
                     try {
                         const [runRes, tradesRes] = await Promise.all([
-                            axios.get(`http://127.0.0.1:8000/api/runs/${runId}`),
-                            axios.get(`http://127.0.0.1:8000/api/runs/${runId}/trades`)
+                            api.get(`/runs/${runId}`),
+                            api.get(`/runs/${runId}/trades`)
                         ])
 
                         const run = runRes.data
@@ -258,7 +258,7 @@ const Comparison = () => {
                 await Promise.all(missingIds.map(async (instanceId) => {
                     try {
                         // 1. Get all runs for the instance
-                        const runsRes = await axios.get(`http://127.0.0.1:8000/api/runs/instance/${instanceId}`)
+                        const runsRes = await api.get(`/runs/instance/${instanceId}`)
                         const instanceRuns = runsRes.data || []
 
                         if (instanceRuns.length === 0) {
@@ -274,7 +274,7 @@ const Comparison = () => {
                             let metrics = run.metrics_json
                             if (!metrics) {
                                 try {
-                                    const fullRunRes = await axios.get(`http://127.0.0.1:8000/api/runs/${run.run_id}`)
+                                    const fullRunRes = await api.get(`/runs/${run.run_id}`)
                                     metrics = fullRunRes.data.metrics_json
                                 } catch (e) { console.warn("Failed to fetch full run", run.run_id) }
                             }
@@ -289,7 +289,7 @@ const Comparison = () => {
 
                             // Try to fetch trades for curve construction
                             try {
-                                const tradesRes = await axios.get(`http://127.0.0.1:8000/api/runs/${run.run_id}/trades`)
+                                const tradesRes = await api.get(`/runs/${run.run_id}/trades`)
                                 const trades = tradesRes.data || []
                                 const curve = processEquityCurve(run, trades)
                                 if (curve.length > 0) totalEquityCurves.push(curve)

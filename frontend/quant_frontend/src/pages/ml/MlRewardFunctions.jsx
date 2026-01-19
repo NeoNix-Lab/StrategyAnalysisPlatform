@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Save, Trash2, Code, Play, CheckCircle, XCircle, Database, Settings } from 'lucide-react';
 import RewardEditor from './components/RewardEditor';
+import api from '../../api/axios';
 
 const MlRewardFunctions = () => {
     const [functions, setFunctions] = useState([]);
@@ -62,8 +63,8 @@ const MlRewardFunctions = () => {
 
     const fetchFunctions = async () => {
         try {
-            const res = await fetch('/api/ml/studio/functions');
-            if (res.ok) setFunctions(await res.json());
+            const res = await api.get('/ml/studio/functions');
+            setFunctions(res.data);
         } catch (e) { console.error(e); }
         finally { setLoading(false); }
     };
@@ -82,55 +83,51 @@ const MlRewardFunctions = () => {
 
     const fetchDatasets = async () => {
         try {
-            const res = await fetch('/api/datasets/');
-            if (res.ok) {
-                const data = await res.json();
-                const normalized = data.map(d => ({
-                    ...d,
-                    feature_config: d.feature_config || parseJsonList(d.feature_config_json) || []
-                }));
-                setDatasets(normalized);
-            }
+            const res = await api.get('/datasets');
+            const data = res.data;
+            const normalized = data.map(d => ({
+                ...d,
+                feature_config: d.feature_config || parseJsonList(d.feature_config_json) || []
+            }));
+            setDatasets(normalized);
         } catch (e) { console.error(e); }
     };
 
     const handleSelect = async (id) => {
         setLoading(true);
         try {
-            const res = await fetch(`/api/ml/studio/functions/${id}`);
-            if (res.ok) {
-                const data = await res.json();
-                setSelectedId(id);
-                setName(data.name);
-                setCode(data.code);
-                setDescription(data.description || '');
+            const res = await api.get(`/ml/studio/functions/${id}`);
+            const data = res.data;
+            setSelectedId(id);
+            setName(data.name);
+            setCode(data.code);
+            setDescription(data.description || '');
 
-                // Parse metadata
-                const meta = data.metadata_json || {};
-                setActionLabels((meta.action_labels || ["HOLD", "BUY", "SELL"]).join(", "));
-                setStatusLabels((meta.status_labels || ["FLAT", "LONG", "SHORT"]).join(", "));
+            // Parse metadata
+            const meta = data.metadata_json || {};
+            setActionLabels((meta.action_labels || ["HOLD", "BUY", "SELL"]).join(", "));
+            setStatusLabels((meta.status_labels || ["FLAT", "LONG", "SHORT"]).join(", "));
 
-                // Load reference dataset if exists
-                if (meta.reference_dataset_id) {
-                    setSelectedDatasetId(meta.reference_dataset_id);
-                } else {
-                    setSelectedDatasetId('');
-                }
-
-                // Load Execution Logic FSM
-                const execParams = meta.execution_params || {};
-                if (execParams.transition_matrix) {
-                    setTransitionMatrix(execParams.transition_matrix);
-                } else {
-                    setTransitionMatrix({});
-                }
-                setForceExitMap(execParams.force_exit_map || {});
-                setPriceColumn(execParams.price_column || 'close');
-
-                setEditMode(true); // Auto switch to edit/view mode
-                setValidationResult(null);
-                setShowConfig(false);
+            // Load reference dataset if exists
+            if (meta.reference_dataset_id) {
+                setSelectedDatasetId(meta.reference_dataset_id);
+            } else {
+                setSelectedDatasetId('');
             }
+
+            // Load Execution Logic FSM
+            const execParams = meta.execution_params || {};
+            if (execParams.transition_matrix) {
+                setTransitionMatrix(execParams.transition_matrix);
+            } else {
+                setTransitionMatrix({});
+            }
+            setForceExitMap(execParams.force_exit_map || {});
+            setPriceColumn(execParams.price_column || 'close');
+
+            setEditMode(true); // Auto switch to edit/view mode
+            setValidationResult(null);
+            setShowConfig(false);
         } finally { setLoading(false); }
     };
 
@@ -180,26 +177,11 @@ const MlRewardFunctions = () => {
                 ...getMetadataPayload()
             };
 
-            const res = await fetch('/api/ml/studio/functions/validate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            const contentType = res.headers.get('content-type') || '';
-            let data = null;
-            if (contentType.includes('application/json')) {
-                data = await res.json();
-            } else {
-                const text = await res.text();
-                data = { valid: false, error: text || `Request failed (${res.status})` };
-            }
-            if (!res.ok) {
-                setValidationResult({ valid: false, error: data?.error || `Request failed (${res.status})` });
-                return;
-            }
-            setValidationResult(data);
+            const res = await api.post('/ml/studio/functions/validate', payload);
+            setValidationResult(res.data);
         } catch (e) {
-            setValidationResult({ valid: false, error: e?.message || "Network error during validation" });
+            const errorMsg = e.response?.data?.error || e.message || "Network error during validation";
+            setValidationResult({ valid: false, error: errorMsg });
         }
     };
 
@@ -211,19 +193,14 @@ const MlRewardFunctions = () => {
             ...getMetadataPayload()
         };
         try {
-            const res = await fetch('/api/ml/studio/functions', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            if (res.ok) {
-                await fetchFunctions();
-                setEditMode(false);
-                setSelectedId(null); // Return to list
-            } else {
-                alert("Failed to save");
-            }
-        } catch (e) { console.error(e); }
+            await api.post('/ml/studio/functions', payload);
+            await fetchFunctions();
+            setEditMode(false);
+            setSelectedId(null); // Return to list
+        } catch (e) {
+            console.error(e);
+            alert("Failed to save");
+        }
     };
 
     const handleEditorMount = (editor, monaco) => {

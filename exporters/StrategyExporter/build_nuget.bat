@@ -4,7 +4,7 @@ echo Building StrategyExporter NuGet Package
 echo ==========================================
 
 REM Define the output directory for the package
-set OUTPUT_DIR=.\bin\Release
+set OUTPUT_DIR=.\bin\Debug
 
 REM Clean previous builds
 echo Cleaning solution...
@@ -12,7 +12,7 @@ dotnet clean --configuration Release
 
 REM Pack the project
 echo Packing project...
-dotnet pack --configuration Release --output %OUTPUT_DIR%
+dotnet pack --configuration Debug --output %OUTPUT_DIR%
 
 if %ERRORLEVEL% NEQ 0 (
     echo.

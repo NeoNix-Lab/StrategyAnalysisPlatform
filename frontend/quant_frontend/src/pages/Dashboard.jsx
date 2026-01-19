@@ -2,7 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react'
 import { useStrategyData } from '../hooks/useStrategyData'
 import { useStrategy } from '../context/StrategyContext'
 import { useNavigate } from 'react-router-dom'
-import axios from 'axios'
+import api from '../api/axios'
 import { Sliders, Activity, DollarSign, TrendingUp, AlertTriangle, ArrowRight, Shield, Target, Zap, Waves, RefreshCw } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
@@ -43,7 +43,7 @@ const Dashboard = () => {
         if (!selectedRun) return
         try {
             setRebuilding(true)
-            await axios.post(`http://127.0.0.1:8000/api/trades/rebuild/${selectedRun}`)
+            await api.post(`/trades/rebuild/${selectedRun}`)
             await refresh()
         } catch (err) {
             console.error("Rebuild failed:", err)

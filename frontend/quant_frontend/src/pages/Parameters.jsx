@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { CartesianGrid, Cell, Legend, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis, LineChart, Line, AreaChart, Area } from 'recharts'
 import { Plus, Play, Pause, TrendingUp } from 'lucide-react'
-import axios from 'axios'
+import api from '../api/axios'
 
 const METRIC_LABELS = {
     sharpe_ratio: 'Sharpe Ratio',
@@ -169,7 +169,7 @@ const Parameters = () => {
 
     const fetchExperiments = async () => {
         try {
-            const res = await axios.get('http://127.0.0.1:8000/api/experiments/experiments')
+            const res = await api.get('/experiments/experiments')
             setExperiments(res.data)
         } catch (error) {
             console.error("Error fetching experiments:", error)
@@ -186,7 +186,7 @@ const Parameters = () => {
     const fetchRuns = async (experimentId) => {
         setLoading(true)
         try {
-            const res = await axios.get(`http://127.0.0.1:8000/api/experiments/experiments/${experimentId}/runs`)
+            const res = await api.get(`/experiments/experiments/${experimentId}/runs`)
             setRuns(res.data)
             syncDerivedData(res.data)
         } catch (error) {
@@ -198,7 +198,7 @@ const Parameters = () => {
 
     const createExperiment = async () => {
         try {
-            const res = await axios.post('http://127.0.0.1:8000/api/experiments/experiments', {
+            const res = await api.post('/experiments/experiments', {
                 name: newExpName,
                 description: newExpDesc,
                 base_config: {}
@@ -225,7 +225,7 @@ const Parameters = () => {
                 parameters.push({ name: param3Name, min: Number(param3Min), max: Number(param3Max), step: Number(param3Step) })
             }
 
-            const res = await axios.post(`http://127.0.0.1:8000/api/experiments/experiments/${selectedExperiment.experiment_id}/grid-search`, {
+            const res = await api.post(`/experiments/experiments/${selectedExperiment.experiment_id}/grid-search`, {
                 parameters,
                 metric: selectedMetric
             })

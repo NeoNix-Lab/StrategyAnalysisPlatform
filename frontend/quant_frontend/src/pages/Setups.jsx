@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from 'recharts'
 import { Tag, TrendingUp, Award } from 'lucide-react'
-import axios from 'axios'
+import api from '../api/axios'
 
 const Setups = () => {
     const [setupStats, setSetupStats] = useState([])
@@ -14,7 +14,7 @@ const Setups = () => {
     const fetchSetupAnalysis = async () => {
         setLoading(true)
         try {
-            const res = await axios.get('http://127.0.0.1:8000/api/setups/setup-analysis')
+            const res = await api.get('/setups/setup-analysis')
             setSetupStats(res.data)
         } catch (error) {
             console.error("Error fetching setup analysis:", error)

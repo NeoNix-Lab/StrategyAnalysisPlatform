@@ -33,6 +33,17 @@ class PositionImpactType(str, Enum):
     REVERSE = "REVERSE"
     UNKNOWN = "UNKNOWN"
 
+class ConnectionStatus(str, Enum):
+    PENDING = "PENDING"
+    CONNECTED = "CONNECTED"
+    DISCONNECTED = "DISCONNECTED"
+    ERROR = "ERROR"
+    DISABLED = "DISABLED"
+
+class ConnectionMode(str, Enum):
+    LIVE = "LIVE"
+    PAPER = "PAPER"
+
 # --- Input Schemas (Create/Ingest) ---
 
 class StrategyParameter(BaseModel):
@@ -78,6 +89,47 @@ class StrategyRunCreate(BaseModel):
     initial_balance: Optional[float] = None
     base_currency: Optional[str] = None
     metrics_json: Optional[Dict[str, Any]] = None
+
+class IngestStrategySeed(BaseModel):
+    strategy_id: Optional[str] = None
+    name: str
+    version: Optional[str] = None
+    vendor: Optional[str] = None
+    source_ref: Optional[str] = None
+    notes: Optional[str] = None
+    parameters_json: List[StrategyParameter] = Field(default_factory=list)
+
+class IngestInstanceSeed(BaseModel):
+    instance_id: Optional[str] = None
+    instance_name: Optional[str] = None
+    parameters_json: Dict[str, Any] = Field(default_factory=dict)
+    symbol: Optional[str] = None
+    symbols_json: Optional[List[str]] = None
+    timeframe: Optional[str] = None
+    account_id: Optional[str] = None
+    venue: Optional[str] = None
+
+class IngestRunSeed(BaseModel):
+    run_type: str = "LIVE"
+    start_utc: Optional[datetime] = None
+    engine_version: Optional[str] = None
+    data_source: Optional[str] = None
+    initial_balance: Optional[float] = None
+    base_currency: Optional[str] = None
+    metrics_json: Optional[Dict[str, Any]] = None
+
+class IngestRunStartRequest(BaseModel):
+    strategy: IngestStrategySeed
+    instance: IngestInstanceSeed
+    run: IngestRunSeed
+
+class IngestRunStartResponse(BaseModel):
+    strategy_id: str
+    instance_id: str
+    run_id: str
+    run_type: str
+    start_utc: datetime
+    status: str
 
 class StartRunRequest(BaseModel):
     strategy_id: str
@@ -146,6 +198,35 @@ class StreamIngestRequest(BaseModel):
     orders: Optional[List[OrderCreate]] = []
     executions: Optional[List[ExecutionCreate]] = []
 
+class ConnectionCreate(BaseModel):
+    connection_id: Optional[str] = None
+    user_id: Optional[str] = None
+    name: Optional[str] = None
+    platform: str
+    mode: ConnectionMode = ConnectionMode.LIVE
+    status: ConnectionStatus = ConnectionStatus.PENDING
+    account_id: Optional[str] = None
+    capabilities_json: Optional[Dict[str, Any]] = None
+    config_json: Optional[Dict[str, Any]] = None
+    secrets_json: Optional[Dict[str, Any]] = None
+    meta_json: Optional[Dict[str, Any]] = None
+
+class ConnectionUpdate(BaseModel):
+    name: Optional[str] = None
+    platform: Optional[str] = None
+    mode: Optional[ConnectionMode] = None
+    status: Optional[ConnectionStatus] = None
+    account_id: Optional[str] = None
+    capabilities_json: Optional[Dict[str, Any]] = None
+    config_json: Optional[Dict[str, Any]] = None
+    secrets_json: Optional[Dict[str, Any]] = None
+    meta_json: Optional[Dict[str, Any]] = None
+
+class ConnectionHeartbeat(BaseModel):
+    heartbeat_utc: Optional[datetime] = None
+    status: Optional[ConnectionStatus] = None
+    latency_ms: Optional[float] = None
+
 
 # --- Response Schemas (Read) ---
 
@@ -182,6 +263,25 @@ class BarResponse(BaseModel):
     low: float
     close: float
     volume: float
+
+    class Config:
+        from_attributes = True
+
+class ConnectionResponse(BaseModel):
+    connection_id: str
+    user_id: Optional[str] = None
+    name: Optional[str] = None
+    platform: str
+    mode: ConnectionMode
+    status: ConnectionStatus
+    account_id: Optional[str] = None
+    capabilities_json: Optional[Dict[str, Any]] = None
+    config_json: Optional[Dict[str, Any]] = None
+    meta_json: Optional[Dict[str, Any]] = None
+    created_utc: datetime
+    updated_utc: datetime
+    last_heartbeat_utc: Optional[datetime] = None
+    last_latency_ms: Optional[float] = None
 
     class Config:
         from_attributes = True

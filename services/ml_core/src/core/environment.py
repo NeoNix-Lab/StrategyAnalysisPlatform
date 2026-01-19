@@ -98,6 +98,7 @@ class EnvFlex(gym.Env):
         self.current_balance = initial_balance
         self.entry_price = 0.0
         self._current_status = 0 # Internal integer status (0=Flat, 1=Long, etc.)
+        self.status_change_count = 0
         self.qty = 0.0           # New: Track Quantity
         self.unrealized_pnl = 0.0 # New: Track Unrealized PnL
         
@@ -136,6 +137,8 @@ class EnvFlex(gym.Env):
     @current_status.setter
     def current_status(self, value):
         """Allow setting status directly."""
+        if value != self._current_status:
+            self.status_change_count += 1
         self._current_status = value
 
     @property
@@ -145,7 +148,7 @@ class EnvFlex(gym.Env):
     
     @position.setter
     def position(self, value):
-        self._current_status = value
+        self.current_status = value
 
     @property
     def balance(self):
@@ -170,6 +173,7 @@ class EnvFlex(gym.Env):
         self.current_step = self.window_size
         self.current_balance = self.initial_balance
         self.entry_price = 0.0
+        self.status_change_count = 0
         self._current_status = 0
         self.qty = 0.0
         self.unrealized_pnl = 0.0

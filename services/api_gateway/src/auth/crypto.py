@@ -5,7 +5,7 @@ import os
 
 class PasswordHasherService:
     def __init__(self):
-        self._pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+        self._pwd_context = CryptContext(schemes=["pbkdf2_sha256", "bcrypt"], deprecated="auto")
 
     def hash_password(self, password: str) -> str:
         """return hashed psw"""
@@ -13,9 +13,7 @@ class PasswordHasherService:
 
     def verify_password(self, plain_password: str, hashed_password: str) -> bool:
         """verify hashed psw"""
-        # Bcrypt has a max length limit of 72 bytes. Passlib usually handles this, 
-        # but explicit truncation avoids ValueError in some versions.
-        return self._pwd_context.verify(plain_password[:72], hashed_password)
+        return self._pwd_context.verify(plain_password, hashed_password)
 
 
 class FernetService:

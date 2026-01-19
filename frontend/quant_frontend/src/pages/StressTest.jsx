@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell, Legend } from 'recharts'
 import { Play, AlertTriangle, TrendingDown } from 'lucide-react'
-import axios from 'axios'
+import api from '../api/axios'
 
 const StressTest = () => {
     const [monteCarloData, setMonteCarloData] = useState(null)
@@ -12,7 +12,7 @@ const StressTest = () => {
     const runMonteCarlo = async () => {
         setLoading(true)
         try {
-            const res = await axios.get(`http://127.0.0.1:8000/api/stress/montecarlo?n_simulations=${nSimulations}`)
+            const res = await api.get(`/stress/montecarlo?n_simulations=${nSimulations}`)
             setMonteCarloData(res.data)
         } catch (error) {
             console.error("Error running Monte Carlo:", error)
@@ -24,7 +24,7 @@ const StressTest = () => {
     const runStressScenarios = async () => {
         setLoading(true)
         try {
-            const res = await axios.get('http://127.0.0.1:8000/api/stress/stress-scenarios')
+            const res = await api.get('/stress/stress-scenarios')
             setStressScenarios(res.data)
         } catch (error) {
             console.error("Error running stress scenarios:", error)

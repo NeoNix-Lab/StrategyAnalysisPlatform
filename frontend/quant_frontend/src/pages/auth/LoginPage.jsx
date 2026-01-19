@@ -21,7 +21,9 @@ const LoginPage = () => {
                 setError('Login successful, but session verification failed.');
             }
         } catch (err) {
-            setError('Login failed. Check your credentials.');
+            console.error(err);
+            const msg = err.response?.data?.detail || 'Login failed. Check your credentials.';
+            setError(msg);
         }
     };
 

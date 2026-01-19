@@ -3,7 +3,7 @@ import { ScatterChart, Scatter, XAxis, YAxis, ZAxis, CartesianGrid, Tooltip, Res
 import { useStrategyData } from '../hooks/useStrategyData'
 import { CandleChart } from '../components/CandleChart'
 import { X, Info } from 'lucide-react'
-import axios from 'axios'
+import api from '../api/axios'
 
 const Efficiency = () => {
     const { trades, loading } = useStrategyData()
@@ -73,7 +73,7 @@ const Efficiency = () => {
                 const startTime = new Date(entryTime.getTime() - 20 * 60000).toISOString()
                 const endTime = new Date(exitTime.getTime() + 20 * 60000).toISOString()
 
-                const res = await axios.get('http://127.0.0.1:8000/api/bars/', {
+                const res = await api.get('/bars/', {
                     params: {
                         symbol: selectedTrade.symbol,
                         start_time: startTime,

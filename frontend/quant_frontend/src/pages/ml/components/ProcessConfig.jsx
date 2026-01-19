@@ -138,7 +138,37 @@ const ProcessConfig = ({ config, setConfig }) => {
                     bgClass="bg-yellow-500/10"
                 />
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 bg-[#0b1121]/50 p-6 rounded-xl border border-slate-800/50">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 bg-[#0b1121]/50 p-6 rounded-xl border border-slate-800/50 mb-6">
+                    <SelectGroup
+                        label="Decay Function"
+                        value={config.decay_function || "LINEAR"}
+                        onChange={e => handleChange('decay_function', e.target.value)}
+                        options={[
+                            { label: "Linear", value: "LINEAR" },
+                            { label: "Exponential", value: "EXPONENTIAL" }
+                        ]}
+                    />
+                    <SelectGroup
+                        label="Decay Scope"
+                        value={config.decay_scope || "GLOBAL"}
+                        onChange={e => handleChange('decay_scope', e.target.value)}
+                        options={[
+                            { label: "Global (Total Steps)", value: "GLOBAL" },
+                            { label: "Per Episode", value: "EPISODE" },
+                            { label: "Per Step", value: "STEP" }
+                        ]}
+                    />
+                    {config.decay_scope === 'STEP' && (
+                        <InputGroup
+                            label="Force Decay Steps"
+                            value={config.force_decay_steps}
+                            onChange={e => handleChange('force_decay_steps', parseInt(e.target.value))}
+                            min="1"
+                        />
+                    )}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                     <InputGroup
                         label="Start Value"
                         value={config.epsilon_start}
@@ -151,17 +181,21 @@ const ProcessConfig = ({ config, setConfig }) => {
                         onChange={e => handleChange('epsilon_end', parseFloat(e.target.value))}
                         step="0.01" min="0" max="1"
                     />
-                    <InputGroup
-                        label="Decay Rate"
-                        value={config.epsilon_decay}
-                        onChange={e => handleChange('epsilon_decay', parseFloat(e.target.value))}
-                        step="0.001" min="0" max="1"
-                    />
+
+                    {config.decay_function === 'EXPONENTIAL' && (
+                        <InputGroup
+                            label="Decay Rate"
+                            value={config.epsilon_decay}
+                            onChange={e => handleChange('epsilon_decay', parseFloat(e.target.value))}
+                            step="0.001" min="0" max="1"
+                        />
+                    )}
                 </div>
-                <div className="mt-4 flex items-center gap-2 text-xs text-slate-500 px-2">
+
+                <div className="mt-4 flex items-center gap-2 text-xs text-slate-500 px-2 pt-4 border-t border-slate-800/50">
                     <Activity size={14} />
                     <span>
-                        Decay traverses from <span className="text-slate-300 font-mono">{config.epsilon_start}</span> to <span className="text-slate-300 font-mono">{config.epsilon_end}</span>.
+                        Decay traverses from <span className="text-slate-300 font-mono">{config.epsilon_start}</span> to <span className="text-slate-300 font-mono">{config.epsilon_end}</span> using <span className="text-yellow-500 font-bold">{config.decay_function || "LINEAR"}</span> function over <span className="text-yellow-500 font-bold">{config.decay_scope || "GLOBAL"}</span> scope.
                     </span>
                 </div>
             </div>

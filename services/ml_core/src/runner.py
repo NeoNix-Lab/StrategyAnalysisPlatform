@@ -67,6 +67,7 @@ class TrainingRunner:
         logger.info(f"Initializing RL Training for Run {run_id}")
         self.running = True
         self._set_status(run_id, "RUNNING")
+        log_prefix = f"[{run_id}] "
         
         try:
             # 1. Configuration Extraction
@@ -128,20 +129,20 @@ class TrainingRunner:
             # Option 1: Direct raw data (legacy)
             if "data" in config:
                 raw_data = config["data"]
-                logger.info(f"Using direct raw data: {len(raw_data)} records")
+                logger.info("%sUsing direct raw data: %s records", log_prefix, len(raw_data))
             
             # Option 2: Dataset from database
             elif "dataset_id" in config:
                 dataset_id = config["dataset_id"]
                 raw_data = self._load_dataset_from_db(dataset_id)
-                logger.info(f"Loaded dataset from DB: {dataset_id}, {len(raw_data)} records")
+                logger.info("%sLoaded dataset from DB: %s, %s records", log_prefix, dataset_id, len(raw_data))
             
             # Option 3: File upload
             elif "file_path" in config:
                 file_path = config["file_path"]
                 file_config = config.get("file_config", {})
                 raw_data = self._load_dataset_from_file(file_path, file_config)
-                logger.info(f"Loaded dataset from file: {file_path}, {len(raw_data)} records")
+                logger.info("%sLoaded dataset from file: %s, %s records", log_prefix, file_path, len(raw_data))
             
             # Fallback to dummy data if no data source
             if not raw_data:
@@ -152,6 +153,12 @@ class TrainingRunner:
                 ]
             
             df = pd.DataFrame(raw_data)
+            logger.info(
+                "%sDataset loaded | records=%s columns=%s",
+                log_prefix,
+                len(df),
+                len(df.columns)
+            )
             
             # 3. Environment Setup (Refactored)
             # Define Execution and Reward functions
@@ -183,11 +190,11 @@ class TrainingRunner:
                         status_labels=training_params.get("status_labels", ["FLAT", "LONG", "SHORT"])
                     )
                 except Exception as e:
-                    logger.error(f"Failed to load dynamic reward: {e}")
+                    logger.error("%sFailed to load dynamic reward: %s", log_prefix, e)
                     reward_fn = None # Fallback
 
             if not reward_fn:
-                logger.info("Using default simple_pnl_reward")
+                logger.info("%sUsing default simple_pnl_reward", log_prefix)
                 reward_fn = StrategyLibrary.simple_pnl_reward
 
             # Check for FSM Execution Params
@@ -223,12 +230,12 @@ class TrainingRunner:
                     )
                     execution_fn = engine
                 except Exception as e:
-                    logger.error(f"Failed to load FSM Engine: {e}")
+                    logger.error("%sFailed to load FSM Engine: %s", log_prefix, e)
                     execution_fn = None
 
             if not execution_fn:
-                 logger.info("Using default simple_long_short_execution")
-                 execution_fn = StrategyLibrary.simple_long_short_execution
+                logger.info("%sUsing default simple_long_short_execution", log_prefix)
+                execution_fn = StrategyLibrary.simple_long_short_execution
 
             env = EnvFlex(
                 data=df,
@@ -257,6 +264,15 @@ class TrainingRunner:
                 ]
             else:
                 model_arch = _ensure_output_units(model_arch, action_dim)
+            logger.info(
+                "%sModel config | layers=%s actions=%s status=%s window=%s split=%s",
+                log_prefix,
+                len(model_arch),
+                action_labels,
+                training_params.get("status_labels", ["FLAT", "LONG", "SHORT"]),
+                training_params.get("window_size", 10),
+                split_config
+            )
 
             model = CustomDQNModel(
                 architecture_config=model_arch,
@@ -279,7 +295,7 @@ class TrainingRunner:
                 optimizer_cls = getattr(tf.keras.optimizers, opt_name)
                 optimizer = optimizer_cls(learning_rate=lr)
             except Exception:
-                logger.warning(f"Optimizer {opt_name} not found, falling back to Adam")
+                logger.warning("%sOptimizer %s not found, falling back to Adam", log_prefix, opt_name)
                 optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
 
             # Dynamic Loss
@@ -291,7 +307,7 @@ class TrainingRunner:
                 else:
                     loss_fn = tf.keras.losses.get(loss_name)
             except Exception:
-                logger.warning(f"Loss function {loss_name} not found, falling back to Huber")
+                logger.warning("%sLoss function %s not found, falling back to Huber", log_prefix, loss_name)
                 loss_fn = tf.keras.losses.Huber()
             
             default_log_root = PROJECT_ROOT / "var" / "logs" / "training"
@@ -300,17 +316,68 @@ class TrainingRunner:
             
             # Instantiate Trainer (Restoring missing logic)
             epochs = training_params.get("epochs", 1)
-            num_episodes = training_params.get("num_episodes", 10)
+            num_episodes = training_params.get("num_episodes")
+            if num_episodes is None:
+                num_episodes = epochs
+            num_episodes = max(int(num_episodes), 1)
             batch_size = training_params.get("batch_size", 32)
             
             # If inference mode, force epsilon=0
             epsilon_start = training_params.get("epsilon_start", 1.0) if not is_test_mode else 0.0
             epsilon_end = training_params.get("epsilon_end", 0.05) if not is_test_mode else 0.0
+            epsilon_decay_rate = training_params.get("epsilon_decay")
             
-            # Ensure epsilon_decay_steps is a valid int
-            epsilon_decay_steps = training_params.get("epsilon_decay_steps")
-            if epsilon_decay_steps is None:
-                epsilon_decay_steps = 1000
+            # [EPSILON-REFACTOR] Enhanced Decay Logic
+            decay_function = training_params.get("decay_function", "LINEAR")
+            decay_scope = training_params.get("decay_scope", "GLOBAL")
+            force_decay_steps = training_params.get("force_decay_steps")
+            
+            # Calculate total projected steps for GLOBAL scope
+            dataset_len = len(df)
+            total_projected_steps = epochs * dataset_len
+            
+            # Default values
+            calculated_decay_steps = 1000 # Fallback
+            decay_frequency = 'step'
+            
+            # Logic Matrix
+            if decay_scope == 'GLOBAL':
+                # Linear decay over the entire training run
+                calculated_decay_steps = total_projected_steps
+                decay_frequency = 'step'
+                # Force linear mode implies we ignore rate if it was set for exponential
+                if decay_function == 'LINEAR':
+                    epsilon_decay_rate = None 
+                
+            elif decay_scope == 'EPISODE':
+                decay_frequency = 'episode'
+                if decay_function == 'LINEAR':
+                     # Decay over N episodes
+                     calculated_decay_steps = epochs
+                # If Exponential, rate is used naturally in trainer via _decay_epsilon
+                
+            elif decay_scope == 'STEP':
+                decay_frequency = 'step'
+                # Use fixed steps if provided, else use default logic
+                if force_decay_steps:
+                    calculated_decay_steps = force_decay_steps
+            
+            # Final Override if explicit
+            if force_decay_steps and decay_scope != 'GLOBAL':
+                 calculated_decay_steps = force_decay_steps
+                 
+            epsilon_decay_steps = calculated_decay_steps
+            
+            # Ensure safe int
+            epsilon_decay_steps = max(int(epsilon_decay_steps), 1)
+            
+            # If using exponential decay_rate, Trainer ignores steps for decay calculation, 
+            # but we pass it anyway.
+            # However, if user selected LINEAR and provided a rate (e.g. 0.99) in the old field,
+            # we might have a conflict. 
+            # We trust 'decay_function' primarily.
+            if decay_function == 'LINEAR':
+                epsilon_decay_rate = None
             
             trainer = Trainer(
                 env=env,
@@ -322,28 +389,56 @@ class TrainingRunner:
                 epsilon_start=epsilon_start,
                 epsilon_end=epsilon_end,
                 epsilon_decay_steps=epsilon_decay_steps,
+                epsilon_decay_rate=epsilon_decay_rate,
                 log_dir=log_dir,
                 training_name=f"run_{run_id}",
+                run_id=run_id,
                 epochs=epochs,
-                log_every_steps=training_params.get("log_every_steps", 1000)
+                log_every_steps=training_params.get("log_every_steps", 1000),
+                decay_frequency=decay_frequency
             )
+
+            log_params = copy.deepcopy(training_params)
+            reward_code = log_params.get("reward_code")
+            if reward_code:
+                log_params["reward_code"] = f"<{len(reward_code)} chars>"
+            exec_params = log_params.get("execution_params")
+            if isinstance(exec_params, dict) and "transition_matrix" in exec_params:
+                safe_exec = dict(exec_params)
+                safe_exec["transition_matrix"] = f"<{len(exec_params['transition_matrix'])} states>"
+                log_params["execution_params"] = safe_exec
+            logger.info(
+                "%sTraining params resolved | num_episodes=%s epochs=%s batch_size=%s optimizer=%s loss=%s "
+                "epsilon_start=%s epsilon_end=%s epsilon_decay=%s epsilon_decay_steps=%s",
+                log_prefix,
+                num_episodes,
+                epochs,
+                batch_size,
+                opt_name,
+                loss_name,
+                epsilon_start,
+                epsilon_end,
+                epsilon_decay_rate if epsilon_decay_rate is not None else "n/a",
+                epsilon_decay_steps
+            )
+            logger.info("%sTraining params detail | %s", log_prefix, log_params)
             self.trainer = trainer
             
             # [NEW] Load pre-trained model if specified (Backtest Mode)
             load_model_path = config.get("load_model_path")
-            logger.info(f"Runner Config - load_model_path: {load_model_path}")
+            logger.info("%sRunner Config - load_model_path: %s", log_prefix, load_model_path)
             
             if load_model_path:
                 if os.path.exists(load_model_path):
-                    logger.info(f"Loading pre-trained model from: {load_model_path}")
+                    logger.info("%sLoading pre-trained model from: %s", log_prefix, load_model_path)
                     try:
                         trainer.load_model(load_model_path)
                     except Exception as e:
-                        logger.error(f"Failed to load model: {e}")
+                        logger.error("%sFailed to load model: %s", log_prefix, e)
                         self._set_status(run_id, "FAILED")
                         return
                 else:
-                    logger.warning(f"Model path specified but file not found: {load_model_path}")
+                    logger.warning("%sModel path specified but file not found: %s", log_prefix, load_model_path)
                     # Should we fail here? Yes, because backtest on random weights is useless.
                     self._set_status(run_id, "FAILED") 
                     return
@@ -377,12 +472,12 @@ class TrainingRunner:
                 try:
                     with open(history_path, 'w') as f:
                         json.dump(history, f, indent=2)
-                    logger.info(f"Inference history saved to {history_path}")
+                    logger.info("%sInference history saved to %s", log_prefix, history_path)
                     
                     # Store path in metrics for UI/Reconstruction to find
                     self._update_run_metrics(run_id, {"inference_history_path": history_path})
                 except Exception as e:
-                     logger.error(f"Failed to save inference history: {e}")
+                     logger.error("%sFailed to save inference history: %s", log_prefix, e)
 
             logger.info(f"Training Completed for Run {run_id}")
             self._finalize_run(run_id, status=RunStatus.COMPLETED)

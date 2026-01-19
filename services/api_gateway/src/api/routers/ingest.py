@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from sqlalchemy.orm import Session
+from typing import Optional
 import logging
 from datetime import datetime
 import uuid
@@ -8,15 +9,17 @@ import json
 
 from quant_shared.models.connection import get_db
 from quant_shared.models.models import (
-    Strategy, StrategyInstance, StrategyRun, 
+    Strategy, StrategyInstance, StrategyRun, User, Role,
     Order, Execution, RunSeries, RunSeriesBar, RunSeriesRunLink,
     Side, OrderType, OrderStatus, PositionImpactType, RunType, RunStatus
 )
 from quant_shared.schemas.schemas import (
     StrategyCreate, StrategyInstanceCreate, StrategyRunCreate, StrategyRunUpdate,
+    IngestRunStartRequest, IngestRunStartResponse,
     OrderCreate, OrderUpdate, ExecutionCreate, BarCreate, StreamIngestRequest
 )
 from quant_shared.core.trade_service import TradeService
+from src.auth.service import require_scopes, API_KEY_SCOPE_INGEST_WRITE
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -78,14 +81,14 @@ def upsert_strategy(db: Session, data: StrategyCreate):
 
 def upsert_instance(db: Session, data: StrategyInstanceCreate):
     inst = db.query(StrategyInstance).filter(StrategyInstance.instance_id == data.instance_id).first()
+    symbols_json = data.symbols_json or ([data.symbol] if data.symbol else [])
     if not inst:
         inst = StrategyInstance(
             instance_id=data.instance_id,
             strategy_id=data.strategy_id,
             instance_name=data.instance_name,
             parameters_json=data.parameters_json,
-            symbol=data.symbol,
-            symbols_json=data.symbols_json,
+            symbols_json=symbols_json,
             timeframe=data.timeframe,
             account_id=data.account_id,
             venue=data.venue
@@ -94,10 +97,150 @@ def upsert_instance(db: Session, data: StrategyInstanceCreate):
     else:
         inst.parameters_json = data.parameters_json
         if data.instance_name: inst.instance_name = data.instance_name
+        if symbols_json: inst.symbols_json = symbols_json
         # ... update other fields
     db.commit()
     db.refresh(inst)
     return inst
+
+def _error_detail(code: str, message: str, details: Optional[dict] = None):
+    return {"error_code": code, "message": message, "details": details or {}}
+
+def _normalize_symbols(symbols_json: Optional[list[str]], symbol: Optional[str]) -> list[str]:
+    if symbols_json:
+        return sorted([s for s in symbols_json if s])
+    if symbol:
+        return [symbol]
+    return []
+
+@router.post("/run/start", response_model=IngestRunStartResponse)
+def start_run(
+    payload: IngestRunStartRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_scopes(API_KEY_SCOPE_INGEST_WRITE)),
+):
+    normalized_params = normalize_strategy_parameters(payload.strategy.parameters_json)
+    user_id = current_user.user_id
+
+    strategy = None
+    if payload.strategy.strategy_id:
+        strategy = db.query(Strategy).filter(Strategy.strategy_id == payload.strategy.strategy_id).first()
+
+    if strategy is None:
+        strategy_query = db.query(Strategy).filter(
+            Strategy.name == payload.strategy.name,
+            Strategy.version == payload.strategy.version,
+            Strategy.parameters_json == normalized_params,
+        )
+        strategy_query = strategy_query.filter(Strategy.user_id == user_id)
+        strategy = strategy_query.first()
+
+    if strategy:
+        if strategy.user_id and strategy.user_id != user_id and current_user.role != Role.ADMIN:
+            raise HTTPException(status_code=403, detail=_error_detail("tenant_mismatch", "Strategy not owned"))
+        strategy.name = payload.strategy.name
+        strategy.version = payload.strategy.version
+        strategy.vendor = payload.strategy.vendor
+        strategy.source_ref = payload.strategy.source_ref
+        strategy.notes = payload.strategy.notes
+        strategy.parameters_json = normalized_params
+        if strategy.user_id is None:
+            strategy.user_id = user_id
+    else:
+        strategy_id = payload.strategy.strategy_id or str(uuid.uuid4())
+        strategy = Strategy(
+            strategy_id=strategy_id,
+            name=payload.strategy.name,
+            version=payload.strategy.version,
+            vendor=payload.strategy.vendor,
+            source_ref=payload.strategy.source_ref,
+            notes=payload.strategy.notes,
+            parameters_json=normalized_params,
+            user_id=user_id,
+        )
+        db.add(strategy)
+
+    instance_params = json.loads(json.dumps(payload.instance.parameters_json or {}, sort_keys=True))
+    symbols_json = _normalize_symbols(payload.instance.symbols_json, payload.instance.symbol)
+    instance = None
+    if payload.instance.instance_id:
+        instance = (
+            db.query(StrategyInstance)
+            .filter(StrategyInstance.instance_id == payload.instance.instance_id)
+            .first()
+        )
+
+    if instance is None:
+        instance_query = db.query(StrategyInstance).filter(
+            StrategyInstance.strategy_id == strategy.strategy_id,
+            StrategyInstance.parameters_json == instance_params,
+            StrategyInstance.symbols_json == symbols_json,
+            StrategyInstance.timeframe == payload.instance.timeframe,
+            StrategyInstance.account_id == payload.instance.account_id,
+            StrategyInstance.venue == payload.instance.venue,
+        )
+        instance_query = instance_query.filter(StrategyInstance.user_id == user_id)
+        instance = instance_query.first()
+
+    if instance:
+        if instance.user_id and instance.user_id != user_id and current_user.role != Role.ADMIN:
+            raise HTTPException(status_code=403, detail=_error_detail("tenant_mismatch", "Instance not owned"))
+        instance.instance_name = payload.instance.instance_name or instance.instance_name
+        instance.parameters_json = instance_params
+        instance.timeframe = payload.instance.timeframe
+        instance.account_id = payload.instance.account_id
+        instance.venue = payload.instance.venue
+        if symbols_json:
+            instance.symbols_json = symbols_json
+        if instance.user_id is None:
+            instance.user_id = user_id
+    else:
+        instance_id = payload.instance.instance_id or str(uuid.uuid4())
+        instance = StrategyInstance(
+            instance_id=instance_id,
+            strategy_id=strategy.strategy_id,
+            user_id=user_id,
+            instance_name=payload.instance.instance_name,
+            parameters_json=instance_params,
+            symbols_json=symbols_json,
+            timeframe=payload.instance.timeframe,
+            account_id=payload.instance.account_id,
+            venue=payload.instance.venue,
+        )
+        db.add(instance)
+
+    try:
+        run_type = RunType(payload.run.run_type)
+    except Exception:
+        raise HTTPException(
+            status_code=400,
+            detail=_error_detail("invalid_run_type", "Invalid run_type", {"run_type": payload.run.run_type}),
+        )
+
+    run = StrategyRun(
+        run_id=str(uuid.uuid4()),
+        instance_id=instance.instance_id,
+        run_type=run_type,
+        start_utc=payload.run.start_utc or datetime.utcnow(),
+        status=RunStatus.RUNNING,
+        engine_version=payload.run.engine_version,
+        data_source=payload.run.data_source,
+        initial_balance=payload.run.initial_balance,
+        base_currency=payload.run.base_currency,
+        metrics_json=payload.run.metrics_json,
+    )
+    db.add(run)
+    db.commit()
+    db.refresh(run)
+
+    return IngestRunStartResponse(
+        strategy_id=strategy.strategy_id,
+        instance_id=instance.instance_id,
+        run_id=run.run_id,
+        run_type=run.run_type.value,
+        start_utc=run.start_utc,
+        status=run.status.value,
+    )
 
 # --- Endpoints ---
 

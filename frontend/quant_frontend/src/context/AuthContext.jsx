@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
+import React, { createContext, useState, useEffect, useContext, useCallback } from 'react';
 import api from '../api/axios';
 
 const AuthContext = createContext(null);
@@ -6,11 +6,6 @@ const AuthContext = createContext(null);
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
-
-    // Check if user is logged in on mount
-    useEffect(() => {
-        checkUserLoggedIn();
-    }, []);
 
     const checkUserLoggedIn = async () => {
         try {
@@ -26,11 +21,38 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
+    const logout = useCallback(() => {
+        setUser(null);
+        delete api.defaults.headers.common['Authorization'];
+        localStorage.removeItem('token');
+    }, []);
+
+    // Initialize auth from stored token (avoid unnecessary 401s)
+    useEffect(() => {
+        const token = localStorage.getItem('token');
+        if (!token) {
+            setUser(null);
+            setIsLoading(false);
+            return;
+        }
+        api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        checkUserLoggedIn();
+    }, []);
+
+    // Global unauthorized handler from axios
+    useEffect(() => {
+        const handleUnauthorized = () => {
+            logout();
+        };
+        window.addEventListener('auth:unauthorized', handleUnauthorized);
+        return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
+    }, [logout]);
+
     const login = async (email, password) => {
-        // Form data for OAuth2PasswordRequestForm
-        const formData = new FormData();
-        formData.append('username', email);
-        formData.append('password', password);
+        // Use URLSearchParams for application/x-www-form-urlencoded
+        const params = new URLSearchParams();
+        params.append('username', email);
+        params.append('password', password);
 
         // Login returns success but the cookie is HttpOnly
         // We receive access_token in body but rely on cookie for subsequent requests if configured that way.
@@ -44,7 +66,9 @@ export const AuthProvider = ({ children }) => {
         // It does NOT set a cookie automatically in `create_access_token` endpoint. 
         // So I must store the token.
 
-        const response = await api.post('/auth/login', formData);
+        const response = await api.post('/auth/login', params, {
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+        });
         const { access_token } = response.data;
 
         // Set default header for future requests
@@ -66,20 +90,7 @@ export const AuthProvider = ({ children }) => {
         return true;
     };
 
-    const logout = async () => {
-        setUser(null);
-        delete api.defaults.headers.common['Authorization'];
-        localStorage.removeItem('token');
-        // Optional: call backend logout if needed
-    };
-
-    // Initialize token from storage if exists
-    useEffect(() => {
-        const token = localStorage.getItem('token');
-        if (token) {
-            api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-        }
-    }, []);
+    // Optional: call backend logout if needed
 
     return (
         <AuthContext.Provider value={{ user, login, register, logout, isLoading }}>

@@ -4,6 +4,68 @@ using System.Text.Json.Serialization;
 
 namespace StrategyExporterTemplate.DTOs
 {
+    public class StrategyParameterDto
+    {
+        [JsonPropertyName("name")] public string Name { get; set; }
+        [JsonPropertyName("label")] public string Label { get; set; }
+        [JsonPropertyName("description")] public string Description { get; set; }
+        [JsonPropertyName("type_hint")] public string TypeHint { get; set; }
+        [JsonPropertyName("default_value")] public object DefaultValue { get; set; }
+        [JsonPropertyName("value")] public object Value { get; set; }
+        [JsonPropertyName("required")] public bool? Required { get; set; }
+    }
+
+    public class IngestStrategySeedDto
+    {
+        [JsonPropertyName("strategy_id")] public string StrategyId { get; set; }
+        [JsonPropertyName("name")] public string Name { get; set; }
+        [JsonPropertyName("version")] public string Version { get; set; }
+        [JsonPropertyName("vendor")] public string Vendor { get; set; }
+        [JsonPropertyName("source_ref")] public string SourceRef { get; set; }
+        [JsonPropertyName("notes")] public string Notes { get; set; }
+        [JsonPropertyName("parameters_json")] public List<StrategyParameterDto> Parameters { get; set; }
+    }
+
+    public class IngestInstanceSeedDto
+    {
+        [JsonPropertyName("instance_id")] public string InstanceId { get; set; }
+        [JsonPropertyName("instance_name")] public string InstanceName { get; set; }
+        [JsonPropertyName("parameters_json")] public Dictionary<string, object> Parameters { get; set; }
+        [JsonPropertyName("symbol")] public string Symbol { get; set; }
+        [JsonPropertyName("symbols_json")] public List<string> Symbols { get; set; }
+        [JsonPropertyName("timeframe")] public string Timeframe { get; set; }
+        [JsonPropertyName("account_id")] public string AccountId { get; set; }
+        [JsonPropertyName("venue")] public string Venue { get; set; }
+    }
+
+    public class IngestRunSeedDto
+    {
+        [JsonPropertyName("run_type")] public string RunType { get; set; }
+        [JsonPropertyName("start_utc")] public DateTime? StartUtc { get; set; }
+        [JsonPropertyName("engine_version")] public string EngineVersion { get; set; }
+        [JsonPropertyName("data_source")] public string DataSource { get; set; }
+        [JsonPropertyName("initial_balance")] public double? InitialBalance { get; set; }
+        [JsonPropertyName("base_currency")] public string BaseCurrency { get; set; }
+        [JsonPropertyName("metrics_json")] public Dictionary<string, object> Metrics { get; set; }
+    }
+
+    public class IngestRunStartRequestDto
+    {
+        [JsonPropertyName("strategy")] public IngestStrategySeedDto Strategy { get; set; }
+        [JsonPropertyName("instance")] public IngestInstanceSeedDto Instance { get; set; }
+        [JsonPropertyName("run")] public IngestRunSeedDto Run { get; set; }
+    }
+
+    public class IngestRunStartResponseDto
+    {
+        [JsonPropertyName("strategy_id")] public string StrategyId { get; set; }
+        [JsonPropertyName("instance_id")] public string InstanceId { get; set; }
+        [JsonPropertyName("run_id")] public string RunId { get; set; }
+        [JsonPropertyName("run_type")] public string RunType { get; set; }
+        [JsonPropertyName("start_utc")] public DateTime StartUtc { get; set; }
+        [JsonPropertyName("status")] public string Status { get; set; }
+    }
+
     public class StrategyCreateDto
     {
         [JsonPropertyName("strategy_id")] public string StrategyId { get; set; }

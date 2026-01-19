@@ -7,7 +7,7 @@ from datetime import datetime
 from quant_shared.utils.logger import attach_queue_handler, get_logger
 # Import from shared schemas
 from quant_shared.schemas.logging import LogRecord
-from api.log_store import add_log
+from src.api.log_store import add_log
 
 router = APIRouter()
 logger = get_logger("system_router")

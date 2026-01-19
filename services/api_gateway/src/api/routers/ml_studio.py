@@ -9,16 +9,18 @@ import pandas as pd
 import numpy as np
 import uuid
 from datetime import datetime
+import re
 from pydantic import BaseModel, Field, validator
-from api.log_store import get_logs
+from src.api.log_store import get_logs
 import logging
 
 from quant_shared.models.connection import get_db
 from quant_shared.models.models import (
     MlTrainingSession, MlModelArchitecture, MlRewardFunction, 
-    MlTrainingProcess, MlIteration
+    MlTrainingProcess, MlIteration, User, Role
 )
-from services.reconstruction import ArtifactReconstructor
+from src.auth import service
+from src.services.reconstruction import ArtifactReconstructor
 
 router = APIRouter()
 logger = logging.getLogger("ml_studio")
@@ -37,6 +39,82 @@ def _format_dataset_name(dataset: Optional[Any]) -> str:
     if symbol and timeframe:
         return f"{dataset.name} ({symbol} {timeframe})"
     return dataset.name
+
+_METRIC_PROGRESS_RE = re.compile(
+    r"Episode\s+(?P<episode>\d+)\s+progress\s+\|\s+step=(?P<step>\d+)\s+"
+    r"avg_reward=(?P<reward>[-\d.]+)\s+epsilon=(?P<epsilon>[-\d.]+)\s+"
+    r"balance=(?P<balance>[-\d.]+|n/a)(?:\s+loss[:=](?P<loss>[-\d.]+|n/a))?",
+    re.IGNORECASE
+)
+_METRIC_FINISHED_RE = re.compile(
+    r"Episode\s+(?P<episode>\d+)\s+finished\.?\s+Steps:\s+(?P<steps>\d+)\s+"
+    r"Reward:\s+(?P<reward>[-\d.]+)\s+Epsilon:\s+(?P<epsilon>[-\d.]+)\s+"
+    r"Balance:\s+(?P<balance>[-\d.]+|n/a)(?:\s+loss[:=](?P<loss>[-\d.]+|n/a))?",
+    re.IGNORECASE
+)
+
+def _strip_run_prefix(message: str) -> str:
+    return re.sub(r"^\[[^\]]+\]\s*", "", message or "")
+
+def _parse_float(value: Optional[str]) -> Optional[float]:
+    if value is None:
+        return None
+    raw = str(value).strip().lower()
+    if raw in ("n/a", "na", ""):
+        return None
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return None
+
+def _parse_int(value: Optional[str]) -> Optional[int]:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+def _merge_episode_metric(metrics_by_episode: Dict[int, Dict[str, Any]], epoch: int, updates: Dict[str, Any]) -> None:
+    if epoch not in metrics_by_episode:
+        metrics_by_episode[epoch] = {"epoch": epoch}
+    target = metrics_by_episode[epoch]
+    for key, value in updates.items():
+        if value is not None:
+            target[key] = value
+
+def _extract_metrics_from_logs(entries: List[Dict[str, str]]) -> List[Dict[str, Any]]:
+    metrics_by_episode: Dict[int, Dict[str, Any]] = {}
+    for entry in entries:
+        message = _strip_run_prefix(entry.get("message", ""))
+        match = _METRIC_PROGRESS_RE.search(message)
+        if match:
+            epoch = _parse_int(match.group("episode"))
+            if epoch is None:
+                continue
+            _merge_episode_metric(metrics_by_episode, epoch, {
+                "length": _parse_int(match.group("step")),
+                "reward": _parse_float(match.group("reward")),
+                "epsilon": _parse_float(match.group("epsilon")),
+                "balance": _parse_float(match.group("balance")),
+                "loss": _parse_float(match.group("loss")),
+            })
+            continue
+
+        match = _METRIC_FINISHED_RE.search(message)
+        if match:
+            epoch = _parse_int(match.group("episode"))
+            if epoch is None:
+                continue
+            _merge_episode_metric(metrics_by_episode, epoch, {
+                "length": _parse_int(match.group("steps")),
+                "reward": _parse_float(match.group("reward")),
+                "epsilon": _parse_float(match.group("epsilon")),
+                "balance": _parse_float(match.group("balance")),
+                "loss": _parse_float(match.group("loss")),
+            })
+
+    return [metrics_by_episode[k] for k in sorted(metrics_by_episode)]
 
 class ValidateRewardRequest(BaseModel):
     code: str
@@ -98,6 +176,10 @@ class ProcessResponse(BaseModel):
     optimizer: Optional[str] = None
     loss: Optional[str] = None
     fees: Optional[float] = None
+    # [EPSILON-REFACTOR]
+    decay_function: Optional[str] = None
+    decay_scope: Optional[str] = None
+    force_decay_steps: Optional[int] = None
     
     class Config:
         from_attributes = True
@@ -117,6 +199,10 @@ class ProcessCreate(BaseModel):
     optimizer: Optional[str] = "Adam"
     loss: Optional[str] = "huber"
     fees: Optional[float] = Field(default=0.0, ge=0.0)
+    # [EPSILON-REFACTOR]
+    decay_function: Optional[str] = "LINEAR"
+    decay_scope: Optional[str] = "GLOBAL"
+    force_decay_steps: Optional[int] = None
 
 class SessionResponse(BaseModel):
     session_id: str
@@ -170,19 +256,39 @@ class IterationLoggingConfig(BaseModel):
 
 
 @router.get("/functions", response_model=List[FunctionResponse])
-def get_functions(db: Session = Depends(get_db)):
-    return db.query(MlRewardFunction).all()
+def get_functions(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(service.get_current_active_user)
+):
+    query = db.query(MlRewardFunction)
+    if current_user.role != Role.ADMIN:
+        query = query.filter(MlRewardFunction.user_id == current_user.user_id)
+    return query.all()
 
 @router.get("/functions/{fid}", response_model=FunctionResponse)
-def get_function(fid: str, db: Session = Depends(get_db)):
+def get_function(
+    fid: str, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(service.get_current_active_user)
+):
     obj = db.query(MlRewardFunction).filter(MlRewardFunction.function_id == fid).first()
     if not obj: raise HTTPException(404, "Function not found")
+    if obj.user_id != current_user.user_id and current_user.role != Role.ADMIN:
+        raise HTTPException(403, "Not allowed")
     return obj
 
 @router.post("/functions", response_model=FunctionResponse)
-def create_or_update_function(req: FunctionCreate, db: Session = Depends(get_db)):
+def create_or_update_function(
+    req: FunctionCreate, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(service.get_current_active_user)
+):
     # Simple UPSERT based on name for now, or match existing
-    existing = db.query(MlRewardFunction).filter(MlRewardFunction.name == req.name).first()
+    existing = db.query(MlRewardFunction).filter(
+        MlRewardFunction.name == req.name,
+        MlRewardFunction.user_id == current_user.user_id
+    ).first()
+    
     if existing:
         existing.code = req.code
         existing.description = req.description
@@ -196,7 +302,8 @@ def create_or_update_function(req: FunctionCreate, db: Session = Depends(get_db)
         name=req.name,
         code=req.code,
         description=req.description,
-        metadata_json=req.metadata_json or {}
+        metadata_json=req.metadata_json or {},
+        user_id=current_user.user_id
     )
     db.add(new_obj)
     db.commit()
@@ -204,7 +311,11 @@ def create_or_update_function(req: FunctionCreate, db: Session = Depends(get_db)
     return new_obj
 
 @router.post("/functions/validate")
-def validate_reward(req: ValidateRewardRequest, db: Session = Depends(get_db)):
+def validate_reward(
+    req: ValidateRewardRequest, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(service.get_current_active_user)
+):
     from quant_shared.models.models import Dataset, RunSeries, RunSeriesBar, RunSeriesRunLink, MlDatasetSample
 
     def parse_json_like(value: Any) -> Any:
@@ -244,6 +355,20 @@ def validate_reward(req: ValidateRewardRequest, db: Session = Depends(get_db)):
         ds = db.query(Dataset).filter(Dataset.dataset_id == req.dataset_id).first()
         if not ds:
             return {"valid": False, "error": "Dataset not found"}
+        
+        if ds.user_id != current_user.user_id and current_user.role != Role.ADMIN:
+             return {"valid": False, "error": "Not allowed to access this dataset"}
+        
+    # [TENANCY]
+    # Assuming validate_reward is called by user context (dependency injection needed)
+    # But validate_reward signature above didn't have current_user.
+    # I need to add that later or now. 
+    # For this specific block, I'll rely on the function signature update which I missed in previous step?
+    # No, I haven't updated validate_reward signature yet. 
+    # Let's Skip this chunk and do it in next tool calls or handle it properly.
+    # Actually, proper way is to update signature and body.
+    # Multi-replace works best if I target the whole function signature + body start.
+
 
         sources = normalize_sources(ds.sources_json)
         if not sources:
@@ -347,18 +472,81 @@ def validate_reward(req: ValidateRewardRequest, db: Session = Depends(get_db)):
 
 # --- Endpoints: Models, Processes, Sessions ---
 
+@router.get("/trained-models")
+def get_trained_models(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(service.get_current_active_user)
+):
+    from quant_shared.models.models import Dataset
+
+    # Find all COMPLETED iterations for this user's sessions
+    iterations = db.query(MlIteration).join(MlTrainingSession).filter(
+        MlIteration.status == "COMPLETED",
+        (MlTrainingSession.user_id == current_user.user_id) if current_user.role != Role.ADMIN else True
+    ).order_by(MlIteration.end_utc.desc()).all()
+
+    result = []
+    for it in iterations:
+        session = it.session
+        dataset = db.query(Dataset).filter(Dataset.dataset_id == it.dataset_id).first()
+        dataset_name = _format_dataset_name(dataset)
+        
+        # Resolve Algorithm / Model Name
+        algo_parts = []
+        if session.process and session.process.name:
+            algo_parts.append(session.process.name)
+        if session.model and session.model.name:
+            algo_parts.append(session.model.name)
+        algorithm = " + ".join(algo_parts) if algo_parts else "Custom RL"
+
+        # Parse metrics safely
+        metrics = None
+        if it.metrics_json:
+            try:
+                metrics = json.loads(it.metrics_json) if isinstance(it.metrics_json, str) else it.metrics_json
+            except:
+                metrics = {}
+
+        result.append({
+            "iteration_id": it.iteration_id,
+            "name": it.name or session.name, # Fallback to session name
+            "algorithm": algorithm,
+            "dataset": dataset_name,
+            "metrics": metrics,
+            "end_utc": it.end_utc
+        })
+    
+    return result
+
+
 @router.get("/models", response_model=List[ModelResponse])
-def get_models(db: Session = Depends(get_db)):
-    return db.query(MlModelArchitecture).all()
+def get_models(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(service.get_current_active_user)
+):
+    query = db.query(MlModelArchitecture)
+    if current_user.role != Role.ADMIN:
+        query = query.filter(MlModelArchitecture.user_id == current_user.user_id)
+    return query.all()
 
 @router.get("/models/{mid}", response_model=ModelResponse)
-def get_model(mid: str, db: Session = Depends(get_db)):
+def get_model(
+    mid: str, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(service.get_current_active_user)
+):
     obj = db.query(MlModelArchitecture).filter(MlModelArchitecture.model_id == mid).first()
     if not obj: raise HTTPException(404, "Model not found")
+    if obj.user_id != current_user.user_id and current_user.role != Role.ADMIN:
+        raise HTTPException(403, "Not allowed")
     return obj
 
 @router.post("/models", response_model=ModelResponse)
-def create_or_update_model(req: ModelCreate, db: Session = Depends(get_db)):
+def create_or_update_model(
+    req: ModelCreate, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(service.get_current_active_user)
+):
     layers = req.layers_json
     if isinstance(layers, str):
         try:
@@ -371,7 +559,11 @@ def create_or_update_model(req: ModelCreate, db: Session = Depends(get_db)):
     if layers is not None and not isinstance(layers, list):
         raise HTTPException(400, "layers_json must be a list of layer configs")
 
-    existing = db.query(MlModelArchitecture).filter(MlModelArchitecture.name == req.name).first()
+    existing = db.query(MlModelArchitecture).filter(
+        MlModelArchitecture.name == req.name,
+        MlModelArchitecture.user_id == current_user.user_id
+    ).first()
+    
     if existing:
         existing.layers_json = layers or []
         existing.description = req.description
@@ -383,7 +575,8 @@ def create_or_update_model(req: ModelCreate, db: Session = Depends(get_db)):
         model_id=str(uuid.uuid4()),
         name=req.name,
         layers_json=layers or [],
-        description=req.description
+        description=req.description,
+        user_id=current_user.user_id
     )
     db.add(new_obj)
     db.commit()
@@ -391,18 +584,38 @@ def create_or_update_model(req: ModelCreate, db: Session = Depends(get_db)):
     return new_obj
 
 @router.get("/processes", response_model=List[ProcessResponse])
-def get_processes(db: Session = Depends(get_db)):
-    return db.query(MlTrainingProcess).all()
+def get_processes(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(service.get_current_active_user)
+):
+    query = db.query(MlTrainingProcess)
+    if current_user.role != Role.ADMIN:
+        query = query.filter(MlTrainingProcess.user_id == current_user.user_id)
+    return query.all()
 
 @router.get("/processes/{pid}", response_model=ProcessResponse)
-def get_process(pid: str, db: Session = Depends(get_db)):
+def get_process(
+    pid: str, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(service.get_current_active_user)
+):
     obj = db.query(MlTrainingProcess).filter(MlTrainingProcess.process_id == pid).first()
     if not obj: raise HTTPException(404, "Process not found")
+    if obj.user_id != current_user.user_id and current_user.role != Role.ADMIN:
+        raise HTTPException(403, "Not allowed")
     return obj
 
 @router.post("/processes", response_model=ProcessResponse)
-def create_or_update_process(req: ProcessCreate, db: Session = Depends(get_db)):
-    existing = db.query(MlTrainingProcess).filter(MlTrainingProcess.name == req.name).first()
+def create_or_update_process(
+    req: ProcessCreate, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(service.get_current_active_user)
+):
+    existing = db.query(MlTrainingProcess).filter(
+        MlTrainingProcess.name == req.name,
+        MlTrainingProcess.user_id == current_user.user_id
+    ).first()
+    
     if existing:
         for field, value in req.dict(exclude_unset=True).items():
             if field == "name":
@@ -427,7 +640,11 @@ def create_or_update_process(req: ProcessCreate, db: Session = Depends(get_db)):
         window_size=req.window_size,
         optimizer=req.optimizer,
         loss=req.loss,
-        fees=req.fees
+        fees=req.fees,
+        decay_function=req.decay_function,
+        decay_scope=req.decay_scope,
+        force_decay_steps=req.force_decay_steps,
+        user_id=current_user.user_id
     )
     db.add(new_obj)
     db.commit()
@@ -435,10 +652,17 @@ def create_or_update_process(req: ProcessCreate, db: Session = Depends(get_db)):
     return new_obj
 
 @router.get("/sessions", response_model=List[SessionResponse])
-def get_sessions(db: Session = Depends(get_db)):
+def get_sessions(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(service.get_current_active_user)
+):
     from quant_shared.models.models import Dataset
 
-    sessions = db.query(MlTrainingSession).all()
+    query = db.query(MlTrainingSession)
+    if current_user.role != Role.ADMIN:
+        query = query.filter(MlTrainingSession.user_id == current_user.user_id)
+    
+    sessions = query.all()
     response_items = []
     for obj in sessions:
         iterations_data = []
@@ -474,11 +698,17 @@ def get_sessions(db: Session = Depends(get_db)):
     return response_items
 
 @router.get("/sessions/{sid}", response_model=SessionResponse)
-def get_session(sid: str, db: Session = Depends(get_db)):
+def get_session(
+    sid: str, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(service.get_current_active_user)
+):
     from quant_shared.models.models import Dataset
     
     obj = db.query(MlTrainingSession).filter(MlTrainingSession.session_id == sid).first()
     if not obj: raise HTTPException(404, "Session not found")
+    if obj.user_id != current_user.user_id and current_user.role != Role.ADMIN:
+        raise HTTPException(403, "Not allowed")
     
     # Get iterations with dataset names
     iterations_data = []
@@ -515,14 +745,19 @@ def get_session(sid: str, db: Session = Depends(get_db)):
     return response_dict
 
 @router.post("/sessions", response_model=SessionResponse)
-def create_session(session: SessionCreate, db: Session = Depends(get_db)):
+def create_session(
+    session: SessionCreate, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(service.get_current_active_user)
+):
     new_session = MlTrainingSession(
         session_id=str(uuid.uuid4()),
         name=session.name,
         function_id=session.function_id,
         model_id=session.model_id,
         process_id=session.process_id,
-        status="PLANNED"
+        status="PLANNED",
+        user_id=current_user.user_id
     )
     db.add(new_session)
     db.commit()
@@ -530,7 +765,18 @@ def create_session(session: SessionCreate, db: Session = Depends(get_db)):
     return new_session
 
 @router.post("/iterations", response_model=IterationResponse)
-def create_iteration(iteration: IterationCreate, db: Session = Depends(get_db)):
+def create_iteration(
+    iteration: IterationCreate, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(service.get_current_active_user)
+):
+    # Verify session ownership
+    session_obj = db.query(MlTrainingSession).filter(MlTrainingSession.session_id == iteration.session_id).first()
+    if not session_obj:
+        raise HTTPException(404, "Session not found")
+    if session_obj.user_id != current_user.user_id and current_user.role != Role.ADMIN:
+        raise HTTPException(403, "Not allowed")
+
     new_iter = MlIteration(
         iteration_id=str(uuid.uuid4()),
         session_id=iteration.session_id,
@@ -545,10 +791,19 @@ def create_iteration(iteration: IterationCreate, db: Session = Depends(get_db)):
     return new_iter
 
 @router.get("/iterations/{iid}", response_model=IterationResponse)
-def get_iteration(iid: str, db: Session = Depends(get_db)):
+def get_iteration(
+    iid: str, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(service.get_current_active_user)
+):
     obj = db.query(MlIteration).filter(MlIteration.iteration_id == iid).first()
     if not obj:
         raise HTTPException(404, "Iteration not found")
+        
+    # [TENANCY] Check via session
+    if obj.session.user_id != current_user.user_id and current_user.role != Role.ADMIN:
+        raise HTTPException(403, "Not allowed")
+
     ml_core_url = os.getenv("ML_CORE_URL", "http://localhost:5000")
     try:
         res = httpx.get(f"{ml_core_url}/status/{iid}", timeout=2.0)
@@ -565,7 +820,11 @@ def get_iteration(iid: str, db: Session = Depends(get_db)):
     return obj
 
 @router.post("/iterations/{iid}/run")
-def run_iteration(iid: str, db: Session = Depends(get_db)):
+def run_iteration(
+    iid: str, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(service.get_current_active_user)
+):
     def parse_json_like(value: Any) -> Any:
         if isinstance(value, str):
             try:
@@ -575,6 +834,7 @@ def run_iteration(iid: str, db: Session = Depends(get_db)):
                     return ast.literal_eval(value)
                 except (ValueError, SyntaxError):
                     return None
+        return value
         return value
 
     iteration = db.query(MlIteration).filter(MlIteration.iteration_id == iid).first()
@@ -586,6 +846,9 @@ def run_iteration(iid: str, db: Session = Depends(get_db)):
     ).first()
     if not session:
         raise HTTPException(404, "Session not found")
+        
+    if session.user_id != current_user.user_id and current_user.role != Role.ADMIN:
+         raise HTTPException(403, "Not allowed")
 
     process = None
     if session.process_id:
@@ -678,10 +941,17 @@ def run_iteration(iid: str, db: Session = Depends(get_db)):
     return {"status": "RUNNING", "iteration_id": iteration.iteration_id}
 
 @router.post("/iterations/{iid}/stop")
-def stop_iteration(iid: str, db: Session = Depends(get_db)):
+def stop_iteration(
+    iid: str, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(service.get_current_active_user)
+):
     iteration = db.query(MlIteration).filter(MlIteration.iteration_id == iid).first()
     if not iteration:
         raise HTTPException(404, "Iteration not found")
+        
+    if iteration.session.user_id != current_user.user_id and current_user.role != Role.ADMIN:
+        raise HTTPException(403, "Not allowed")
 
     ml_core_url = os.getenv("ML_CORE_URL", "http://localhost:5000")
     try:
@@ -713,11 +983,56 @@ def get_iteration_logs(iid: str, limit: int = 500):
     entries = get_logs(filter_term=iid, limit=limit)
     return [f"{e.get('timestamp')} [{e.get('level')}] {e.get('message')}" for e in entries]
 
+@router.get("/iterations/{iid}/metrics")
+def get_iteration_metrics(
+    iid: str,
+    limit: int = 2000,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(service.get_current_active_user)
+):
+    iteration = db.query(MlIteration).filter(MlIteration.iteration_id == iid).first()
+    if not iteration:
+        raise HTTPException(404, "Iteration not found")
+    if iteration.session.user_id != current_user.user_id and current_user.role != Role.ADMIN:
+        raise HTTPException(403, "Not allowed")
+
+    history: List[Dict[str, Any]] = []
+    source = "logs"
+    if iteration.metrics_json:
+        try:
+            metrics = iteration.metrics_json
+            if isinstance(metrics, str):
+                metrics = json.loads(metrics)
+            if isinstance(metrics, dict) and isinstance(metrics.get("history"), list):
+                history = metrics["history"]
+                source = "metrics_json"
+        except (TypeError, ValueError):
+            history = []
+            source = "logs"
+
+    if not history:
+        entries = get_logs(filter_term=iid, limit=limit)
+        history = _extract_metrics_from_logs(entries)
+
+    return {"iteration_id": iid, "history": history, "source": source}
+
 @router.post("/iterations/{iteration_id}/reconstruct")
-def reconstruct_backtest(iteration_id: str, db: Session = Depends(get_db)):
+def reconstruct_backtest(
+    iteration_id: str, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(service.get_current_active_user)
+):
     """
     Trigger post-processing reconstruction of an ML Backtest into a standard StrategyRun.
     """
+    # [TENANCY]
+    from quant_shared.models.models import MlIteration, MlTrainingSession
+    iteration = db.query(MlIteration).filter(MlIteration.iteration_id == iteration_id).first()
+    if not iteration:
+         raise HTTPException(status_code=404, detail="Iteration not found")
+    if iteration.session.user_id != current_user.user_id and current_user.role != Role.ADMIN:
+        raise HTTPException(status_code=403, detail="Not allowed")
+
     try:
         reconstructor = ArtifactReconstructor(db)
         strategy_run = reconstructor.reconstruct_from_iteration(iteration_id)
@@ -737,7 +1052,11 @@ class TestRunRequest(BaseModel):
     split_config: Dict[str, float]
 
 @router.post("/test", response_model=IterationResponse)
-def start_test_run(req: TestRunRequest, db: Session = Depends(get_db)):
+def start_test_run(
+    req: TestRunRequest, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(service.get_current_active_user)
+):
     """
     Creates a new Iteration based on an existing one, but targeting a specific dataset
     and configured for INFERENCE (Test Mode).
@@ -746,6 +1065,17 @@ def start_test_run(req: TestRunRequest, db: Session = Depends(get_db)):
     source_iter = db.query(MlIteration).filter(MlIteration.iteration_id == req.source_iteration_id).first()
     if not source_iter:
         raise HTTPException(404, "Source iteration not found")
+        
+    if source_iter.session.user_id != current_user.user_id and current_user.role != Role.ADMIN:
+        raise HTTPException(403, "Not allowed")
+        
+    # Check target dataset
+    from quant_shared.models.models import Dataset
+    ds = db.query(Dataset).filter(Dataset.dataset_id == req.target_dataset_id).first()
+    if not ds:
+        raise HTTPException(404, "Target dataset not found")
+    if ds.user_id != current_user.user_id and current_user.role != Role.ADMIN:
+        raise HTTPException(403, "Not allowed")
         
     # 2. Create New Iteration linked to same Session
     new_iter_id = str(uuid.uuid4())

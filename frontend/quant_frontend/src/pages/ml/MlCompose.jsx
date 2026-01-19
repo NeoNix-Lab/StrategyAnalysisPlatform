@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Play, Brain, Layers, Zap, ArrowRight, ExternalLink, Database } from 'lucide-react';
+import api from '../../api/axios';
 
 const MlCompose = () => {
     const navigate = useNavigate();
@@ -18,10 +19,10 @@ const MlCompose = () => {
     useEffect(() => {
         // Load all options
         Promise.all([
-            fetch('/api/ml/studio/functions').then(res => res.json()),
-            fetch('/api/ml/studio/models').then(res => res.json()),
-            fetch('/api/ml/studio/processes').then(res => res.json()),
-            fetch('/api/datasets').then(res => res.json())
+            api.get('/ml/studio/functions').then(res => res.data),
+            api.get('/ml/studio/models').then(res => res.data),
+            api.get('/ml/studio/processes').then(res => res.data),
+            api.get('/datasets').then(res => res.data)
         ]).then(([f, m, p, d]) => {
             setFunctions(f);
             setModels(m);
@@ -35,45 +36,30 @@ const MlCompose = () => {
 
         try {
             // 1. Create Session
-            const sessRes = await fetch('/api/ml/studio/sessions', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    name: sessionName,
-                    function_id: selectedFunction,
-                    model_id: selectedModel,
-                    process_id: selectedProcess
-                })
+            const sessRes = await api.post('/ml/studio/sessions', {
+                name: sessionName,
+                function_id: selectedFunction,
+                model_id: selectedModel,
+                process_id: selectedProcess
             });
 
-            if (sessRes.ok) {
-                const sessData = await sessRes.json();
+            const sessData = sessRes.data;
 
-                // 2. Create Initial Iteration (Bind Dataset)
-                const iterRes = await fetch('/api/ml/studio/iterations', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        session_id: sessData.session_id,
-                        dataset_id: selectedDataset,
-                        name: 'Initial Run',
-                        split_config: { train: 0.7, test: 0.2, work: 0.1 }
-                    })
-                });
+            // 2. Create Initial Iteration (Bind Dataset)
+            const iterRes = await api.post('/ml/studio/iterations', {
+                session_id: sessData.session_id,
+                dataset_id: selectedDataset,
+                name: 'Initial Run',
+                split_config: { train: 0.7, test: 0.2, work: 0.1 }
+            });
 
-                if (iterRes.ok) {
-                    const iterData = await iterRes.json();
-                    navigate(`/ml/studio/session/${sessData.session_id}/run/${iterData.iteration_id}`);
-                } else {
-                    alert("Session created, but failed to create initial iteration.");
-                    navigate(`/ml/studio/session/${sessData.session_id}`);
-                }
-            } else {
-                alert("Failed to create session");
-            }
+            const iterData = iterRes.data;
+            navigate(`/ml/studio/session/${sessData.session_id}/run/${iterData.iteration_id}`);
         } catch (e) {
+            alert("Session created, but failed to create initial iteration (or session failed).");
             console.error(e);
         }
+
     };
 
     return (

@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Box, Play, CheckCircle, Database, Calendar } from 'lucide-react';
+import api from '../../api/axios';
 
 const MlModelRegistry = () => {
     const navigate = useNavigate();
@@ -20,23 +21,11 @@ const MlModelRegistry = () => {
     const fetchModels = async () => {
         try {
             // We fetch all sessions and flatten iterations that are COMPLETED
-            const response = await fetch('/api/ml/studio/sessions');
-            if (response.ok) {
-                const data = await response.json();
-                const completedIterations = [];
+            const response = await api.get('/ml/studio/sessions');
+            // ... (comment about iteration fetching)
 
-                // We need to fetch details for each session to get iterations? 
-                // The list_sessions endpoint might only return summary.
-                // Let's rely on list_sessions first, if it doesn't have iterations, we might need another way.
-                // Actually list_sessions returns summary. We might need a new endpoint /models/completed or client-side aggregation involving N calls (bad).
-                // Let's try to assume we can get them or add an endpoint. 
-                // For now, I will use a dedicated endpoint "GET /api/ml/studio/models" which I will implement in backend.
-
-                const modelsEx = await fetch('/api/ml/studio/trained-models'); // New Endpoint
-                if (modelsEx.ok) {
-                    setModels(await modelsEx.json());
-                }
-            }
+            const modelsEx = await api.get('/ml/studio/trained-models'); // New Endpoint
+            setModels(modelsEx.data);
         } catch (error) {
             console.error(error);
         } finally {
@@ -45,8 +34,12 @@ const MlModelRegistry = () => {
     };
 
     const fetchDatasets = async () => {
-        const res = await fetch('/api/datasets');
-        if (res.ok) setDatasets(await res.json());
+        try {
+            const res = await api.get('/datasets');
+            setDatasets(res.data);
+        } catch (e) {
+            console.error("Failed to fetch datasets", e);
+        }
     };
 
     const openTestModal = (model) => {
@@ -58,20 +51,14 @@ const MlModelRegistry = () => {
         if (!selectedModel || !targetDataset) return;
 
         try {
-            const res = await fetch('/api/ml/studio/test', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    source_iteration_id: selectedModel.iteration_id,
-                    target_dataset_id: targetDataset
-                })
+            const res = await api.post('/ml/studio/test', {
+                source_iteration_id: selectedModel.iteration_id,
+                target_dataset_id: targetDataset
             });
 
-            if (res.ok) {
-                const data = await res.json();
-                // Navigate to the new test run
-                navigate(`/ml/studio/session/${data.session_id}/run/${data.iteration_id}`);
-            }
+            const data = res.data;
+            // Navigate to the new test run
+            navigate(`/ml/studio/session/${data.session_id}/run/${data.iteration_id}`);
         } catch (e) {
             console.error(e);
         }

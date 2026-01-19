@@ -1,0 +1,32 @@
+{
+    "dataset_name": "Example_Training_Data",
+    "description": "Required structure for ML training injection.",
+    "config": {
+        "window_size": 16,
+        "feature_columns": [
+            "open",
+            "high",
+            "low",
+            "close",
+            "volume",
+            "rsi",
+            "macd"
+        ]
+    },
+    "sample_structure": {
+        "group_id": "episode_identifier (string)",
+        "step_index": "sequence_order (int)",
+        "features_json": {
+            "open": "float",
+            "high": "float",
+            "low": "float",
+            "close": "float",
+            "volume": "float",
+            "...": "other_features"
+        },
+        "targets_json": {
+            "optional_label": "float"
+        },
+        "timestamp_utc": "ISO8601 String"
+    }
+}

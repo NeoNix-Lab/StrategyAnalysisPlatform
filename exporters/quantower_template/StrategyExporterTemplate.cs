@@ -8,6 +8,8 @@ using System.Threading.Tasks;
 using TradingPlatform.BusinessLayer;
 using StrategyExporterTemplate.DTOs;
 using StrategyExporterTemplate.Services;
+using StrategyExporter.Services;
+using StrategyExporter.DTOs;
 
 namespace StrategyExporterTemplate
 {
@@ -17,6 +19,7 @@ namespace StrategyExporterTemplate
     /// </summary>
     public class StrategyExporterTemplate : Strategy
     {
+        private const string ApiKey = "2dc8aff8-ce83-4499-a864-733e99be5ea6.r4vLboZDM8wwLQH-jWchpSQhqRyzrZz8eReCHn5h8_k";
         #region //--- ATTRIBUTES ---
         [InputParameter("Symbol", 0)]
         public Symbol InputSymbol;
@@ -38,6 +41,18 @@ namespace StrategyExporterTemplate
 
         [InputParameter("HTTP Export Endpoint", 13)]
         public string HttpExportEndpoint = "http://localhost:8000";
+
+        [InputParameter("Gateway API Key", 14)]
+        public string GatewayApiKey = "";
+
+        [InputParameter("Connection ID", 15)]
+        public string ConnectionId = "";
+
+        [InputParameter("Connection Name", 16)]
+        public string ConnectionName = "";
+
+        [InputParameter("Connection Mode", 17)]
+        public string ConnectionMode = "LIVE";
         #endregion //--- ATTRIBUTES ---
 
         #region //--- FIELDS ---
@@ -50,6 +65,8 @@ namespace StrategyExporterTemplate
         private string _instanceId = string.Empty;
         private string _strategyId = string.Empty;
         private volatile bool _isExporting = false;
+        private ConnectionAdapter _connectionAdapter;
+        private string _connectionId = string.Empty;
         // Removed TCS, we will block OnRun instead
 
         #endregion
@@ -78,6 +95,7 @@ namespace StrategyExporterTemplate
                 // This will block until the Run is successfully created on the backend
                 InitializeExporterSync();
                 this._isExporting = true;
+                InitializeConnectionAdapterSync();
             }
 
             this.historicalData = this.InputSymbol.GetHistory(this.AggregationPeriod, this.loadDataFrom);
@@ -170,6 +188,8 @@ namespace StrategyExporterTemplate
                 _exporter.Dispose();
             }
 
+            StopConnectionAdapterSync();
+
             if (this.historicalData != null)
             {
                 this.historicalData.NewHistoryItem -= this.HistoricalData_NewHistoryItem;
@@ -195,56 +215,62 @@ namespace StrategyExporterTemplate
         #region // --- Export Methods ---
         private void InitializeExporterSync()
         {
-            this._exporter = new HttpExporter(this.HttpExportEndpoint);
+            var apiKey = ResolveGatewayApiKey();
+            this._exporter = new HttpExporter(this.HttpExportEndpoint, apiKey);
             this._buffer = new ExportBuffer(this._exporter, 50); // Batch size 50
 
             try
             {
-                // 1. IDs
-                this._strategyId = this.Name;
-
-                // Deterministic Instance ID based on Parameters
-                string paramsString = $"{this.Name}_{InputAccount.Name}_{InputSymbol.Name}_{AggregationPeriod}";
-                this._instanceId = CreateMD5(paramsString);
-
-                this._runId = Guid.NewGuid().ToString();
-
-                // 2. Strategy - Blocking Calls
-                _exporter.SendAsync("api/ingest/event/strategy_create", new StrategyCreateDto
+                var strategyVersion = this.GetType().Assembly?.GetName()?.Version?.ToString();
+                var strategyParameters = new List<StrategyParameterDto>
                 {
-                    StrategyId = _strategyId,
-                    Name = this.Name,
-                    Notes = this.Description
-                }).GetAwaiter().GetResult();
-
-                // 3. Instance
-                _exporter.SendAsync("api/ingest/event/instance_create", new StrategyInstanceCreateDto
+                    new StrategyParameterDto { Name = "Symbol", Label = "Symbol", TypeHint = "string" },
+                    new StrategyParameterDto { Name = "Account", Label = "Account", TypeHint = "string" },
+                    new StrategyParameterDto { Name = "AggregationPeriod", Label = "Aggregation Period", TypeHint = "string" },
+                    new StrategyParameterDto { Name = "TradeQuantity", Label = "Trade Quantity", TypeHint = "number" }
+                };
+                var instanceParameters = new Dictionary<string, object>
                 {
-                    InstanceId = _instanceId,
-                    StrategyId = _strategyId,
-                    InstanceName = $"{this.Name}_{InputAccount.Name}",
-                    Parameters = new Dictionary<string, object> {
-                            { "Symbol", InputSymbol.Name },
-                            { "Timeframe", AggregationPeriod.ToString() }
-                        },
-                    Symbol = InputSymbol.Name,
-                    Timeframe = AggregationPeriod.ToString(),
-                    AccountId = InputAccount.Name,
-                    Venue = InputAccount.Name
-                }).GetAwaiter().GetResult();
+                    { "Symbol", InputSymbol.Name },
+                    { "Account", InputAccount.Name },
+                    { "AggregationPeriod", AggregationPeriod.ToString() },
+                    { "TradeQuantity", TradeQuantity }
+                };
 
-                // 4. Run
-                _exporter.SendAsync("api/ingest/event/run_start", new StrategyRunCreateDto
+                var startRequest = new IngestRunStartRequestDto
                 {
-                    RunId = _runId,
-                    InstanceId = _instanceId,
-                    RunType = "LIVE", // Default
-                    StartUtc = DateTime.UtcNow,
-                    Status = "RUNNING",
-                    EngineVersion = "0.1.0",
-                    InitialBalance = InputAccount.Balance,
-                    BaseCurrency = InputAccount.AccountCurrency.Id,
-                }).GetAwaiter().GetResult();
+                    Strategy = new IngestStrategySeedDto
+                    {
+                        Name = this.Name,
+                        Version = strategyVersion,
+                        Vendor = "Quantower",
+                        Notes = this.Description,
+                        Parameters = strategyParameters
+                    },
+                    Instance = new IngestInstanceSeedDto
+                    {
+                        InstanceName = $"{this.Name}_{InputAccount.Name}",
+                        Parameters = instanceParameters,
+                        Symbol = InputSymbol.Name,
+                        Symbols = new List<string> { InputSymbol.Name },
+                        Timeframe = AggregationPeriod.ToString(),
+                        AccountId = InputAccount.Name,
+                        Venue = InputAccount.Name
+                    },
+                    Run = new IngestRunSeedDto
+                    {
+                        RunType = string.IsNullOrWhiteSpace(this.ConnectionMode) ? "LIVE" : this.ConnectionMode,
+                        StartUtc = DateTime.UtcNow,
+                        EngineVersion = "0.1.0",
+                        InitialBalance = InputAccount.Balance,
+                        BaseCurrency = InputAccount.AccountCurrency.Id
+                    }
+                };
+
+                var startResponse = _exporter.StartRunAsync(startRequest).GetAwaiter().GetResult();
+                this._strategyId = startResponse.StrategyId;
+                this._instanceId = startResponse.InstanceId;
+                this._runId = startResponse.RunId;
 
                 Core.Instance.Loggers.Log($"{this.Name} Export initialized. RunID: {_runId}", LoggingLevel.System);
             }
@@ -254,6 +280,90 @@ namespace StrategyExporterTemplate
                 // If init fails, we probably shouldn't set _isExporting to true in OnRun, 
                 // but currently OnRun just proceeds. 
                 throw; // Throwing here might stop the strategy, which is good if export is mandatory.
+            }
+        }
+
+        private void InitializeConnectionAdapterSync()
+        {
+            var apiKey = ResolveGatewayApiKey();
+            if (string.IsNullOrWhiteSpace(apiKey))
+            {
+                Core.Instance.Loggers.Log($"{this.Name}: Gateway API key missing. Skipping connection registration.", LoggingLevel.System);
+                return;
+            }
+
+            try
+            {
+                _connectionAdapter = new ConnectionAdapter(this.HttpExportEndpoint, apiKey);
+
+                string accountName = this.InputAccount?.Name ?? "Unknown";
+                string symbolName = this.InputSymbol?.Name ?? "Unknown";
+                _connectionId = string.IsNullOrWhiteSpace(this.ConnectionId)
+                    ? CreateMD5($"{this.Name}_{accountName}_{symbolName}")
+                    : this.ConnectionId;
+
+                string connectionName = string.IsNullOrWhiteSpace(this.ConnectionName)
+                    ? $"{this.Name}_{accountName}"
+                    : this.ConnectionName;
+
+                var connection = new ConnectionCreateDto
+                {
+                    ConnectionId = _connectionId,
+                    Name = connectionName,
+                    Platform = "Quantower",
+                    Mode = string.IsNullOrWhiteSpace(this.ConnectionMode) ? "LIVE" : this.ConnectionMode,
+                    Status = "CONNECTED",
+                    AccountId = accountName,
+                    CapabilitiesJson = new Dictionary<string, object>
+                    {
+                        { "market_data", true },
+                        { "trading", true },
+                        { "positions", true },
+                        { "account", true }
+                    }
+                };
+
+                _connectionAdapter.RegisterAsync(connection).GetAwaiter().GetResult();
+                _connectionAdapter.HeartbeatAsync(_connectionId, new ConnectionHeartbeatDto
+                {
+                    HeartbeatUtc = DateTime.UtcNow,
+                    Status = "CONNECTED"
+                }).GetAwaiter().GetResult();
+
+                Core.Instance.Loggers.Log($"{this.Name}: Connection registered ({_connectionId}).", LoggingLevel.System);
+            }
+            catch (Exception ex)
+            {
+                Core.Instance.Loggers.Log($"{this.Name} Failed to register connection: {ex.Message}", LoggingLevel.Error);
+                _connectionAdapter?.Dispose();
+                _connectionAdapter = null;
+                _connectionId = string.Empty;
+            }
+        }
+
+        private void StopConnectionAdapterSync()
+        {
+            if (_connectionAdapter == null || string.IsNullOrWhiteSpace(_connectionId))
+            {
+                return;
+            }
+
+            try
+            {
+                _connectionAdapter.HeartbeatAsync(_connectionId, new ConnectionHeartbeatDto
+                {
+                    HeartbeatUtc = DateTime.UtcNow,
+                    Status = "DISCONNECTED"
+                }).GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                Core.Instance.Loggers.Log($"{this.Name} Failed to send disconnect heartbeat: {ex.Message}", LoggingLevel.Error);
+            }
+            finally
+            {
+                _connectionAdapter.Dispose();
+                _connectionAdapter = null;
             }
         }
 
@@ -375,6 +485,11 @@ namespace StrategyExporterTemplate
             if (typeId == OrderType.Limit) return "LIMIT";
             if (typeId == OrderType.Stop) return "STOP";
             return "MARKET"; // default
+        }
+
+        private string ResolveGatewayApiKey()
+        {
+            return string.IsNullOrWhiteSpace(this.GatewayApiKey) ? ApiKey : this.GatewayApiKey;
         }
 
         public static string CreateMD5(string input)

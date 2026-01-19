@@ -51,6 +51,17 @@ class RunStatus(enum.Enum):
     FAILED = "FAILED"
     CANCELED = "CANCELED"
 
+class ConnectionStatus(enum.Enum):
+    PENDING = "PENDING"
+    CONNECTED = "CONNECTED"
+    DISCONNECTED = "DISCONNECTED"
+    ERROR = "ERROR"
+    DISABLED = "DISABLED"
+
+class ConnectionMode(enum.Enum):
+    LIVE = "LIVE"
+    PAPER = "PAPER"
+
 class Role(enum.Enum):
     ADMIN = "ADMIN"
     USER = "USER"
@@ -96,8 +107,38 @@ class ApiKey(Base):
     key_hash = Column(String, nullable=False)
     label = Column(String, nullable=True)
     expires_utc = Column(DateTime, nullable=True)
+    scopes_json = Column(JSON, nullable=True)
     
     user = relationship("User", back_populates="api_keys")
+
+class Connection(Base):
+    __tablename__ = 'connections'
+
+    connection_id = Column(String, primary_key=True)  # UUID
+    user_id = Column(String, ForeignKey('users.user_id'), nullable=True)
+
+    name = Column(String, nullable=True)
+    platform = Column(String, nullable=False)  # Quantower, Binance, etc.
+    mode = Column(Enum(ConnectionMode), default=ConnectionMode.LIVE, nullable=False)
+    status = Column(Enum(ConnectionStatus), default=ConnectionStatus.PENDING, nullable=False)
+
+    account_id = Column(String, nullable=True)
+
+    capabilities_json = Column(JSON, nullable=True)
+    config_json = Column(JSON, nullable=True)
+    secrets_json = Column(Text, nullable=True)  # Encrypted payload, never returned via API
+    meta_json = Column(JSON, nullable=True)
+
+    created_utc = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_utc = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    last_heartbeat_utc = Column(DateTime, nullable=True)
+    last_latency_ms = Column(Float, nullable=True)
+
+    __table_args__ = (
+        Index('idx_connections_platform', 'platform'),
+        Index('idx_connections_status', 'status'),
+        Index('idx_connections_user', 'user_id'),
+    )
 
 class Strategy(Base):
     __tablename__ = 'strategies'
@@ -108,6 +149,10 @@ class Strategy(Base):
     vendor = Column(String, nullable=True) # Quantower / Custom
     source_ref = Column(String, nullable=True) # Repo URL / Commit
     created_utc = Column(DateTime, default=datetime.utcnow, nullable=False)
+    
+    # [TENANCY-UPDATE]
+    user_id = Column(String, ForeignKey('users.user_id'), nullable=True)
+    
     notes = Column(Text, nullable=True)
     parameters_json = Column(JSON, nullable=False, default=list)
 
@@ -118,6 +163,9 @@ class StrategyInstance(Base):
 
     instance_id = Column(String, primary_key=True) # UUID
     strategy_id = Column(String, ForeignKey('strategies.strategy_id'), nullable=False)
+    
+    # [TENANCY-UPDATE]
+    user_id = Column(String, ForeignKey('users.user_id'), nullable=True)
     
     instance_name = Column(String, nullable=True)
     parameters_json = Column(JSON, nullable=False)
@@ -365,6 +413,9 @@ class Dataset(Base):
     description = Column(String, nullable=True)
     created_utc = Column(DateTime, default=datetime.utcnow)
     
+    # [TENANCY-UPDATE]
+    user_id = Column(String, ForeignKey('users.user_id'), nullable=True)
+
     # Configuration for reconstructing the dataset
     # e.g. [{"run_id": "...", "start_time": "...", "end_time": "..."}]
     sources_json = Column(JSON, nullable=False) 
@@ -408,6 +459,9 @@ class MlRewardFunction(Base):
     description = Column(String, nullable=True)
     created_utc = Column(DateTime, default=datetime.utcnow)
     
+    # [TENANCY-UPDATE]
+    user_id = Column(String, ForeignKey('users.user_id'), nullable=True)
+
     # Metadata for configuration (Action Space, Status Space, etc.)
     metadata_json = Column(JSON, nullable=True)
 
@@ -419,6 +473,9 @@ class MlModelArchitecture(Base):
     layers_json = Column(JSON, nullable=False) # Config for layers e.g. [{type: 'Dense', ...}]
     description = Column(String, nullable=True)
     created_utc = Column(DateTime, default=datetime.utcnow)
+    
+    # [TENANCY-UPDATE]
+    user_id = Column(String, ForeignKey('users.user_id'), nullable=True)
 
 class MlTrainingProcess(Base):
     __tablename__ = 'ml_training_processes'
@@ -438,6 +495,11 @@ class MlTrainingProcess(Base):
     epsilon_end = Column(Float, default=0.01)
     epsilon_decay = Column(Float, default=0.995)
     
+    # [EPSILON-REFACTOR] New fields for granular control
+    decay_function = Column(String, default="LINEAR") # LINEAR, EXPONENTIAL
+    decay_scope = Column(String, default="GLOBAL")    # GLOBAL, EPISODE, STEP
+    force_decay_steps = Column(Integer, nullable=True) # Manual override
+    
     epochs = Column(Integer, default=50)
     batch_size = Column(Integer, default=32)
     learning_rate = Column(Float, default=0.001)
@@ -445,6 +507,9 @@ class MlTrainingProcess(Base):
     
     description = Column(String, nullable=True)
     created_utc = Column(DateTime, default=datetime.utcnow)
+    
+    # [TENANCY-UPDATE]
+    user_id = Column(String, ForeignKey('users.user_id'), nullable=True)
 
 class MlTrainingSession(Base):
     """
@@ -462,6 +527,9 @@ class MlTrainingSession(Base):
     
     status = Column(String, default="PLANNED") # PLANNED, ACTIVE, ARCHIVED
     created_utc = Column(DateTime, default=datetime.utcnow)
+    
+    # [TENANCY-UPDATE]
+    user_id = Column(String, ForeignKey('users.user_id'), nullable=True)
 
     # Relationships
     function = relationship("MlRewardFunction")
